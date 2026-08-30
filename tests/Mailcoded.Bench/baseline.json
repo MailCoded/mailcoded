@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "generatedUtc": "",
+  "machine": {
+    "id": "",
+    "description": "No reference machine has been baselined yet. Record one with --update-baseline on the machine named in README.md, in a PR that says so explicitly."
+  },
+  "corpus": {
+    "seed": 20260101,
+    "size": 500000,
+    "fingerprint": ""
+  },
+  "regressionTolerance": 0.15,
+  "benchmarks": {
+    "EnvelopePage_Deep": {
+      "p95Ns": 0,
+      "budgetNs": 10000000
+    },
+    "FtsSearch_Cjk": {
+      "p95Ns": 0
+    },
+    "FtsSearch_CommonTerm": {
+      "p95Ns": 0,
+      "budgetNs": 100000000
+    },
+    "FtsSearch_Phrase": {
+      "p95Ns": 0,
+      "budgetNs": 100000000
+    },
+    "Ingest_100k": {
+      "p95Ns": 0,
+      "minRowsPerSecond": 2000,
+      "rows": 100000
+    },
+    "ThreadView_TopFolder": {
+      "p95Ns": 0,
+      "budgetNs": 20000000
+    },
+    "UnreadBadge_AllFolders": {
+      "p95Ns": 0,
+      "budgetNs": 5000000
+    }
+  }
+}

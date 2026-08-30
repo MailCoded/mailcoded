@@ -25,4 +25,8 @@
   <ItemGroup>
     <ProjectReference Include="../Mailcoded.Core/Mailcoded.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Mailcoded.Core.Tests" />
+    <InternalsVisibleTo Include="Mailcoded.Integration" />
+  </ItemGroup>
 </Project>

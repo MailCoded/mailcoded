@@ -15,5 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Mailcoded.Core/Mailcoded.Core.csproj" />
     <ProjectReference Include="../../src/Mailcoded.Daemon/Mailcoded.Daemon.csproj" />
+    <ProjectReference Include="../../src/Mailcoded.Cli/Mailcoded.Cli.csproj" />
+    <ProjectReference Include="../../src/Mailcoded.Mcp/Mailcoded.Mcp.csproj" />
   </ItemGroup>
 </Project>
