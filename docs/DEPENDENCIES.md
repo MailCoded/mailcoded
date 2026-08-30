@@ -119,6 +119,16 @@ Per-entity ordinal maps live next to the entity.
 
 **CI size gate:** warn > 12 MB, fail > 20 MB uncompressed per RID; warn > 6 MB, fail > 10 MB compressed. Archive `.mstat` and publish a size-trend chart. Tighten after the first real measurement with sizoscope (`dotnet tool install sizoscope --global`; artifacts land in `obj/Release/net10.0/<rid>/native/`).
 
+**Measured, 2026-08-30, linux-x64 Release AOT:** `mailcoded-daemon` is **13.3 MB** — over the
+12 MB warning line, under the 20 MB gate — with **zero** IL2xxx/IL3xxx trim or AOT warnings.
+
+**Correction: it is not literally one file.** The AOT output is the executable *plus*
+`libe_sqlite3.so` (1.5 MB), and the daemon cannot start without it. The `SQLite` native package
+ships a static `e_sqlite3.a` for the iOS RIDs only; every desktop RID ships the shared library
+alone, so there is nothing to statically link against. Ship the pair. This costs nothing in
+practice — the GitHub Release archive and the platform-specific VSIX are both directories — but
+"single binary" is the wrong phrase for it and should not appear in user-facing copy.
+
 **Deployment model.** Framework-dependent is disqualified — a VS Code extension cannot assume .NET 10 on the user's machine, and download-on-first-run trades a one-time size saving for a recurring reliability liability. Native AOT (~9-16 MB, fastest start, lowest memory) is the right call.
 
 **VSIX delivery:** ship **platform-specific VSIX targets** (`win32-x64`, `darwin-arm64`, `darwin-x64`, `linux-x64`) so each user downloads only their RID's daemon. Never one fat multi-RID VSIX (~40-65 MB and wasteful). Code-sign (Authenticode / Azure Trusted Signing on Windows, Apple notarization on macOS) — zipped AOT binaries trip Defender heuristics even without UPX.

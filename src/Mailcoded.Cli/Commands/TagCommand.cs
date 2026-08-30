@@ -40,6 +40,7 @@ internal static class TagCommand
         var local = line.Flag("local");
 
         IMailProvider? provider = null;
+        string? deferReason = null;
         if (!local)
         {
             var account = host.Store.GetAccount(envelope.AccountId, ct)
@@ -47,7 +48,16 @@ internal static class TagCommand
                     FailureCategory.NotFound,
                     $"Message {id.Value} belongs to account {envelope.AccountId.Value}, which is gone.");
 
-            provider = await host.ConnectProviderAsync(account, ct).ConfigureAwait(false);
+            try
+            {
+                provider = await host.ConnectProviderAsync(account, ct).ConfigureAwait(false);
+            }
+            catch (ProviderException ex) when (ex.Category is not FailureCategory.Auth)
+            {
+                // A Tag is local state. Losing the local write because the server is unreachable
+                // would defeat the point of a local-first store.
+                deferReason = ex.Category.ToString().ToLowerInvariant();
+            }
         }
 
         var delta = new TagDelta { Add = add, Remove = remove };
@@ -64,12 +74,16 @@ internal static class TagCommand
             JsonFields.WriteTags(writer, "tags", result.Tags);
             JsonFields.WriteFlags(writer, "flags", result.Flags);
             writer.WriteBoolean("pushed_to_server", result.PushedToServer);
+            var reason = result.PushDeferredReason ?? deferReason;
+            if (reason is not null) writer.WriteString("push_deferred_reason", reason);
             output.EndJson(writer);
             return ExitCodes.Ok;
         }
 
         output.Line($"{id.Value}: {JsonFields.Tags(result.Tags)}");
         output.Line($"flags: {JsonFields.Flags(result.Flags)}  pushed_to_server={(result.PushedToServer ? "true" : "false")}");
+        if ((result.PushDeferredReason ?? deferReason) is { } why)
+            output.Line($"the server push was deferred ({why}); the local tags are saved.");
         return ExitCodes.Ok;
     }
 }

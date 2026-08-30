@@ -65,6 +65,9 @@ public sealed record TagsSetResult
     public required IReadOnlyList<Tag> Tags { get; init; }
     public MessageFlags Flags { get; init; }
     public bool PushedToServer { get; init; }
+
+    /// <summary>Why the server push did not happen, when it did not. Null on success.</summary>
+    public string? PushDeferredReason { get; init; }
 }
 
 /// <summary>message.get with lazy body fetch, thread.get, attachment.get, message.move, tags.set.</summary>
@@ -274,7 +277,12 @@ public sealed class MessageService
             ct).ConfigureAwait(false);
     }
 
-    /// <summary>Merges the delta, writes tags locally, pushes the projected flags, then audits.</summary>
+    /// <summary>
+    /// Merges the delta, commits it locally, then pushes the projected Flags best-effort.
+    /// The local write comes first on purpose: a Tag is local state and must survive an offline
+    /// or unreachable server, and invariant 9 already says the server wins on Flags at the next
+    /// sync, so a failed push loses nothing a later sync would not have overwritten anyway.
+    /// </summary>
     public async Task<TagsSetResult> SetTagsAsync(
         IMailProvider? provider,
         LocalMessageId id,
@@ -295,13 +303,6 @@ public sealed class MessageService
         var desired = TagFlagMap.Apply(current, delta);
         var flagDelta = TagFlagMap.Project(delta, acceptsKeywords);
 
-        var pushed = false;
-        if (provider is not null && !flagDelta.IsEmpty && envelope.Uid is { } uid)
-        {
-            await provider.SetFlagsAsync(new FolderRef(folder.Id, folder.Path), uid, flagDelta, ct).ConfigureAwait(false);
-            pushed = true;
-        }
-
         var flags = (envelope.Flags | flagDelta.Add) & ~flagDelta.Remove;
         if (flags != envelope.Flags && envelope.Uid is { } localUid)
         {
@@ -320,10 +321,42 @@ public sealed class MessageService
 
         await _store.SetTagsAsync(id, custom, ct).ConfigureAwait(false);
 
+        var pushed = false;
+        string? deferred = null;
+        if (provider is null || flagDelta.IsEmpty || envelope.Uid is null)
+        {
+            deferred = flagDelta.IsEmpty ? null : "no provider connection";
+        }
+        else
+        {
+            try
+            {
+                await provider.SetFlagsAsync(new FolderRef(folder.Id, folder.Path), envelope.Uid.Value, flagDelta, ct)
+                    .ConfigureAwait(false);
+                pushed = true;
+            }
+            catch (ProviderException ex)
+            {
+                deferred = ex.Category.ToString().ToLowerInvariant();
+                await _audit.WarnAsync(
+                    "flag_push_deferred",
+                    envelope.AccountId,
+                    caller,
+                    $"message={id.Value} category={deferred}",
+                    ct).ConfigureAwait(false);
+            }
+        }
+
         var resulting = TagFlagMap.ToTags(flags, ToKeywordStrings(custom));
         await _audit.TagsAsync(envelope.AccountId, caller, id, delta, resulting, ct).ConfigureAwait(false);
 
-        return new TagsSetResult { Tags = resulting, Flags = flags, PushedToServer = pushed };
+        return new TagsSetResult
+        {
+            Tags = resulting,
+            Flags = flags,
+            PushedToServer = pushed,
+            PushDeferredReason = deferred,
+        };
     }
 
     /// <summary>Streams the fetch through a staging file so a 100 MB message never becomes a byte[].</summary>

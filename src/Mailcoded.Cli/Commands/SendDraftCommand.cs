@@ -24,6 +24,12 @@ internal static class SendDraftCommand
         var record = host.Store.GetOutbox(draftId, ct)
             ?? throw new StoreException(FailureCategory.NotFound, $"No draft with id {draftId}.");
 
+        // The gate runs before anything opens a connection or reads account configuration, so a
+        // denied caller learns only that send is closed.
+        host.Policy
+            .EvaluateSend(host.Caller, record.Envelope?.AllRecipients() ?? [])
+            .ThrowIfDenied();
+
         var account = host.Store.GetAccount(record.AccountId, ct)
             ?? throw new StoreException(
                 FailureCategory.NotFound,
