@@ -88,6 +88,49 @@ public sealed class EmailAddressTests
         Assert.False(EmailAddress.TryParse(new string('a', 65) + "@example.com", out _));
         Assert.False(EmailAddress.TryParse("user@" + new string('a', 260) + ".com", out _));
         Assert.False(EmailAddress.TryParse(new string('a', 400) + "@example.com", out _));
+
+        Assert.False(
+            EmailAddress.TryParse(new string('a', 64) + "@" + new string('b', 251) + ".com", out _),
+            "Both parts sit at their own limits and the address is still 320 characters, which no SMTP path may "
+            + "carry. The total length is its own rule, not the sum of the 64 and 255 part limits.");
+    }
+
+    [Fact]
+    public void The_longest_legal_address_still_parses()
+    {
+        var longest = new string('a', 64) + "@" + new string('b', 185) + ".com";
+
+        Assert.Equal(EmailAddress.MaxLength, longest.Length);
+        Assert.True(EmailAddress.TryParse(longest, out _));
+    }
+
+    [Theory]
+    [InlineData("a@b@c.com")]
+    [InlineData("victim@example.com%0d%0aBcc:attacker@evil.com")]
+    [InlineData("user@@example.com")]
+    [InlineData("@user@example.com")]
+    [InlineData("user@example.com@")]
+    public void An_address_with_more_than_one_unquoted_at_sign_is_rejected(string raw)
+    {
+        Assert.False(
+            EmailAddress.TryParse(raw, out _),
+            "The parser split on the LAST '@' while LocalPart and Domain split on the first, so an accepted value "
+            + "reported parts that were never the ones validated. An addr-spec has exactly one separator.");
+    }
+
+    [Theory]
+    [InlineData("user@example.com")]
+    [InlineData("first.last+tag@sub.example.co.nz")]
+    [InlineData("\"quoted@local\"@example.com")]
+    [InlineData("a@b.co")]
+    public void The_accessors_report_the_parts_the_parser_validated(string raw)
+    {
+        var address = EmailAddress.Parse(raw);
+
+        Assert.Equal(address.Value, string.Concat(address.LocalPart, "@", address.Domain));
+        Assert.False(address.Domain.Contains('@'), "the domain swallowed the separator");
+        Assert.True(address.LocalPart.Length is > 0 and <= EmailAddress.MaxLocalPartLength);
+        Assert.True(address.Domain.Length is > 0 and <= EmailAddress.MaxDomainLength);
     }
 
     [Fact]

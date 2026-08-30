@@ -313,9 +313,8 @@ public sealed class SyncEngine
 
             if (plan is SyncPlan.UpToDate) break;
 
-            // Planning again without a clock disables the periodic rule: a full diff that survives
-            // it is one no delta path could have served.
-            if (plan is SyncPlan.FullDiff && SyncPlanner.Plan(state, info, caps) is SyncPlan.FullDiff)
+            // A cadence-driven full diff is not degraded; only one with no delta path behind it is.
+            if (plan is SyncPlan.FullDiff && SyncPlanner.NoDeltaPathAvailable(state, info, caps))
             {
                 degraded = true;
                 await _audit.DegradedSyncAsync(account.Id, folder.Path, "no usable QRESYNC or CONDSTORE path", ct)
@@ -419,7 +418,8 @@ public sealed class SyncEngine
 
             if (e is SyncEvent.BatchComplete complete) checkpointModSeq = complete.HighestModSeq;
 
-            var flush = await FlushAsync(provider, account, folder, state, info, pending, null, plannedCursor, ct)
+            var flush = await FlushAsync(
+                provider, account, folder, state, info, pending, null, plannedCursor, backfillComplete: false, ct)
                 .ConfigureAwait(false);
 
             pending.Clear();
@@ -438,14 +438,21 @@ public sealed class SyncEngine
         }
 
         Uid? nextCursor = null;
+        var backfillComplete = false;
         if (!requiresReplan)
         {
             if (plan is SyncPlan.Backfill backfill)
+            {
                 nextCursor = backfill.FromUid.Value > 1 ? backfill.FromUid : null;
+                backfillComplete = nextCursor is null;
+            }
             else
+            {
                 nextCursor = state.BackfillCursor;
+            }
 
-            var final = await FlushAsync(provider, account, folder, state, info, pending, checkpointModSeq, nextCursor, ct)
+            var final = await FlushAsync(
+                provider, account, folder, state, info, pending, checkpointModSeq, nextCursor, backfillComplete, ct)
                 .ConfigureAwait(false);
 
             batches++;
@@ -468,6 +475,7 @@ public sealed class SyncEngine
         List<SyncEvent> events,
         ModSeq? reportedModSeq,
         Uid? backfillCursor,
+        bool backfillComplete,
         CancellationToken ct)
     {
         var response = new ServerResponse
@@ -475,6 +483,7 @@ public sealed class SyncEngine
             Events = events.ToArray(),
             ReportedHighestModSeq = reportedModSeq,
             NextBackfillCursor = backfillCursor,
+            BackfillComplete = backfillComplete,
             PermanentFlagsAllowCustomKeywords = info.PermanentFlagsAllowCustomKeywords,
         };
 

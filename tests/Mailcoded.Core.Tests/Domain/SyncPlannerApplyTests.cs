@@ -209,19 +209,44 @@ public sealed class SyncPlannerApplyTests
     }
 
     [Fact]
-    public void The_backfill_cursor_comes_only_from_the_response()
+    public void A_batch_that_says_nothing_about_the_backfill_leaves_the_cursor_where_it_was()
     {
         var state = State(modSeq: 100, highestUid: 50, backfillCursor: 5_000);
 
         var carried = SyncPlanner.Apply(state, new ServerResponse { Events = [], NextBackfillCursor = new Uid(4_000) });
-        var cleared = SyncPlanner.Apply(state, ServerResponse.Of());
+        var silent = SyncPlanner.Apply(state, ServerResponse.Of());
+        var finished = SyncPlanner.Apply(state, new ServerResponse { Events = [], BackfillComplete = true });
 
         Assert.Equal(new Uid(4_000), carried.Next.BackfillCursor);
         Assert.True(
-            cleared.Next.BackfillCursor is null,
-            "The response is authoritative for the backfill cursor: a batch that says nothing marks the backfill "
-            + "COMPLETE. Every provider batch during a backfill must restate NextBackfillCursor or the remaining "
-            + "window is dropped on the floor.");
+            silent.Next.BackfillCursor == new Uid(5_000),
+            "Silence is not completion. A batch that does not restate the cursor used to clear it, so the next "
+            + "Plan() saw no backfill outstanding and declared a half-enumerated 500k mailbox fully synced.");
+        Assert.True(
+            finished.Next.BackfillCursor is null,
+            "Only the provider explicitly declaring the backfill finished ends it.");
+    }
+
+    [Fact]
+    public void A_half_finished_backfill_survives_a_cursor_less_batch_and_is_replanned()
+    {
+        var state = State(modSeq: 100, highestUid: 50, backfillCursor: 5_000);
+        var server = new ServerFolderInfo
+        {
+            Path = FolderPath.Create("INBOX"),
+            UidValidity = new UidValidity(42),
+            HighestModSeq = new ModSeq(200),
+            UidNext = new Uid(500_001),
+            TotalCount = 500_000,
+        };
+
+        var next = SyncPlanner.Apply(state, ServerResponse.Of(Added(4_999, 150))).Next;
+
+        Assert.IsType<SyncPlan.Backfill>(SyncPlanner.Plan(
+            next,
+            server,
+            new ServerCaps { Qresync = true, Condstore = true },
+            new DateTimeOffset(2026, 1, 15, 12, 0, 0, TimeSpan.Zero)));
     }
 
     [Fact]

@@ -6,11 +6,17 @@ namespace Mailcoded.Core.Domain.Primitives;
 /// </summary>
 public readonly record struct EmailAddress
 {
+    /// <summary>RFC 5321 §4.5.3.1: the whole path, plus the two part limits it is not the sum of.</summary>
+    public const int MaxLength = 254;
+
+    public const int MaxLocalPartLength = 64;
+    public const int MaxDomainLength = 255;
+
     public string Value { get; }
     private EmailAddress(string value) => Value = value;
 
-    public string LocalPart => Value[..Value.IndexOf('@')];
-    public string Domain => Value[(Value.IndexOf('@') + 1)..];
+    public string LocalPart => Value[..Value.LastIndexOf('@')];
+    public string Domain => Value[(Value.LastIndexOf('@') + 1)..];
 
     public static bool TryParse(string? raw, out EmailAddress address)
     {
@@ -18,18 +24,18 @@ public readonly record struct EmailAddress
         if (string.IsNullOrWhiteSpace(raw)) return false;
 
         var s = raw.Trim();
-        if (s.Length > 320) return false;
+        if (s.Length > MaxLength) return false;
 
         foreach (var c in s)
             if (c is '\r' or '\n' or '\0' || char.IsControl(c)) return false;
 
-        var at = s.LastIndexOf('@');
+        var at = SingleUnquotedAt(s);
         if (at <= 0 || at == s.Length - 1) return false;
 
         var local = s[..at];
         var domain = s[(at + 1)..];
-        if (local.Length > 64) return false;
-        if (domain.Length == 0 || domain.Length > 255) return false;
+        if (local.Length > MaxLocalPartLength) return false;
+        if (domain.Length == 0 || domain.Length > MaxDomainLength) return false;
         if (domain.IndexOf('.') < 0) return false;
         if (domain.StartsWith('.') || domain.EndsWith('.') || domain.Contains("..", StringComparison.Ordinal)) return false;
         if (domain.StartsWith('-') || domain.EndsWith('-')) return false;
@@ -41,6 +47,32 @@ public readonly record struct EmailAddress
 
         address = new EmailAddress(string.Concat(local, "@", domain.ToLowerInvariant()));
         return true;
+    }
+
+    /// <summary>The index of the one separator, or -1 when the string carries none or several.</summary>
+    private static int SingleUnquotedAt(string s)
+    {
+        var at = -1;
+        var quoted = false;
+
+        for (var i = 0; i < s.Length; i++)
+        {
+            var c = s[i];
+            if (quoted && c == '\\')
+            {
+                i++;
+                continue;
+            }
+
+            if (c == '"') quoted = !quoted;
+            else if (c == '@' && !quoted)
+            {
+                if (at >= 0) return -1;
+                at = i;
+            }
+        }
+
+        return quoted ? -1 : at;
     }
 
     public static EmailAddress Parse(string raw) =>

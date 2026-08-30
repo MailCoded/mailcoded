@@ -69,13 +69,15 @@ rest is searched. Check that array before trusting a surprisingly empty result.
   `--folder <id>`, `--order relevance|date`, `--no-snippet` (much shorter output).
 - `read`: `--max-chars <n>` (default 20000), `--skip-chars <n>`, `--no-fetch` (stay
   offline), `--plaintext` (a no-op; plaintext is the only body format).
-- `thread`: `--limit <1..1000>` (default 200).
+- `thread`: `--limit <1..1000>` (default 200). That is the CLI's range; the MCP `thread` tool caps
+  at 500, and the daemon defaults to 500 — pass `--limit` explicitly rather than assuming.
 - `tag`: `--local` applies locally without opening a connection. The server wins on
   `unread`/`flagged`/`replied`/`draft`, so a `--local` change to those is reverted by the
   next sync; use `--local` for custom Tags such as `+triaged`.
 - `draft`: `--to`/`--cc`/`--bcc` (repeatable), `--subject`, `--body-file <path>` or
   `--body-stdin`, `--from`, `--reply-to <local message id>`, `--in-reply-to <Message-ID>`,
-  `--account <id>`.
+  `--account <id>`. `--body-file` rejects a file over 1 MiB and `--body-stdin` over 1,048,576
+  characters; that is a CLI limit only — the MCP `draft` tool enforces no body size at all.
 - `send-draft`: `--confirm-token <t>` (required), `--no-append` (skip the Sent copy).
 - Global on every verb: `--json`, `--quiet`, `--db <path>`, `--data-dir <path>`, `--help`.
 
@@ -88,13 +90,17 @@ Every JSON document starts with `schema_version`, `ok`, and `command`. Errors go
 `error.code` (RPC numeric), `error.name`, `error.exit_code`, `error.message`,
 `retry_after_ms`, and sometimes `hint`.
 
-Listing verbs carry `truncated` and `next_cursor`:
+Listing verbs carry `truncated` and `next_cursor`. **`truncated` is not a loss warning — read
+it together with `next_cursor`:**
 
 - `truncated: false` — you have everything.
-- `truncated: true` with a non-null `next_cursor` — call again with `--cursor <value>`,
-  passing it back verbatim and unmodified, and keeping the query identical.
-- `truncated: true` with `next_cursor: null` — the rest is not reachable by paging.
-  Narrow the query or use `--order date` instead of raising `--limit`.
+- `truncated: true` with a non-null `next_cursor` — **there is another page, and nothing was
+  lost.** Every remaining match is still reachable. Call again with `--cursor <value>`, passing it
+  back verbatim and unmodified, and keeping the query identical. Keep going until `truncated` is
+  false. Stopping here is how you silently miss mail.
+- `truncated: true` with `next_cursor: null` — **this** is the loss case: matches were dropped
+  that no further call can reach. Narrow the query or use `--order date`, whose cursor reaches any
+  depth, instead of raising `--limit`.
 
 Per-verb: `search` pages with `--cursor`. `read` returns a body slice; its `next_cursor`
 is a character offset — continue with `--skip-chars <offset>`. `thread` and `query`

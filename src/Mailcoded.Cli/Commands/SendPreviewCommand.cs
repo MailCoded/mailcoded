@@ -40,8 +40,8 @@ internal static class SendPreviewCommand
         var recipients = envelope.AllRecipients();
         var gate = host.Policy.EvaluateSend(host.Caller, recipients);
         var digest = AuditText.Digest(record.Raw);
-        var token = host.Tokens.Issue(record.Id, record.MessageId, digest);
-        var expiresUtc = host.Clock.UtcNow + host.Tokens.Lifetime;
+        var grant = await host.Tokens.IssueAsync(record.Id, record.MessageId, digest, ct).ConfigureAwait(false);
+        var expiresUtc = grant.ExpiresUtc;
 
         await host.Audit.SendAsync(
             new SendAuditRecord
@@ -74,9 +74,9 @@ internal static class SendPreviewCommand
             writer.WriteNumber("recipient_count", recipients.Count);
             writer.WriteNumber("size_bytes", record.Raw.LongLength);
             JsonFields.WriteDate(writer, "created_utc", record.CreatedUtc);
-            writer.WriteString("confirm_token", token);
+            writer.WriteString("confirm_token", grant.Token);
             JsonFields.WriteDate(writer, "confirm_token_expires_utc", expiresUtc);
-            writer.WriteString("confirm_token_scope", "process");
+            writer.WriteString("confirm_token_scope", "store");
 
             writer.WriteStartObject("send");
             writer.WriteBoolean("enabled", gate.Allowed);
@@ -98,7 +98,7 @@ internal static class SendPreviewCommand
         if (envelope.Bcc.Count > 0) output.Line($"bcc:           {Join(envelope.Bcc)}");
         output.Line($"size:          {record.Raw.LongLength} bytes");
         output.Line($"send gate:     {gate.Label}");
-        output.Line($"confirm_token: {token}");
+        output.Line($"confirm_token: {grant.Token}");
         output.Line($"expires:       {JsonFields.Iso(expiresUtc)}");
         foreach (var note in Notes(gate.Allowed)) output.Line("note: " + note);
         return ExitCodes.Ok;
@@ -109,8 +109,8 @@ internal static class SendPreviewCommand
         var notes = new List<string>(3)
         {
             "Show this preview to the human and let the human decide before running send-draft.",
-            "The token is held in this process only, so send-draft must run against a session that "
-            + "issued it; a fresh one-shot invocation will be refused with error 1003.",
+            "The token is single use, expires at the time shown, and is bound to these exact bytes: "
+            + "editing the draft or sending it twice is refused with error 1003.",
         };
 
         if (!allowed)

@@ -43,11 +43,18 @@ dotnet build Mailcoded.slnx           # or: scripts/build.sh
 Requires the .NET 10 SDK. On NixOS/WSL, `nix develop` first.
 
 The three executables are `mailcoded` (CLI), `mailcoded-daemon` (JSON-RPC daemon), and
-`mailcoded-mcp` (MCP adapter). Native AOT single-file publishing is wired up and exercised in CI:
+`mailcoded-mcp` (MCP adapter). Native AOT publishing is wired up and exercised in CI:
 
 ```bash
 dotnet publish src/Mailcoded.Daemon -c Release -r linux-x64 /p:PublishAot=true
 ```
+
+It is **not a single binary**, and nothing here should call it one. The only measurement this
+project has actually taken is the publish output: on 2026-08-30 the linux-x64 Release AOT
+`mailcoded-daemon` came out at **13.3 MB with zero trim or AOT warnings**, and it ships alongside
+`libe_sqlite3.so` (~1.5 MB) and will not start without it. Desktop RIDs get only the shared
+library from the SQLite native package — there is no static `e_sqlite3.a` to link — so distribute
+the pair. Details in [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).
 
 ## Quick start
 
@@ -194,11 +201,13 @@ please do not quote them as results.**
 
 The BenchmarkDotNet harness that will produce the real numbers lives in
 [`tests/Mailcoded.Bench`](tests/Mailcoded.Bench) — fixed-seed 500k synthetic corpus (~10% CJK),
-gates on absolute budgets plus a 15%-regression rule against a committed baseline. It has **not**
-been run on a reference machine: `baseline.json` currently ships `p95Ns: 0` for every benchmark,
-which the gate reports as "not baselined" rather than silently passing. When a reference machine is
-recorded — exact CPU, RAM, storage, OS build, .NET version — this section gets numbers and a link
-to the methodology, and not before.
+gates on absolute budgets plus a 15%-regression rule against a committed baseline.
+
+**The suite has never been run on reference hardware.**
+`baseline.json` is committed with `p95Ns: 0` for every benchmark deliberately, so the gate reports
+"not baselined" rather than silently passing. When a reference machine is recorded — exact CPU,
+RAM, storage, OS build, .NET version — this section gets numbers and a link to the methodology,
+and not before.
 
 ```bash
 dotnet run -c Release --project tests/Mailcoded.Bench
@@ -308,4 +317,4 @@ dotnet test tests/Mailcoded.Integration     # needs Docker
 
 ## License
 
-MIT. The `LICENSE` file lands with the first tagged release.
+MIT — see [LICENSE](LICENSE).

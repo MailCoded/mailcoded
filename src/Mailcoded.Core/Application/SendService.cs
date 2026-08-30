@@ -128,6 +128,9 @@ public sealed class SendService
         _policy = policy;
         _tokens = tokens;
         _defaults = options ?? SendOptions.Default;
+
+        // A confirm token has to outlive the one-shot CLI process that minted it.
+        tokens.AttachStore(store);
     }
 
     public IReadOnlyList<OutboxRecord> ListOutbox(OutboxState? state = null, CancellationToken ct = default) =>
@@ -190,7 +193,7 @@ public sealed class SendService
             ct).ConfigureAwait(false);
 
         var digest = AuditText.Digest(raw);
-        var token = _tokens.Issue(outboxId, messageId, digest);
+        var grant = await _tokens.IssueAsync(outboxId, messageId, digest, ct).ConfigureAwait(false);
 
         var gate = _policy.EvaluateSend(caller, recipients);
 
@@ -214,7 +217,7 @@ public sealed class SendService
         {
             OutboxId = outboxId,
             MessageId = messageId,
-            ConfirmToken = token,
+            ConfirmToken = grant.Token,
             TokenLifetimeMs = (long)_tokens.Lifetime.TotalMilliseconds,
             From = from,
             To = draft.To,
@@ -264,7 +267,11 @@ public sealed class SendService
             gate.ThrowIfDenied();
         }
 
-        if (!_tokens.TryConsume(confirmToken, outboxId, record.MessageId, digest))
+        var consumed = await _tokens
+            .TryConsumeAsync(confirmToken, outboxId, record.MessageId, digest, ct)
+            .ConfigureAwait(false);
+
+        if (!consumed)
         {
             await AuditAttemptAsync(caller, record, digest, "denied", envelope.Recipients.Count, false, "confirm-required", AuditLog.LevelWarn, ct)
                 .ConfigureAwait(false);

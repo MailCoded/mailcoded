@@ -22,9 +22,11 @@ public sealed class HostBoundaryTests
     /// <summary>Verbs that must not name anything an agent can invoke (CLAUDE invariant 5).</summary>
     private static readonly string[] RemovalVerbs = ["delete", "expunge", "trash", "purge"];
 
+    // Both entries evict expired one-time send tokens from confirm_tokens. Neither touches mail.
     private static readonly string[] NonMailRemovalAllowlist =
     [
         "ConfirmTokenStore.Purge",
+        "ConfirmTokenStore.PurgeAsync",
     ];
 
     [Fact]

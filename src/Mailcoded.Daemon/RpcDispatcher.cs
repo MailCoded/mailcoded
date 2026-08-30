@@ -28,6 +28,10 @@ internal sealed class RpcDispatcher
         RpcMethods.Health, RpcMethods.Shutdown,
     ];
 
+    /// <summary>Before initialize the caller is the most restricted kind, never the permissive 'rpc' one:
+    /// skipping the handshake must not buy more capability (no HTML bodies, no move, gated send).</summary>
+    private const CallerKind UninitializedKind = CallerKind.Mcp;
+
     private static readonly string[] SupportedNotifications =
         [RpcNotifications.MailAdded, RpcNotifications.FolderUpdated, RpcNotifications.SyncError];
 
@@ -44,7 +48,7 @@ internal sealed class RpcDispatcher
 
         this.host = host;
         this.log = log;
-        caller = CallerContext.For(CallerKind.Rpc, CallerContext.DetectAgentHost());
+        caller = CallerContext.For(UninitializedKind, CallerContext.DetectAgentHost());
     }
 
     public bool ShutdownRequested => Volatile.Read(ref shutdownRequested) != 0;

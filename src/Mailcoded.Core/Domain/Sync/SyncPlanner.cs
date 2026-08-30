@@ -24,7 +24,7 @@ public static class SyncPlanner
     /// </summary>
     public static readonly TimeSpan CondstoreFullDiffInterval = TimeSpan.FromHours(24);
 
-    public static SyncPlan Plan(FolderState local, ServerFolderInfo server, ServerCaps caps, DateTimeOffset nowUtc = default)
+    public static SyncPlan Plan(FolderState local, ServerFolderInfo server, ServerCaps caps, DateTimeOffset nowUtc)
     {
         ArgumentNullException.ThrowIfNull(local);
         ArgumentNullException.ThrowIfNull(server);
@@ -38,32 +38,17 @@ public static class SyncPlanner
         if (local.BackfillCursor is { } cursor)
             return BackfillFrom(cursor);
 
-        var qresyncUsable = caps.Qresync
-            && !caps.Quirks.HasFlag(ServerQuirks.QresyncBroken)
-            && !local.HighestModSeq.IsUnknown
-            && !server.HighestModSeq.IsUnknown;
-
-        // 4: HIGHESTMODSEQ went backwards — the server's MODSEQ is not monotonic, so no delta path is safe.
-        var modSeqWentBackwards = !server.HighestModSeq.IsUnknown
-            && !local.HighestModSeq.IsUnknown
-            && server.HighestModSeq < local.HighestModSeq;
-
-        if (modSeqWentBackwards)
+        if (ModSeqWentBackwards(local, server))
             return SyncPlan.Full(local.KnownUidsOrEmpty());
 
-        if (qresyncUsable)
+        if (QresyncUsable(local, server, caps))
         {
             return server.HighestModSeq == local.HighestModSeq && NoNewMessages(local, server)
                 ? SyncPlan.NoWork
                 : SyncPlan.Qresync(local.HighestModSeq, local.UidValidity, local.HighestKnownUid);
         }
 
-        var condstoreUsable = caps.Condstore
-            && !caps.Quirks.HasFlag(ServerQuirks.CondstoreBroken)
-            && !local.HighestModSeq.IsUnknown
-            && server.HighestModSeq > ModSeq.Zero;
-
-        if (condstoreUsable)
+        if (CondstoreUsable(local, server, caps))
         {
             if (FullDiffIsDue(local, nowUtc))
                 return SyncPlan.Full(local.KnownUidsOrEmpty());
@@ -93,6 +78,36 @@ public static class SyncPlanner
         return BackfillFrom(uidNext);
     }
 
+    /// <summary>True when neither delta path can serve this folder, so a full diff is the only correct
+    /// plan rather than the periodic cadence refresh (case 5: the caller logs degraded_sync).</summary>
+    public static bool NoDeltaPathAvailable(FolderState local, ServerFolderInfo server, ServerCaps caps)
+    {
+        ArgumentNullException.ThrowIfNull(local);
+        ArgumentNullException.ThrowIfNull(server);
+        ArgumentNullException.ThrowIfNull(caps);
+
+        return ModSeqWentBackwards(local, server)
+            || (!QresyncUsable(local, server, caps) && !CondstoreUsable(local, server, caps));
+    }
+
+    private static bool QresyncUsable(FolderState local, ServerFolderInfo server, ServerCaps caps) =>
+        caps.Qresync
+        && !caps.Quirks.HasFlag(ServerQuirks.QresyncBroken)
+        && !local.HighestModSeq.IsUnknown
+        && !server.HighestModSeq.IsUnknown;
+
+    private static bool CondstoreUsable(FolderState local, ServerFolderInfo server, ServerCaps caps) =>
+        caps.Condstore
+        && !caps.Quirks.HasFlag(ServerQuirks.CondstoreBroken)
+        && !local.HighestModSeq.IsUnknown
+        && server.HighestModSeq > ModSeq.Zero;
+
+    // 4: HIGHESTMODSEQ went backwards — the server's MODSEQ is not monotonic, so no delta path is safe.
+    private static bool ModSeqWentBackwards(FolderState local, ServerFolderInfo server) =>
+        !server.HighestModSeq.IsUnknown
+        && !local.HighestModSeq.IsUnknown
+        && server.HighestModSeq < local.HighestModSeq;
+
     private static SyncPlan BackfillFrom(Uid cursor)
     {
         var from = cursor.Value > BackfillWindow ? new Uid(cursor.Value - BackfillWindow) : new Uid(1);
@@ -102,7 +117,6 @@ public static class SyncPlanner
 
     private static bool FullDiffIsDue(FolderState local, DateTimeOffset nowUtc)
     {
-        if (nowUtc == default) return false;
         if (local.LastFullDiffUtc is not { } last) return true;
         return nowUtc - last >= CondstoreFullDiffInterval;
     }
@@ -192,7 +206,8 @@ public static class SyncPlanner
             HighestModSeq = highestModSeq,
             HighestKnownUid = highestUid,
             KnownMessageCount = count < 0 ? 0 : count,
-            BackfillCursor = response.NextBackfillCursor,
+            // Silence leaves an in-progress backfill alone; only an explicit completion ends it.
+            BackfillCursor = response.NextBackfillCursor ?? (response.BackfillComplete ? null : state.BackfillCursor),
             ServerAcceptsCustomKeywords = response.PermanentFlagsAllowCustomKeywords ?? state.ServerAcceptsCustomKeywords,
         };
 
@@ -213,8 +228,11 @@ public sealed record ServerResponse
     /// <summary>HIGHESTMODSEQ the server reported for this batch, if it reported one.</summary>
     public ModSeq? ReportedHighestModSeq { get; init; }
 
-    /// <summary>Where a resumable backfill should continue, or null when the folder is complete.</summary>
+    /// <summary>Where a resumable backfill should continue. Null says nothing: the stored cursor stands.</summary>
     public Uid? NextBackfillCursor { get; init; }
+
+    /// <summary>The provider declaring the backfill finished. Nothing else clears the stored cursor.</summary>
+    public bool BackfillComplete { get; init; }
 
     /// <summary>Null when the server said nothing about PERMANENTFLAGS in this batch.</summary>
     public bool? PermanentFlagsAllowCustomKeywords { get; init; }

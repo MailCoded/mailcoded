@@ -1,31 +1,35 @@
+using System.Globalization;
 using System.Security.Cryptography;
+using System.Text;
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Store;
 
 namespace Mailcoded.Core.Application;
 
-/// <summary>One-time send tokens: bound to one draft, monotonic expiry, constant-time compare.</summary>
+/// <summary>What <see cref="ConfirmTokenStore.IssueAsync"/> handed out. The token is never stored.</summary>
+public readonly record struct ConfirmTokenGrant(string Token, DateTimeOffset ExpiresUtc);
+
+/// <summary>One-time send tokens, persisted as a salted hash so the one-shot CLI can redeem in a
+/// second process what the first one minted. Bound to the draft, single use, constant-time compared.</summary>
 public sealed class ConfirmTokenStore
 {
     public const int TokenByteLength = 32;
+    public const int SaltByteLength = 16;
     public const int DefaultMaxOutstanding = 64;
     public static readonly TimeSpan DefaultLifetime = TimeSpan.FromMinutes(10);
-
-    private sealed class Entry
-    {
-        public required byte[] Token { get; init; }
-        public required string MessageId { get; init; }
-        public required string Digest { get; init; }
-        public required long ExpiresAtTicks { get; init; }
-        public required long IssuedAtTicks { get; init; }
-    }
 
     private readonly IClock _clock;
     private readonly long _lifetimeMs;
     private readonly int _maxOutstanding;
     private readonly Lock _gate = new();
-    private readonly Dictionary<long, Entry> _entries = [];
+    private readonly Dictionary<long, long> _monotonicDeadlines = [];
+    private SqliteStore? _store;
 
-    public ConfirmTokenStore(IClock clock, TimeSpan? lifetime = null, int maxOutstanding = DefaultMaxOutstanding)
+    public ConfirmTokenStore(
+        IClock clock,
+        TimeSpan? lifetime = null,
+        int maxOutstanding = DefaultMaxOutstanding,
+        SqliteStore? store = null)
     {
         ArgumentNullException.ThrowIfNull(clock);
         if (maxOutstanding < 1) throw new ArgumentOutOfRangeException(nameof(maxOutstanding));
@@ -35,24 +39,19 @@ public sealed class ConfirmTokenStore
         if (span <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(lifetime));
         _lifetimeMs = (long)span.TotalMilliseconds;
         _maxOutstanding = maxOutstanding;
+        _store = store;
     }
 
     public TimeSpan Lifetime => TimeSpan.FromMilliseconds(_lifetimeMs);
 
-    public int Count
-    {
-        get
-        {
-            lock (_gate)
-            {
-                PurgeCore();
-                return _entries.Count;
-            }
-        }
-    }
+    public int Count => Store.CountConfirmTokens(_clock.UtcNow);
 
     /// <summary>Mints the single token that authorizes this outbox row.</summary>
-    public string Issue(long outboxId, MessageId messageId, string draftDigest)
+    public async Task<ConfirmTokenGrant> IssueAsync(
+        long outboxId,
+        MessageId messageId,
+        string draftDigest,
+        CancellationToken ct)
     {
         if (outboxId <= 0) throw new ArgumentOutOfRangeException(nameof(outboxId));
         ArgumentException.ThrowIfNullOrEmpty(draftDigest);
@@ -60,106 +59,149 @@ public sealed class ConfirmTokenStore
             throw new ArgumentException("A confirm token must bind to a pre-assigned Message-ID.", nameof(messageId));
 
         var raw = RandomNumberGenerator.GetBytes(TokenByteLength);
-        var now = _clock.Ticks;
+        var salt = RandomNumberGenerator.GetBytes(SaltByteLength);
+        var hash = Bind(salt, raw, outboxId, messageId, draftDigest);
+
+        var issuedUtc = _clock.UtcNow;
+        var expiresUtc = issuedUtc + Lifetime;
+        var token = Encode(raw);
+        CryptographicOperations.ZeroMemory(raw);
+
+        await Store
+            .IssueConfirmTokenAsync(outboxId, salt, hash, issuedUtc, expiresUtc, _maxOutstanding, ct)
+            .ConfigureAwait(false);
 
         lock (_gate)
         {
-            PurgeCore();
-            EvictOldest();
-
-            _entries[outboxId] = new Entry
-            {
-                Token = raw,
-                MessageId = messageId.Value,
-                Digest = draftDigest,
-                ExpiresAtTicks = now + _lifetimeMs,
-                IssuedAtTicks = now,
-            };
+            TrimDeadlines();
+            _monotonicDeadlines[outboxId] = _clock.Ticks + _lifetimeMs;
         }
 
-        return Encode(raw);
+        return new ConfirmTokenGrant(token, expiresUtc);
     }
 
     /// <summary>True exactly once per issued token, and only for the draft it was bound to.</summary>
-    public bool TryConsume(string? token, long outboxId, MessageId messageId, string draftDigest)
+    public async Task<bool> TryConsumeAsync(
+        string? token,
+        long outboxId,
+        MessageId messageId,
+        string draftDigest,
+        CancellationToken ct)
     {
-        if (string.IsNullOrEmpty(token)) return false;
+        if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(draftDigest)) return false;
         if (!TryDecode(token, out var candidate)) return false;
 
-        lock (_gate)
+        // A restart only leaves the absolute expiry behind, but wall clock can be stepped: a token
+        // minted in this process is held to the monotonic deadline as well, whichever fires first.
+        if (MonotonicallyExpired(outboxId))
         {
-            PurgeCore();
-            if (!_entries.TryGetValue(outboxId, out var entry)) return false;
+            await RevokeAsync(outboxId, ct).ConfigureAwait(false);
+            return false;
+        }
 
-            var tokenMatches = CryptographicOperations.FixedTimeEquals(entry.Token, candidate);
-            if (!tokenMatches) return false;
-            if (!string.Equals(entry.MessageId, messageId.Value, StringComparison.Ordinal)) return false;
-            if (!string.Equals(entry.Digest, draftDigest, StringComparison.Ordinal)) return false;
+        var consumed = await Store.TryConsumeConfirmTokenAsync(
+            outboxId,
+            _clock.UtcNow,
+            (salt, stored) => CryptographicOperations.FixedTimeEquals(
+                stored,
+                Bind(salt, candidate, outboxId, messageId, draftDigest)),
+            ct).ConfigureAwait(false);
 
-            _entries.Remove(outboxId);
-            CryptographicOperations.ZeroMemory(entry.Token);
-            return true;
+        CryptographicOperations.ZeroMemory(candidate);
+        if (consumed) Forget(outboxId);
+        return consumed;
+    }
+
+    public bool IsOutstanding(long outboxId) =>
+        !MonotonicallyExpired(outboxId) && Store.HasConfirmToken(outboxId, _clock.UtcNow);
+
+    public Task RevokeAsync(long outboxId, CancellationToken ct)
+    {
+        Forget(outboxId);
+        return Store.RevokeConfirmTokenAsync(outboxId, ct);
+    }
+
+    /// <summary>Blocks on the writer thread; the one-shot CLI teardown path has nothing to await into.</summary>
+    public void Revoke(long outboxId) => RevokeAsync(outboxId, CancellationToken.None).GetAwaiter().GetResult();
+
+    public Task PurgeAsync(CancellationToken ct) => Store.PurgeConfirmTokensAsync(_clock.UtcNow, ct);
+
+    public void Purge() => PurgeAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+    /// <summary>Called by <see cref="SendService"/> so a hand-wired host cannot forget the backing store.</summary>
+    internal void AttachStore(SqliteStore store)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        lock (_gate) _store ??= store;
+    }
+
+    private SqliteStore Store
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _store ?? throw new InvalidOperationException(
+                    "This ConfirmTokenStore has no store attached, so a token could not survive the process "
+                    + "that minted it. Pass the SqliteStore to the constructor or to a SendService.");
+            }
         }
     }
 
-    public bool IsOutstanding(long outboxId)
+    private bool MonotonicallyExpired(long outboxId)
     {
         lock (_gate)
         {
-            PurgeCore();
-            return _entries.ContainsKey(outboxId);
+            if (!_monotonicDeadlines.TryGetValue(outboxId, out var deadline)) return false;
+            return _clock.Ticks - deadline >= 0;
         }
     }
 
-    public void Revoke(long outboxId)
+    private void Forget(long outboxId)
     {
-        lock (_gate)
-        {
-            if (_entries.Remove(outboxId, out var entry)) CryptographicOperations.ZeroMemory(entry.Token);
-        }
+        lock (_gate) _monotonicDeadlines.Remove(outboxId);
     }
 
-    public void Purge()
-    {
-        lock (_gate) PurgeCore();
-    }
-
-    private void PurgeCore()
+    private void TrimDeadlines()
     {
         var now = _clock.Ticks;
-        List<long>? expired = null;
+        List<long>? drop = null;
 
-        foreach (var pair in _entries)
+        foreach (var pair in _monotonicDeadlines)
         {
-            if (now - pair.Value.ExpiresAtTicks < 0) continue;
-            expired ??= [];
-            expired.Add(pair.Key);
+            if (now - pair.Value < 0) continue;
+            drop ??= [];
+            drop.Add(pair.Key);
         }
 
-        if (expired is null) return;
-        foreach (var id in expired)
-        {
-            if (_entries.Remove(id, out var entry)) CryptographicOperations.ZeroMemory(entry.Token);
-        }
-    }
+        if (drop is not null)
+            foreach (var id in drop) _monotonicDeadlines.Remove(id);
 
-    private void EvictOldest()
-    {
-        while (_entries.Count >= _maxOutstanding)
+        while (_monotonicDeadlines.Count >= _maxOutstanding)
         {
             var oldestId = 0L;
-            var oldestTicks = long.MaxValue;
+            var oldestDeadline = long.MaxValue;
 
-            foreach (var pair in _entries)
+            foreach (var pair in _monotonicDeadlines)
             {
-                if (pair.Value.IssuedAtTicks >= oldestTicks) continue;
-                oldestTicks = pair.Value.IssuedAtTicks;
+                if (pair.Value >= oldestDeadline) continue;
+                oldestDeadline = pair.Value;
                 oldestId = pair.Key;
             }
 
-            if (oldestId == 0) return;
-            if (_entries.Remove(oldestId, out var entry)) CryptographicOperations.ZeroMemory(entry.Token);
+            if (!_monotonicDeadlines.Remove(oldestId)) return;
         }
+    }
+
+    private static byte[] Bind(byte[] salt, byte[] token, long outboxId, MessageId messageId, string draftDigest)
+    {
+        using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        sha.AppendData(salt);
+        sha.AppendData(token);
+        sha.AppendData(Encoding.UTF8.GetBytes(string.Create(
+            CultureInfo.InvariantCulture,
+            $"{outboxId}\n{messageId.Value}\n{draftDigest}")));
+        return sha.GetHashAndReset();
     }
 
     private static string Encode(byte[] raw) =>

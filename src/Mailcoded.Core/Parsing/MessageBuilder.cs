@@ -3,10 +3,9 @@ using MimeKit;
 
 namespace Mailcoded.Core.Parsing;
 
-/// <summary>
-/// <see cref="DraftSpec"/> -> RFC822 bytes. The Message-ID always comes from the spec, which the
-/// outbox assigned at creation (RELIABILITY 14.4) -- minting one here would break send idempotency.
-/// </summary>
+/// <summary><see cref="DraftSpec"/> -> the transmitted RFC822 bytes, which the Sent copy reuses.
+/// The Message-ID always comes from the spec, which the outbox assigned at creation (RELIABILITY
+/// 14.4) -- minting one here would break send idempotency.</summary>
 public static class MessageBuilder
 {
     public static byte[] Build(DraftSpec spec, CancellationToken ct = default)
@@ -61,7 +60,11 @@ public static class MessageBuilder
             message.From.Add(ToMailbox(spec.From, spec.FromDisplayName, "From"));
             AddAll(message.To, spec.To, "To");
             AddAll(message.Cc, spec.Cc, "Cc");
-            AddAll(message.Bcc, spec.Bcc, "Bcc");
+
+            // Bcc is an envelope fact, never a header: MimeKit writes message.Bcc into these bytes,
+            // which go to SMTP DATA and to Sent, disclosing every blind recipient to all the others.
+            if (spec.To.Count == 0 && spec.Cc.Count == 0)
+                message.To.Add(new GroupAddress("undisclosed-recipients"));
 
             message.Subject = spec.Subject;
             message.Date = spec.DateUtc;

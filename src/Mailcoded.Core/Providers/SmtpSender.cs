@@ -21,6 +21,7 @@ public sealed class SmtpSender : IMailSender
     private AccountConfig? config;
     private ISecretStore? secrets;
     private SmtpClient? client;
+    private bool submissionReady;
     private long lastActivityTicks;
     private int disposed;
 
@@ -34,7 +35,9 @@ public sealed class SmtpSender : IMailSender
 
     public bool SupportsSmtpUtf8 { get; private set; }
 
-    public bool IsConnected => client is { IsConnected: true, IsAuthenticated: true };
+    /// <summary>An unauthenticated relay that never advertises AUTH is a legitimate submission
+    /// path, so readiness is "auth was not required, or it was required and it succeeded".</summary>
+    public bool IsConnected => submissionReady && client is { IsConnected: true };
 
     public async Task ConnectAsync(AccountConfig cfg, ISecretStore secretStore, CancellationToken ct)
     {
@@ -78,7 +81,13 @@ public sealed class SmtpSender : IMailSender
                 }
             }
 
-            await AuthenticateAsync(next, cfg, smtp, secretStore, ct).ConfigureAwait(false);
+            var authenticationRequired = await AuthenticateAsync(next, cfg, smtp, secretStore, ct).ConfigureAwait(false);
+            if (authenticationRequired && !next.IsAuthenticated)
+            {
+                throw new ProviderException(
+                    FailureCategory.Auth,
+                    "The server advertised AUTH but the session did not authenticate.");
+            }
         }
         catch (ProviderException)
         {
@@ -97,6 +106,7 @@ public sealed class SmtpSender : IMailSender
         }
 
         client = next;
+        submissionReady = true;
         lastActivityTicks = clock.Ticks;
         MaxMessageSize = next.Capabilities.HasFlag(SmtpCapabilities.Size) && next.MaxSize > 0 ? (long)next.MaxSize : null;
         SupportsSmtpUtf8 = next.Capabilities.HasFlag(SmtpCapabilities.UTF8);
@@ -116,7 +126,7 @@ public sealed class SmtpSender : IMailSender
         if (recipients.Count == 0) throw new ArgumentException("A message needs at least one recipient.", nameof(recipients));
 
         var live = client ?? throw new ProviderException(FailureCategory.Network, "The SMTP connection has not been established.");
-        if (!live.IsConnected || !live.IsAuthenticated)
+        if (!live.IsConnected || !submissionReady)
             throw new ProviderException(FailureCategory.Network, "The SMTP connection is not usable; a reconnect is required.");
 
         if (MaxMessageSize is { } limit && raw.LongLength > limit)
@@ -268,14 +278,15 @@ public sealed class SmtpSender : IMailSender
         return false;
     }
 
-    private static async Task AuthenticateAsync(
+    /// <summary>True when the server advertised AUTH, so the caller must verify it succeeded.</summary>
+    private static async Task<bool> AuthenticateAsync(
         SmtpClient target,
         AccountConfig cfg,
         SmtpConfig smtp,
         ISecretStore secrets,
         CancellationToken ct)
     {
-        if (!target.Capabilities.HasFlag(SmtpCapabilities.Authentication)) return;
+        if (!target.Capabilities.HasFlag(SmtpCapabilities.Authentication)) return false;
 
         var user = smtp.Username;
         if (string.IsNullOrWhiteSpace(user)) user = cfg.Email;
@@ -296,6 +307,8 @@ public sealed class SmtpSender : IMailSender
                 await target.AuthenticateAsync(new SaslMechanismOAuth2(user, secret), ct).ConfigureAwait(false);
             else
                 await target.AuthenticateAsync(user, secret, ct).ConfigureAwait(false);
+
+            return true;
         }
         catch (ProviderException)
         {
@@ -334,6 +347,7 @@ public sealed class SmtpSender : IMailSender
     {
         var current = client;
         client = null;
+        submissionReady = false;
         MaxMessageSize = null;
         SupportsSmtpUtf8 = false;
 

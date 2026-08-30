@@ -22,13 +22,17 @@ Mailcoded.Core/
 ├── Providers/              # IMailProvider port + ImapProvider (ALL MailKit confined here)
 ├── Parsing/                # MimeKit confined here: raw blob -> Envelope/BodyText/Attachment DTOs
 ├── Store/                  # SqliteStore adapter (ALL SQL confined here) + migrations
-└── Secrets/                # ISecretStore port + per-OS adapters
+├── Secrets/                # ISecretStore port + per-OS adapters
+└── Protocol/               # JSON-RPC DTOs + the source-generated JsonSerializerContext
 ```
+
+`Protocol/` is wire shape, not an adapter: it depends only on `Domain/Primitives`, holds no I/O,
+and is referenced by the hosts. Nothing in `Domain` or in an adapter may reference it.
 
 **Dependency rules (architecture-test enforced):**
 1. `Domain` references no other Core namespace and no NuGet package.
 2. `Application` references `Domain` + ports (`IMailProvider`, `ISecretStore`, `IThreader`, `IClock`) — never MailKit/MimeKit/Sqlite types.
-3. Adapters reference `Domain` + their one external library; never each other.
+3. An adapter references `Domain`, its own one external library, the shared configuration records and adapter-exception base that happen to live in `Providers/` (`AccountConfig`, `ProviderKind`, `AuthKind`, `SecureSocket`, `StoreException`), and another adapter's **port interface** — never another adapter's **implementation**. So `Store` depending on `Providers` for `AccountConfig`/`StoreException` and `Providers` depending on `Secrets` for `ISecretStore` are both legal; `Store` calling `ImapProvider`, or `Providers` calling `SqliteStore`, is not — and `Store` is held to the stricter form: not even `IMailProvider`, because persistence has no business knowing a mail source exists. The architecture tests in `tests/Mailcoded.Core.Tests/Architecture` encode this corrected rule. The earlier "never each other" wording was violated by the shipped code on day one and could not be satisfied without inventing a namespace for four records — a rule nobody can obey gets weakened deliberately rather than ignored quietly.
 4. Only host composition roots construct concrete adapters. Hand-wired root (<=50 lines per host); `Microsoft.Extensions.DependencyInjection` allowed for constructor registration only — no assembly scanning, no open generics, no scopes, no Generic Host.
 5. Raw RFC822 bytes and `MimeMessage` never leave `Parsing`/`Providers`.
 
@@ -102,7 +106,8 @@ public void Domain_is_dependency_free() =>
         .GetResult().IsSuccessful.Should().BeTrue();
 ```
 
-Add equivalent tests for rules 2–3 of §12.1.
+Rules 2–3 of §12.1 have equivalent tests: see `Architecture/LayeringTests.cs`, which asserts the
+port-not-implementation form of rule 3 name by name.
 
 ## 12.8 When to revisit
 - A second storage backend or a plugin system appears → promote Store to a real port with two implementations.

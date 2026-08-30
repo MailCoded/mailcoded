@@ -250,8 +250,12 @@ recipients, body), `"quoted phrases"`, `from:`, `to:`, `cc:`, `subject:`, `tag:`
 - `order` ∈ `relevance | date`; relevance is the default for text queries.
 - `cursor` is an **opaque keyset cursor** — pass `nextCursor` back verbatim, never construct or
   decode one. Paging is keyset seek; there is no offset parameter and there never will be.
-- `truncated: true` means there is more; follow `nextCursor`. A `null` cursor with
-  `truncated: true` means the remainder is past the paging limit — narrow the query.
+- `truncated` on `search` is the **strong** meaning: with a non-null `nextCursor` it just says
+  another page exists — keep paging, nothing was lost. With `nextCursor: null` it says matches were
+  **dropped that no further call can reach** (the relevance offset cap); narrow the query or switch
+  to `order: "date"`, whose cursor reaches any depth and therefore never drops a hit. See
+  [§7.1](#71-the-two-meanings-of-truncated) — this is not the same `truncated` that paged listings
+  return.
 - **A malformed query is not an error.** The parser reports what it could not read (to stderr at
   debug level) and searches with the rest.
 - `snippet` on an `EnvelopeDto` is present only on search hits and only when `includeSnippet` is
@@ -263,6 +267,11 @@ recipients, body), `"quoted phrases"`, `from:`, `to:`, `cc:`, `subject:`, `tag:`
 `{ "threadKey": "…", "limit": 200 }` → `{ "messages": [EnvelopeDto], "truncated": false }`
 
 Every message sharing a thread key, oldest first. An empty or blank `threadKey` → `-32602`.
+
+- There is **no cursor**. `truncated: true` means `messages.length` hit `limit` and the rest of the
+  conversation was not returned — raise `limit` and call again.
+- `limit` absent, `0`, or negative uses the Core default of **500**. The RPC surface does not clamp
+  `limit`; the CLI and the MCP adapter clamp it differently (see [§7.2](#72-surface-divergences)).
 
 ### `message.get`
 `{ "messageId": 4213, "format": "text", "fetchIfMissing": true }`
@@ -539,7 +548,7 @@ shell agent to branch:
 
 ---
 
-## 7. Shared DTOs
+## 7. Shared DTOs and cross-surface semantics
 
 ### `EnvelopeDto`
 ```json
@@ -570,6 +579,49 @@ Described, not transferred; bytes come from `attachment.get`.
 ### `AccountDto`
 `{ id, email, displayName?, provider, auth, imap?, smtp?, secretRef?, quirks[] }` — never a
 credential.
+
+### 7.1 The two meanings of `truncated`
+
+`truncated` is one field name carrying two different guarantees. Reading the weak one as the strong
+one makes a client stop paging and silently miss mail.
+
+| Shape | Where | What `truncated: true` means |
+|---|---|---|
+| **Paged listing** (`StorePage<T>`: envelope lists, thread lists, sync log) | keyset-cursored | *Another page exists.* It is **always exactly `nextCursor != null`**. Nothing was dropped; every matching row is still reachable. **Keep paging.** |
+| **Search result** (`StoreSearchResult`, the `search` method) | relevance order only | With a non-null `nextCursor`: another page exists, as above. With `nextCursor: null`: matches were **dropped and are unreachable** by any further call — the relevance offset cap was hit. Narrow the query or use `order: "date"`. |
+| **Unpaged cap** (`thread.get`, raw SQL `query`) | no cursor at all | The result hit a fixed row cap. Raise `limit` / `maxRows`, or narrow the request. |
+
+The only case that means "results were lost" is `truncated: true` **with a null cursor**. Any
+`truncated: true` accompanied by a cursor is an instruction to fetch the next page, not a warning.
+
+### 7.2 Surface divergences
+
+The CLI, the MCP adapter, and this RPC surface do not enforce identical limits, and their help text
+has drifted from what they enforce. Recorded here rather than smoothed over; the enforced column is
+read from the code.
+
+**Thread page size**
+
+| Surface | Enforced | Advertised |
+|---|---|---|
+| CLI `mailcoded thread --limit` | `1..1000`, default **200** | `mailcoded help thread` says 1..1000, default 200 — correct |
+| MCP `thread` tool | `1..500`, default **200** | its JSON Schema says `maximum: 500` (correct) but *"Defaults to 500"* — **wrong**, the adapter passes 200 |
+| RPC `thread.get` | unclamped; absent/`0` → Core default **500** | — |
+
+Three defaults (200, 200, 500) and two maxima (1000, 500) for the same operation. A client that
+moves between surfaces must pass `limit` explicitly rather than rely on any default.
+
+**Draft body size**
+
+| Surface | Enforced |
+|---|---|
+| CLI `draft --body-file` | rejects a file over **1 MiB** (1,048,576 bytes) — `mailcoded help draft` says "at most 1 MiB", correct |
+| CLI `draft --body-stdin` | rejects over **1,048,576 characters** — a *character* count, so multi-byte text is cut at a smaller byte size than `--body-file` |
+| MCP `draft` / `send_preview` | **no body-size limit at all.** `body` is an inline JSON string; the only ceiling is the MCP host's own frame size |
+| RPC `send.preview` | no body-size limit of its own; bounded only by the 32 MiB frame cap in §1 |
+
+So "at most 1 MiB" is a CLI rule, not a mailcoded rule. Do not document it as a property of the
+engine, and do not assume the MCP surface will reject an oversized body — it will not.
 
 ---
 

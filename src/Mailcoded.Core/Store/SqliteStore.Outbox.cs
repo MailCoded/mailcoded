@@ -65,7 +65,7 @@ public sealed partial class SqliteStore
 
         return WriteAsync(context =>
         {
-            // A record read from a listing carries no envelope; COALESCE keeps Bcc from being erased.
+            // COALESCE so a record whose Envelope is null cannot erase the stored Bcc.
             var affected = context.Session
                 .Prepare(
                     "UPDATE outbox SET state = $state, smtp_response = $response, attempts = $attempts, "
@@ -185,4 +185,121 @@ public sealed partial class SqliteStore
             Raw = includeRaw ? Db.Blob(reader, 13) ?? Array.Empty<byte>() : Array.Empty<byte>(),
         };
     }
+
+    private const string SelectConfirmToken =
+        "SELECT salt, token_hash, expires_utc FROM confirm_tokens WHERE outbox_id = $id";
+
+    private const string DeleteConfirmToken = "DELETE FROM confirm_tokens WHERE outbox_id = $id";
+
+    /// <summary>Replaces any outstanding grant for this draft; only the caller's salted hash is stored.</summary>
+    public Task IssueConfirmTokenAsync(
+        long outboxId,
+        byte[] salt,
+        byte[] tokenHash,
+        DateTimeOffset issuedUtc,
+        DateTimeOffset expiresUtc,
+        int maxOutstanding,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(salt);
+        ArgumentNullException.ThrowIfNull(tokenHash);
+        if (outboxId <= 0) throw new ArgumentOutOfRangeException(nameof(outboxId));
+        if (maxOutstanding < 1) throw new ArgumentOutOfRangeException(nameof(maxOutstanding));
+
+        return WriteAsync(context =>
+        {
+            PurgeConfirmTokens(context.Session, issuedUtc);
+
+            context.Session
+                .Prepare(
+                    "INSERT INTO confirm_tokens (outbox_id, salt, token_hash, issued_utc, expires_utc) "
+                    + "VALUES ($id,$salt,$hash,$issued,$expires) "
+                    + "ON CONFLICT(outbox_id) DO UPDATE SET salt = excluded.salt, token_hash = excluded.token_hash, "
+                    + "issued_utc = excluded.issued_utc, expires_utc = excluded.expires_utc",
+                    "$id", "$salt", "$hash", "$issued", "$expires")
+                .SetInt(0, outboxId)
+                .SetBlob(1, salt)
+                .SetBlob(2, tokenHash)
+                .SetInt(3, ToUnixMs(issuedUtc))
+                .SetInt(4, ToUnixMs(expiresUtc))
+                .Execute();
+
+            context.Session
+                .Prepare(
+                    "DELETE FROM confirm_tokens WHERE outbox_id NOT IN "
+                    + "(SELECT outbox_id FROM confirm_tokens ORDER BY issued_utc DESC, outbox_id DESC LIMIT $max)",
+                    "$max")
+                .SetInt(0, maxOutstanding)
+                .Execute();
+        }, ct);
+    }
+
+    /// <summary>Verifies and spends one grant inside the writer transaction, so two racing
+    /// send-drafts can never both be authorized. <paramref name="verify"/> gets the salt and hash.</summary>
+    public Task<bool> TryConsumeConfirmTokenAsync(
+        long outboxId,
+        DateTimeOffset nowUtc,
+        Func<byte[], byte[], bool> verify,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(verify);
+
+        return WriteAsync(context =>
+        {
+            byte[]? salt;
+            byte[]? hash;
+            long expiresUtc;
+
+            using (var reader = context.Session
+                .Prepare(SelectConfirmToken, "$id")
+                .SetInt(0, outboxId)
+                .ExecuteReader())
+            {
+                if (!reader.Read()) return false;
+                salt = Db.Blob(reader, 0);
+                hash = Db.Blob(reader, 1);
+                expiresUtc = Db.Int(reader, 2);
+            }
+
+            if (salt is null || hash is null) return false;
+
+            if (ToUnixMs(nowUtc) >= expiresUtc)
+            {
+                DeleteConfirmTokenRow(context.Session, outboxId);
+                return false;
+            }
+
+            if (!verify(salt, hash)) return false;
+
+            return DeleteConfirmTokenRow(context.Session, outboxId) == 1;
+        }, ct);
+    }
+
+    public Task RevokeConfirmTokenAsync(long outboxId, CancellationToken ct) =>
+        WriteAsync(context => { DeleteConfirmTokenRow(context.Session, outboxId); }, ct);
+
+    public Task PurgeConfirmTokensAsync(DateTimeOffset nowUtc, CancellationToken ct) =>
+        WriteAsync(context => { PurgeConfirmTokens(context.Session, nowUtc); }, ct);
+
+    public bool HasConfirmToken(long outboxId, DateTimeOffset nowUtc, CancellationToken ct = default) =>
+        Read(session => session
+            .Prepare("SELECT 1 FROM confirm_tokens WHERE outbox_id = $id AND expires_utc > $now", "$id", "$now")
+            .SetInt(0, outboxId)
+            .SetInt(1, ToUnixMs(nowUtc))
+            .ExecuteNullableInt64() is not null, ct);
+
+    public int CountConfirmTokens(DateTimeOffset nowUtc, CancellationToken ct = default) =>
+        Read(session => (int)session
+            .Prepare("SELECT COUNT(*) FROM confirm_tokens WHERE expires_utc > $now", "$now")
+            .SetInt(0, ToUnixMs(nowUtc))
+            .ExecuteInt64(), ct);
+
+    private static int DeleteConfirmTokenRow(DbSession session, long outboxId) =>
+        session.Prepare(DeleteConfirmToken, "$id").SetInt(0, outboxId).Execute();
+
+    private static int PurgeConfirmTokens(DbSession session, DateTimeOffset nowUtc) =>
+        session
+            .Prepare("DELETE FROM confirm_tokens WHERE expires_utc <= $now", "$now")
+            .SetInt(0, ToUnixMs(nowUtc))
+            .Execute();
 }

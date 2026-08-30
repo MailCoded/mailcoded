@@ -69,7 +69,7 @@ public sealed record EnvelopeRow
     public BlobId? BlobId { get; init; }
 }
 
-/// <summary>An opaque, keyset-paged page of results plus the honest truncation marker agents rely on.</summary>
+/// <summary>One keyset page. Nothing is lost: every match is reachable by following NextCursor.</summary>
 public sealed record StorePage<T>
 {
     public required IReadOnlyList<T> Items { get; init; }
@@ -77,7 +77,7 @@ public sealed record StorePage<T>
     /// <summary>Opaque cursor for the next page, or null when no further page can be served.</summary>
     public string? NextCursor { get; init; }
 
-    /// <summary>True when more rows matched than were returned.</summary>
+    /// <summary>Another page exists; always exactly <c>NextCursor is not null</c>. Never means rows were dropped.</summary>
     public bool Truncated { get; init; }
 
     public static StorePage<T> Empty { get; } = new() { Items = [] };
@@ -253,10 +253,8 @@ public sealed record StoreSearchResult
     /// <summary>Cursor for the next page, or null when this page is the last one servable.</summary>
     public string? NextCursor { get; init; }
 
-    /// <summary>
-    /// True only when matches were dropped that no further call can reach — the relevance offset
-    /// cap. A date-ordered page always sets this false, because its cursor reaches any depth.
-    /// </summary>
+    /// <summary>Matches were DROPPED that no further call can reach (relevance offset cap) — stronger
+    /// than <c>StorePage.Truncated</c>. Date order sets this false; its cursor reaches any depth.</summary>
     public bool Truncated { get; init; }
 
     public SearchRoute Route { get; init; }

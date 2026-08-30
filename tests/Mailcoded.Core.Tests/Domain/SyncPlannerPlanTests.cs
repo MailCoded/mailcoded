@@ -56,10 +56,10 @@ public sealed class SyncPlannerPlanTests
             "qresync/broken-quirk-falls-back-to-condstore",
             "§14.5 cases 4 and 9: the server advertises QRESYNC but misbehaves (iCloud throws on open, others omit "
             + "VANISHED). A latched quirk always makes the planner MORE conservative, never faster.",
-            Local(uidValidity: 42, modSeq: 100, highestUid: 50),
+            Local(uidValidity: 42, modSeq: 100, highestUid: 50, lastFullDiff: Now - TimeSpan.FromHours(1)),
             Server(uidValidity: 42, modSeq: 200, uidNext: 60),
             new ServerCaps { Qresync = true, Condstore = true, Quirks = ServerQuirks.QresyncBroken },
-            default,
+            Now,
             p => p is SyncPlan.CondstoreDelta c && c.Since == new ModSeq(100) && c.FromUid == new Uid(51)),
 
         new PlanCase(
@@ -74,30 +74,30 @@ public sealed class SyncPlannerPlanTests
         new PlanCase(
             "condstore/available",
             "CONDSTORE path: a CHANGEDSINCE flag fetch plus a UID SEARCH starting one past the highest UID we hold.",
-            Local(uidValidity: 42, modSeq: 100, highestUid: 50),
+            Local(uidValidity: 42, modSeq: 100, highestUid: 50, lastFullDiff: Now - TimeSpan.FromHours(1)),
             Server(uidValidity: 42, modSeq: 200, uidNext: 60),
             new ServerCaps { Condstore = true },
-            default,
+            Now,
             p => p is SyncPlan.CondstoreDelta c && c.Since == new ModSeq(100) && c.FromUid == new Uid(51)),
 
         new PlanCase(
             "condstore/available-with-nothing-known-locally",
             "With no local UID the new-arrival search must start at UID 1, never at null — a null start would ask "
             + "the server for the whole folder as an unbounded range.",
-            Local(uidValidity: 42, modSeq: 100),
+            Local(uidValidity: 42, modSeq: 100, lastFullDiff: Now - TimeSpan.FromHours(1)),
             Server(uidValidity: 42, modSeq: 200, uidNext: 60),
             new ServerCaps { Condstore = true },
-            default,
+            Now,
             p => p is SyncPlan.CondstoreDelta c && c.FromUid == new Uid(1)),
 
         new PlanCase(
             "condstore/at-the-uid-ceiling",
             "A folder that has reached uint.MaxValue has no 'next' UID; the plan carries null rather than wrapping "
             + "around to 1 and re-fetching the entire folder.",
-            Local(uidValidity: 42, modSeq: 100, highestUid: uint.MaxValue),
+            Local(uidValidity: 42, modSeq: 100, highestUid: uint.MaxValue, lastFullDiff: Now - TimeSpan.FromHours(1)),
             Server(uidValidity: 42, modSeq: 200),
             new ServerCaps { Condstore = true },
-            default,
+            Now,
             p => p is SyncPlan.CondstoreDelta c && c.FromUid is null),
 
         new PlanCase(
@@ -107,7 +107,7 @@ public sealed class SyncPlannerPlanTests
             Local(uidValidity: 42, modSeq: 100, highestUid: 50, knownUids: [new Uid(1), new Uid(2), new Uid(3)]),
             Server(uidValidity: 42, modSeq: 200, uidNext: 60),
             new ServerCaps { Condstore = true, Quirks = ServerQuirks.CondstoreBroken },
-            default,
+            Now,
             p => p is SyncPlan.FullDiff f && f.KnownUids.Count == 3),
 
         new PlanCase(
@@ -196,14 +196,14 @@ public sealed class SyncPlannerPlanTests
             p => p is SyncPlan.FullDiff),
 
         new PlanCase(
-            "condstore-cadence/inert-without-a-clock",
-            "Plan() takes the instant as a parameter (CLAUDE invariant 13). A caller that passes none gets no "
-            + "periodic diff at all — which is why the sync engine must always pass IClock.UtcNow.",
+            "condstore-cadence/a-zero-instant-does-not-disable-the-rule",
+            "Plan() takes the instant as a required parameter (CLAUDE invariant 13). No value of it — not even the "
+            + "zero one — may switch the cadence off, or expunges stay invisible on a CONDSTORE-only server.",
             Local(uidValidity: 42, modSeq: 100, highestUid: 50, lastFullDiff: null),
             Server(uidValidity: 42, modSeq: 200, uidNext: 60),
             new ServerCaps { Condstore = true },
             default,
-            p => p is SyncPlan.CondstoreDelta),
+            p => p is SyncPlan.FullDiff),
 
         new PlanCase(
             "condstore-cadence/does-not-apply-to-qresync",
@@ -415,9 +415,9 @@ public sealed class SyncPlannerPlanTests
     [Fact]
     public void Plan_rejects_missing_inputs_rather_than_guessing()
     {
-        Assert.Throws<ArgumentNullException>(() => SyncPlanner.Plan(null!, Server(), ServerCaps.None));
-        Assert.Throws<ArgumentNullException>(() => SyncPlanner.Plan(Local(), null!, ServerCaps.None));
-        Assert.Throws<ArgumentNullException>(() => SyncPlanner.Plan(Local(), Server(), null!));
+        Assert.Throws<ArgumentNullException>(() => SyncPlanner.Plan(null!, Server(), ServerCaps.None, Now));
+        Assert.Throws<ArgumentNullException>(() => SyncPlanner.Plan(Local(), null!, ServerCaps.None, Now));
+        Assert.Throws<ArgumentNullException>(() => SyncPlanner.Plan(Local(), Server(), null!, Now));
         Assert.Throws<ArgumentNullException>(() => SyncPlanner.PlanInitial(null!));
     }
 
@@ -435,6 +435,22 @@ public sealed class SyncPlannerPlanTests
                 $"[{row.Name}] Plan() returned different results for identical inputs. The planner is the functional "
                 + $"core: any hidden state here makes a crashed sync unsafe to replay. {first} vs {second}");
         }
+    }
+
+    [Fact]
+    public void A_cadence_driven_full_diff_is_not_a_degraded_sync()
+    {
+        var local = Local(uidValidity: 42, modSeq: 100, highestUid: 50, lastFullDiff: null);
+        var server = Server(uidValidity: 42, modSeq: 200, uidNext: 60);
+
+        Assert.False(
+            SyncPlanner.NoDeltaPathAvailable(local, server, new ServerCaps { Condstore = true }),
+            "The periodic full diff is CONDSTORE working as designed, so it must not be reported as degraded_sync.");
+        Assert.True(SyncPlanner.NoDeltaPathAvailable(local, server, ServerCaps.None));
+        Assert.True(SyncPlanner.NoDeltaPathAvailable(
+            Local(uidValidity: 42, modSeq: 500, highestUid: 50),
+            Server(uidValidity: 42, modSeq: 400, uidNext: 51),
+            new ServerCaps { Qresync = true, Condstore = true }));
     }
 
     private static FolderState Local(
