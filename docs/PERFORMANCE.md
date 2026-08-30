@@ -1,0 +1,151 @@
+# PERFORMANCE — SPEC §15: Data-layer performance at 500k+ messages
+
+**Status:** [DECIDED]
+
+## 15.1 The mapping layer is not where performance lives
+
+On Dapper's own BenchmarkDotNet suite (.NET 8): hand-coded `SqlCommand` = 119.70 us / 7,584 B; Dapper `QueryFirstOrDefault<T>` = 133.73 us / 11,608 B (**+11.7%**); EF Core compiled = 265.45 us; EF Core tracking = 317.12 us. At 1M rows Dapper matches or beats a naive raw ADO loop.
+
+**Verdict: Dapper is not a performance decision.** Row mapping is single-digit-percent noise next to SQL and index design. Use raw ADO.NET on the writer hot path (you already own the command lifecycle) and Dapper.AOT for read-mapping boilerplate if it grows past ~15-20 hand-written mappers.
+
+**The fastest correct pattern:** long-lived connections; prepared `SqliteCommand` objects with parameters re-bound per execution; ordinal `GetXxx` reads; **synchronous** SQLite calls on a dedicated writer thread (async is fake for SQLite — the methods run synchronously and only add Task allocation); single-transaction batching.
+
+Microsoft.Data.Sqlite specifics: native connection pooling is on by default since 6.0; prepared statements are per-connection and are not cached across command objects — hold long-lived commands. Never `Cache=Shared` with WAL.
+
+## 15.2 Performance budget
+
+| Operation | Target | Mechanism |
+|---|---|---|
+| Envelope page (50 rows @ 500k) | < 10 ms | keyset seek on a covering index; no OFFSET |
+| FTS search @ 500k docs | < 100 ms p95 | contentless FTS5, `MATCH ... ORDER BY rank LIMIT 50`, snippet only on the visible page |
+| Initial ingest | >= 2,000 env/sec (network permitting) | single-txn batches, prepared reuse, deferred index + FTS |
+| Unread badge | < 5 ms | denormalized per-folder counter |
+| Thread view | < 20 ms | `ROW_NUMBER()` over a thread index |
+
+## 15.3 Schema: FTS5 tables and indexes
+
+```sql
+-- Primary search index: contentless, phrase-capable
+CREATE VIRTUAL TABLE msg_fts USING fts5(
+  subject, body_text, from_addr, to_addr,
+  content='',
+  tokenize='porter unicode61 remove_diacritics 2',
+  detail='full',          -- keep phrase/NEAR; do NOT use detail=none here
+  prefix='2 3'            -- search-as-you-type (validate the size cost in M-perf)
+);
+
+-- Secondary index for CJK substring search
+CREATE VIRTUAL TABLE msg_fts_cjk USING fts5(
+  subject, body_text,
+  content='',
+  tokenize='trigram',
+  detail='none'           -- trigram ignores position data
+);
+
+-- Secondary indexes: create AFTER backfill
+CREATE INDEX ix_msg_folder_date
+  ON messages(folder_id, date_utc DESC, id, subject, from_addr, flags);  -- covering
+CREATE INDEX ix_msg_unread   ON messages(folder_id) WHERE (flags & 1) = 0;  -- partial
+CREATE INDEX ix_msg_thread   ON messages(thread_key, date_utc DESC, id);
+CREATE UNIQUE INDEX ix_msg_folder_uid ON messages(folder_id, uid);
+```
+
+Route queries by script detection: Latin → `msg_fts` (BM25 ranking), CJK → `msg_fts_cjk`, sub-trigram CJK (1-2 chars) → `LIKE` fallback.
+
+## 15.4 Query shapes
+
+**Keyset pagination (never OFFSET beyond ~page 20).** OFFSET degrades linearly — measured 0.28 ms at offset 0 vs 138 ms at offset 999,990 on a 1M-row table; keyset stays ~0.9 ms at any depth.
+
+```sql
+-- first page
+SELECT id, subject, from_addr, date_utc, flags
+FROM messages WHERE folder_id = ?
+ORDER BY date_utc DESC, id DESC LIMIT 50;
+
+-- next page (cursor = last row's date_utc, id)
+SELECT id, subject, from_addr, date_utc, flags
+FROM messages
+WHERE folder_id = ? AND (date_utc, id) < (?, ?)
+ORDER BY date_utc DESC, id DESC LIMIT 50;
+```
+
+**FTS + metadata filter:**
+
+```sql
+SELECT m.id, m.subject, m.from_addr, m.date_utc,
+       snippet(msg_fts, 1, '[', ']', '...', 10) AS snip
+FROM msg_fts
+JOIN messages m ON m.id = msg_fts.rowid
+WHERE msg_fts MATCH ? AND m.folder_id = ?
+ORDER BY rank LIMIT 50;
+```
+
+Keep `LIMIT` small; call `snippet()`/`highlight()` only on the returned page, never across the full result set.
+
+**Thread view (latest per thread):**
+
+```sql
+SELECT id, thread_key, subject, from_addr, date_utc FROM (
+  SELECT id, thread_key, subject, from_addr, date_utc,
+         ROW_NUMBER() OVER (PARTITION BY thread_key ORDER BY date_utc DESC, id DESC) AS rn
+  FROM messages WHERE folder_id = ?
+) WHERE rn = 1
+ORDER BY date_utc DESC LIMIT 50;
+```
+
+**Unread counts:** maintain `folders.unread_count` inside the writer transaction (or by trigger). Never `COUNT(*)` per sidebar render at 500k rows.
+
+## 15.5 Bulk-ingest recipe (backfill mode)
+
+A single enclosing transaction is the dominant factor — SQLite does tens of thousands of inserts/sec inside one transaction versus a few dozen transactions/sec without. Sub-batching *within* a transaction does not help; commit periodically only to cap WAL growth.
+
+```
+PRAGMA synchronous=OFF;         -- BACKFILL ONLY; restore NORMAL after
+PRAGMA cache_size=-262144;      -- ~256 MB during backfill
+PRAGMA temp_store=MEMORY;
+-- DROP secondary indexes (keep PK)          [data-first is ~33% faster than index-first]
+BEGIN;
+  -- reuse ONE prepared INSERT; rebind params per row (ordinal)
+  -- commit every ~5,000-10,000 rows to cap WAL, not for speed
+COMMIT;
+-- recreate secondary indexes
+-- populate FTS in bulk (NOT via inline triggers during backfill):
+INSERT INTO msg_fts(rowid, subject, body_text, from_addr, to_addr)
+  SELECT id, subject, body_text, from_addr, to_addrs FROM messages WHERE ...;
+INSERT INTO msg_fts(msg_fts) VALUES('optimize');
+ANALYZE;
+PRAGMA wal_checkpoint(TRUNCATE);
+PRAGMA synchronous=NORMAL;      -- restore
+```
+
+`synchronous=OFF` is safe against app crash but not OS/power crash. Acceptable **only** in the backfill window because IMAP is the source of truth and the DB can be rebuilt. Never in steady state.
+
+`BEGIN CONCURRENT` and `wal2` remain branch-only in mainline SQLite as of 2026 — do not depend on them; the single-writer queue already sidesteps the need.
+
+## 15.6 Where the real bottleneck is
+
+Ordering for initial sync: **network >> parse > insert**. MimeKit parses ~1,000 messages in ~0.7 s in its own published benchmark (and is 25-75x faster than the common alternatives), and single-transaction SQLite ingests tens of thousands of envelope rows/sec. The gate is the IMAP FETCH — Gmail caps IMAP downloads at 2,500 MB/day and suspends on breach. Design the UX around network-bound initial sync (newest-first windowed backfill with a resumable cursor and visible progress), not around local throughput.
+
+## 15.7 Blob storage
+
+SQLite is ~35% faster than the filesystem for small blobs; the documented crossover where external files win is roughly 250 KB-1 MB. The **512 KB externalization threshold** sits in that band and is well chosen. Validate `page_size=8192` (vs the 4096 default) for this blob-ish workload in M-perf rather than assuming it.
+
+## 15.8 M-perf milestone
+
+Build `tests/Mailcoded.Bench` (BenchmarkDotNet) plus a **synthetic-mailbox generator**: fixed seed, 500k envelopes, realistic subject/body length and vocabulary, ~10% CJK corpus, deterministic folder/thread/flag distribution. Name the exact reference machine in the methodology and publish the scripts — this doubles as the public benchmark that anchors the launch claims.
+
+Benchmarks and gates:
+- `EnvelopePage_Deep` (page 5,000): p95 < 10 ms
+- `FtsSearch_CommonTerm`, `FtsSearch_Phrase`: p95 < 100 ms
+- `Ingest_100k` (network mocked): >= 2,000 rows/sec sustained
+- `UnreadBadge_AllFolders`: < 5 ms
+- `ThreadView_TopFolder`: < 20 ms
+
+Any regression >15% versus the committed baseline fails the build; re-baselining needs explicit PR approval. Express gates relative to the CI machine's own baseline where absolute ms would be hardware-dependent.
+
+## 15.9 Diagnostics when a budget is missed
+1. `EXPLAIN QUERY PLAN` — confirm the query is index-only (no table access).
+2. Confirm `ANALYZE` has populated `sqlite_stat1`.
+3. Confirm the end-of-backfill FTS `optimize` ran.
+4. Check `prefix='2 3'` index bloat before blaming FTS5 itself.
+5. Check blobs aren't landing on the LOH (>= 85,000 bytes unpooled).

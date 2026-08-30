@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Mailcoded.Mcp</RootNamespace>
+    <AssemblyName>mailcoded-mcp</AssemblyName>
+    <PublishAot>false</PublishAot>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" />
+    <ProjectReference Include="../Mailcoded.Core/Mailcoded.Core.csproj" />
+  </ItemGroup>
+</Project>

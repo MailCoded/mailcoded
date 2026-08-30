@@ -1,0 +1,26 @@
+bin/
+obj/
+*.user
+.DS_Store
+artifacts/
+*.mstat
+*.dgml.xml
+.vs/
+TestResults/
+BenchmarkDotNet.Artifacts/
+node_modules/
+*.vsix
+
+# Empty scaffolding artifacts that predate this repo
+/.bash_profile
+/.bashrc
+/.gitconfig
+/.gitmodules
+/.idea
+/.mcp.json
+/.profile
+/.ripgreprc
+/.vscode
+/.zprofile
+/.zshrc
+/.claude/

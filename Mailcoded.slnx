@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Mailcoded.Cli/Mailcoded.Cli.csproj" />
+    <Project Path="src/Mailcoded.Core/Mailcoded.Core.csproj" />
+    <Project Path="src/Mailcoded.Daemon/Mailcoded.Daemon.csproj" />
+    <Project Path="src/Mailcoded.Mcp/Mailcoded.Mcp.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Mailcoded.Bench/Mailcoded.Bench.csproj" />
+    <Project Path="tests/Mailcoded.Core.Tests/Mailcoded.Core.Tests.csproj" />
+    <Project Path="tests/Mailcoded.Integration/Mailcoded.Integration.csproj" />
+  </Folder>
+</Solution>

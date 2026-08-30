@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Mailcoded.Daemon</RootNamespace>
+    <AssemblyName>mailcoded-daemon</AssemblyName>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <PredefinedCulturesOnly>true</PredefinedCulturesOnly>
+    <InvariantTimezone>false</InvariantTimezone>
+    <OptimizationPreference>Size</OptimizationPreference>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <IlcFoldIdenticalMethodBodies>true</IlcFoldIdenticalMethodBodies>
+    <StripSymbols>true</StripSymbols>
+    <DebuggerSupport Condition="'$(Configuration)'=='Release'">false</DebuggerSupport>
+    <StackTraceSupport>true</StackTraceSupport>
+    <EventSourceSupport>true</EventSourceSupport>
+    <MetricsSupport>true</MetricsSupport>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <IlcGenerateMstatFile Condition="'$(Configuration)'=='Release'">true</IlcGenerateMstatFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.GC.HeapHardLimitPercent" Value="25" Trim="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Mailcoded.Core/Mailcoded.Core.csproj" />
+  </ItemGroup>
+</Project>
