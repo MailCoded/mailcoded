@@ -1,0 +1,22 @@
+From: signature@example.com
+To: bob@example.org
+Subject: Message with an inline logo
+Date: Sun, 19 Jan 2025 10:00:00 +0000
+Message-ID: <016-cid@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/related; boundary="bnd016"
+
+--bnd016
+Content-Type: text/html; charset=utf-8
+
+<html><body><p>Regards,</p><img src="cid:logo016@example.com"></body></html>
+
+--bnd016
+Content-Type: image/gif
+Content-ID: <logo016@example.com>
+Content-Disposition: inline; filename="logo.gif"
+Content-Transfer-Encoding: base64
+
+R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7
+
+--bnd016--

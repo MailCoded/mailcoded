@@ -14,6 +14,9 @@ public sealed record FolderSyncStat
     public uint UidValidity { get; init; }
     public int UnreadCount { get; init; }
     public int TotalCount { get; init; }
+
+    /// <summary>Null when the folder has never synced.</summary>
+    public DateTimeOffset? LastSyncUtc { get; init; }
 }
 
 public sealed record ProcessStats
@@ -120,6 +123,7 @@ public sealed class HealthMonitor
                     UidValidity = folder.UidValidity.Value,
                     UnreadCount = folder.UnreadCount,
                     TotalCount = folder.TotalCount,
+                    LastSyncUtc = folder.LastSyncUtc,
                 });
             }
         }

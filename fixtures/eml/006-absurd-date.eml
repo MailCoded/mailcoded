@@ -1,0 +1,9 @@
+From: timetraveller@example.com
+To: bob@example.org
+Subject: Dated in the year 30827
+Date: Sat, 1 Jan 30827 00:00:00 +0000
+Message-ID: <006-absurd@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain
+
+Far-future Date header; must be clamped for display, never crash.

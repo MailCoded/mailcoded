@@ -1,0 +1,21 @@
+From: attacker@example.net
+To: bob@example.org
+Subject: Please open this
+Date: Sun, 19 Jan 2025 09:00:00 +0000
+Message-ID: <015-hostile-name@example.net>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="bnd015"
+
+--bnd015
+Content-Type: text/plain; charset=utf-8
+
+Attachment filename is a path traversal attempt.
+
+--bnd015
+Content-Type: application/octet-stream
+Content-Disposition: attachment; filename="../../../../etc/cron.d/pwn"
+Content-Transfer-Encoding: base64
+
+aGVsbG8K
+
+--bnd015--

@@ -78,13 +78,13 @@ internal static class ProviderErrors
         }
     }
 
+    /// <summary>28: 421 is a closing channel, a 4xx is worth retrying, and a 5xx is terminal.</summary>
     public static FailureCategory CategorizeSmtpStatus(int status)
     {
         if (status == 421) return FailureCategory.Network;
-        if (status is 452 or 552) return FailureCategory.Full;
+        if (status == 452) return FailureCategory.Full;
         if (status is >= 400 and < 500) return FailureCategory.Busy;
-        if (status is 550 or 551 or 553) return FailureCategory.NotFound;
-        if (status >= 500) return FailureCategory.Unsupported;
+        if (status >= 500) return FailureCategory.Permanent;
         return FailureCategory.Protocol;
     }
 

@@ -1,0 +1,8 @@
+From: nodate@example.com
+To: bob@example.org
+Subject: No Date header
+Message-ID: <005-nodate@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain
+
+The parser must fall back to INTERNALDATE.

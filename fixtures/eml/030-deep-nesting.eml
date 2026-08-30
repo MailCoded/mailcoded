@@ -1,0 +1,27 @@
+From: nested@example.com
+To: bob@example.org
+Subject: Deeply nested multipart
+Date: Mon, 20 Jan 2025 19:00:00 +0000
+Message-ID: <030-deep@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="a"
+
+--a
+Content-Type: multipart/mixed; boundary="b"
+
+--b
+Content-Type: multipart/alternative; boundary="c"
+
+--c
+Content-Type: text/plain; charset=utf-8
+
+Innermost plain text.
+
+--c
+Content-Type: text/html; charset=utf-8
+
+<p>Innermost HTML.</p>
+
+--c--
+--b--
+--a--

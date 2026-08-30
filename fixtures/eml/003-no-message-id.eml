@@ -1,0 +1,8 @@
+From: legacy@example.com
+To: bob@example.org
+Subject: Sent by an ancient mailer
+Date: Thu, 16 Jan 2025 11:00:00 +0000
+MIME-Version: 1.0
+Content-Type: text/plain
+
+This message has no Message-ID header at all.

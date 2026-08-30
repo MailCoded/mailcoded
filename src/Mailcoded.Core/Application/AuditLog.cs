@@ -28,7 +28,6 @@ public static class AuditEvents
     public const string SentAppendFailed = "sent_append_failed";
     public const string OutboxReconciled = "outbox_reconciled";
     public const string OutboxInvestigate = "outbox_investigate";
-    public const string OutboxRecipientsRecovered = "outbox_recipients_recovered";
     public const string SqlQuery = "sql_query";
     public const string Metrics = "metrics";
 }

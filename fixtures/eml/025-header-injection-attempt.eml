@@ -1,0 +1,14 @@
+From: attacker@example.net
+To: bob@example.org
+Subject: Normal looking subject
+Date: Mon, 20 Jan 2025 14:00:00 +0000
+Message-ID: <025-injection@example.net>
+X-Evil: value
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+The body claims to add headers:
+Bcc: everyone@example.org
+X-Injected: yes
+
+That must stay body text, never a header.

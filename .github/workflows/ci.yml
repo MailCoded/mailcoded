@@ -1,0 +1,89 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  DOTNET_NOLOGO: 1
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+
+jobs:
+  build:
+    name: build+test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore Mailcoded.slnx -p:NuGetAudit=true
+      - name: Build
+        run: dotnet build Mailcoded.slnx --no-restore -c Release
+      - name: Unit tests
+        run: dotnet test tests/Mailcoded.Core.Tests/Mailcoded.Core.Tests.csproj --no-build -c Release
+
+  aot:
+    name: aot publish+smoke (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  rid: linux-x64 }
+          - { os: windows-latest, rid: win-x64 }
+          - { os: macos-latest,   rid: osx-arm64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install AOT prerequisites (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+
+      - name: Publish daemon
+        run: >
+          dotnet publish src/Mailcoded.Daemon/Mailcoded.Daemon.csproj
+          -c Release -r ${{ matrix.rid }} -p:PublishAot=true
+          -o artifacts/${{ matrix.rid }}
+
+      - name: Publish CLI
+        run: >
+          dotnet publish src/Mailcoded.Cli/Mailcoded.Cli.csproj
+          -c Release -r ${{ matrix.rid }} -p:PublishAot=true
+          -o artifacts/${{ matrix.rid }}
+
+      # M0 acceptance: the AOT binary must complete an initialize/shutdown exchange over stdio.
+      - name: Stdio smoke test
+        shell: bash
+        run: scripts/aot-smoke.sh artifacts/${{ matrix.rid }}
+
+      - name: Binary size gate
+        shell: bash
+        run: scripts/size-gate.sh artifacts/${{ matrix.rid }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mailcoded-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+
+  integration:
+    name: integration (docker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Integration tests
+        run: dotnet test tests/Mailcoded.Integration/Mailcoded.Integration.csproj -c Release

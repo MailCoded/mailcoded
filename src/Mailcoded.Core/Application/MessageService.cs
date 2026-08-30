@@ -70,6 +70,8 @@ public sealed record TagsSetResult
 /// <summary>message.get with lazy body fetch, thread.get, attachment.get, message.move, tags.set.</summary>
 public sealed class MessageService
 {
+    private const int FetchBufferSize = 64 * 1024;
+
     private readonly SqliteStore _store;
     private readonly MessageParser _parser;
     private readonly AuditLog _audit;
@@ -324,6 +326,7 @@ public sealed class MessageService
         return new TagsSetResult { Tags = resulting, Flags = flags, PushedToServer = pushed };
     }
 
+    /// <summary>Streams the fetch through a staging file so a 100 MB message never becomes a byte[].</summary>
     private async Task<EnvelopeRow> FetchBodyAsync(
         IMailProvider provider,
         EnvelopeRow envelope,
@@ -335,11 +338,32 @@ public sealed class MessageService
         var folder = _store.GetFolder(envelope.FolderId, ct)
             ?? throw new StoreException(FailureCategory.NotFound, $"No folder with id {envelope.FolderId.Value}.");
 
-        var raw = await provider.FetchRawMessageAsync(new FolderRef(folder.Id, folder.Path), uid, ct)
-            .ConfigureAwait(false);
+        var staging = Path.Combine(_store.BlobDirectory, "fetch-" + Guid.NewGuid().ToString("N") + ".tmp");
+        BlobRef blob;
+        ParsedMessage parsed;
 
-        var blob = await _store.StoreBlobAsync(raw, ct).ConfigureAwait(false);
-        var parsed = _parser.Parse(raw, envelope.DateUtc, ct);
+        try
+        {
+            await using (var destination = Create(staging))
+            {
+                await provider.FetchRawMessageToAsync(new FolderRef(folder.Id, folder.Path), uid, destination, ct)
+                    .ConfigureAwait(false);
+            }
+
+            await using (var source = OpenRead(staging))
+            {
+                blob = await _store.StoreBlobAsync(source, ct).ConfigureAwait(false);
+            }
+
+            await using (var source = OpenRead(staging))
+            {
+                parsed = await _parser.ParseAsync(source, envelope.DateUtc, ct).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            TryDelete(staging);
+        }
 
         await _store.SetBodyTextAsync(envelope.Id, parsed.BodyText, blob.Id, parsed.HasAttachments, ct)
             .ConfigureAwait(false);
@@ -350,11 +374,27 @@ public sealed class MessageService
             caller,
             AuditText.Fields(
                 ("message", AuditText.Number(envelope.Id.Value)),
-                ("bytes", AuditText.Number(raw.LongLength)),
+                ("bytes", AuditText.Number(blob.Size)),
                 ("warnings", parsed.ParseWarnings.Count > 0 ? AuditText.Number(parsed.ParseWarnings.Count) : null)),
             ct).ConfigureAwait(false);
 
         return _store.GetEnvelope(envelope.Id, ct) ?? (envelope with { BodyFetched = true, BlobId = blob.Id });
+    }
+
+    private static FileStream Create(string path) =>
+        new(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, FetchBufferSize, useAsync: true);
+
+    private static FileStream OpenRead(string path) =>
+        new(path, FileMode.Open, FileAccess.Read, FileShare.Read, FetchBufferSize, useAsync: true);
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+        catch (IOException) { /* best effort */ }
+        catch (UnauthorizedAccessException) { /* best effort */ }
     }
 
     private byte[]? ReadRaw(EnvelopeRow envelope, CancellationToken ct)

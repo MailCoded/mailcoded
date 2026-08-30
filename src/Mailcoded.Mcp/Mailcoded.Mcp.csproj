@@ -4,9 +4,19 @@
     <RootNamespace>Mailcoded.Mcp</RootNamespace>
     <AssemblyName>mailcoded-mcp</AssemblyName>
     <PublishAot>false</PublishAot>
+    <!-- The MCP SDK is not trim/AOT annotated; this host is the one project that never publishes AOT. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <IsTrimmable>false</IsTrimmable>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="ModelContextProtocol" />
     <ProjectReference Include="../Mailcoded.Core/Mailcoded.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Mailcoded.Core.Tests" />
+    <InternalsVisibleTo Include="Mailcoded.Integration" />
   </ItemGroup>
 </Project>

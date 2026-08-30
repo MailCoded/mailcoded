@@ -1,0 +1,9 @@
+From: Carol Example <carol@example.com>
+To: bob@example.org
+Subject: Re[2]: Quarterly report
+Date: Tue, 14 Jan 2025 11:00:00 +1300
+Message-ID: <018-subject-thread@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+No References header, so this can only thread on the normalized subject.

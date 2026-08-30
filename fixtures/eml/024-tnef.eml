@@ -1,0 +1,21 @@
+From: outlook@example.com
+To: bob@example.org
+Subject: Message with a TNEF blob
+Date: Mon, 20 Jan 2025 13:00:00 +0000
+Message-ID: <024-tnef@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="bnd024"
+
+--bnd024
+Content-Type: text/plain; charset=utf-8
+
+Body text; the winmail.dat below must not crash the parser.
+
+--bnd024
+Content-Type: application/ms-tnef; name="winmail.dat"
+Content-Disposition: attachment; filename="winmail.dat"
+Content-Transfer-Encoding: base64
+
+eJ8+IiIBAAAA
+
+--bnd024--

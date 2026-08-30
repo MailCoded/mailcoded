@@ -1,8 +1,8 @@
 namespace Mailcoded.Core.Providers;
 
 /// <summary>
-/// An SMTP submission the server refused, carrying everything the outbox needs to choose between
-/// retry, reconnect, and permanent failure (edge case 28).
+/// An SMTP submission the server refused. The category carries permanence (a 5xx is
+/// <see cref="FailureCategory.Permanent"/>); these members carry the rest of edge case 28.
 /// </summary>
 public sealed class SmtpDeliveryException : ProviderException
 {
@@ -21,9 +21,6 @@ public sealed class SmtpDeliveryException : ProviderException
 
     /// <summary>RFC 3463 status such as <c>4.7.1</c>, when the server sent one.</summary>
     public string? EnhancedStatusCode { get; private set; }
-
-    /// <summary>True for 5xx: retrying will not help, so surface it to the user.</summary>
-    public bool IsPermanent { get; private set; }
 
     /// <summary>True for 421: the server is closing the channel and the client must reconnect.</summary>
     public bool RequiresReconnect { get; private set; }
@@ -45,7 +42,6 @@ public sealed class SmtpDeliveryException : ProviderException
 
         result.StatusCode = statusCode;
         result.EnhancedStatusCode = enhancedStatusCode;
-        result.IsPermanent = statusCode >= 500;
         result.RequiresReconnect = statusCode == 421;
 
         // 451/4xx greylisting: the outbox escalates 1, 5, 15, 30 minutes from this first hint.

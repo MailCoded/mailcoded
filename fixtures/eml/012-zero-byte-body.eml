@@ -1,0 +1,8 @@
+From: empty@example.com
+To: bob@example.org
+Subject: Headers only
+Date: Sat, 18 Jan 2025 10:00:00 +0000
+Message-ID: <012-empty@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain
+

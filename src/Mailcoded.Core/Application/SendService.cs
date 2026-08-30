@@ -63,6 +63,10 @@ public sealed record SendResult
     public required OutboxState State { get; init; }
     public int StatusCode { get; init; }
     public string? SmtpResponse { get; init; }
+
+    /// <summary>RFC 3463 status from the last reply, when the server sent one.</summary>
+    public string? EnhancedStatusCode { get; init; }
+
     public int Attempts { get; init; }
     public DateTimeOffset? NextAttemptUtc { get; init; }
     public bool AppendedToSent { get; init; }
@@ -91,6 +95,8 @@ public sealed record OutboxReconcileReport
 /// <summary>Two-phase send, the safety gates, Sent reconciliation, and the retry schedule.</summary>
 public sealed class SendService
 {
+    private const int GenericPermanentCode = 554;
+
     private readonly SqliteStore _store;
     private readonly MessageParser _parser;
     private readonly IClock _clock;
@@ -98,8 +104,6 @@ public sealed class SendService
     private readonly AgentPolicy _policy;
     private readonly ConfirmTokenStore _tokens;
     private readonly SendOptions _defaults;
-    private readonly Lock _gate = new();
-    private readonly Dictionary<long, SendEnvelope> _envelopes = [];
 
     public SendService(
         SqliteStore store,
@@ -160,7 +164,16 @@ public sealed class SendService
         };
 
         var raw = MessageBuilder.Build(spec, ct);
-        var recipients = RecipientExtractor.FromDraft(spec).AllRecipients();
+        var addressed = RecipientExtractor.FromDraft(spec);
+        var envelope = new OutboxEnvelope
+        {
+            From = addressed.From,
+            To = addressed.To,
+            Cc = addressed.Cc,
+            Bcc = addressed.Bcc,
+        };
+
+        var recipients = envelope.AllRecipients();
 
         var outboxId = await _store.EnqueueOutboxAsync(
             new OutboxRecord
@@ -170,13 +183,14 @@ public sealed class SendService
                 State = OutboxState.Queued,
                 Raw = raw,
                 Attempts = 0,
+                MaxAttempts = OutboxMessage.DefaultMaxAttempts,
                 CreatedUtc = _clock.UtcNow,
+                Envelope = envelope,
             },
             ct).ConfigureAwait(false);
 
         var digest = AuditText.Digest(raw);
         var token = _tokens.Issue(outboxId, messageId, digest);
-        Remember(outboxId, new SendEnvelope(from, recipients));
 
         var gate = _policy.EvaluateSend(caller, recipients);
 
@@ -239,7 +253,7 @@ public sealed class SendService
 
         var settings = options ?? _defaults;
         var digest = AuditText.Digest(record.Raw);
-        var envelope = await ResolveEnvelopeAsync(record, ct).ConfigureAwait(false);
+        var envelope = ResolveEnvelope(record, ct);
 
         // The agent gates run before the token is consumed so a denied call never burns it.
         var gate = _policy.EvaluateSend(caller, envelope.Recipients);
@@ -288,12 +302,13 @@ public sealed class SendService
             ct.ThrowIfCancellationRequested();
 
             // A row still marked sending is the crash window; only reconciliation may touch it.
-            if (row.State != OutboxState.Queued) continue;
+            // A retryable failed row is due work: DispatchAsync requeues it before it dispatches.
+            if (row.State == OutboxState.Sending) continue;
 
             var record = _store.GetOutbox(row.Id, ct);
             if (record is null) continue;
 
-            var envelope = await ResolveEnvelopeAsync(record, ct).ConfigureAwait(false);
+            var envelope = ResolveEnvelope(record, ct);
             var outcome = await DispatchAsync(CallerContext.Internal, sender, provider, record, envelope, settings, ct)
                 .ConfigureAwait(false);
 
@@ -445,7 +460,7 @@ public sealed class SendService
             {
                 return new DispatchOutcome(
                     ToResult(message, 0, false, false),
-                    new ProviderException(FailureCategory.Unsupported, "This message will not be retried automatically."));
+                    new ProviderException(FailureCategory.Permanent, "This message will not be retried automatically."));
             }
 
             message.Retry(_clock.UtcNow);
@@ -470,14 +485,17 @@ public sealed class SendService
         }
         catch (ProviderException ex)
         {
-            var result = SmtpResult.NetworkFailure(ex.Message);
+            // The aggregate reads permanence off the reply code, so a terminal failure that never
+            // produced one is recorded as the generic 554.
+            var result = ex.IsPermanent
+                ? SmtpResult.FromResponse(GenericPermanentCode, ex.Message)
+                : SmtpResult.NetworkFailure(ex.Message);
             return new DispatchOutcome(await FailAsync(caller, message, record, result, false, ct).ConfigureAwait(false), ex);
         }
 
         var accepted = SmtpResult.Accepted(response);
         message.MarkSent(accepted);
         await PersistAsync(message, record, ct).ConfigureAwait(false);
-        Forget(record.Id);
 
         var appended = false;
         if (settings.AppendToSent)
@@ -513,7 +531,7 @@ public sealed class SendService
         var nowUtc = _clock.UtcNow;
         var decision = message.MarkFailed(result, nowUtc);
 
-        // ListDueOutbox only surfaces queued rows, so a retryable failure is requeued at its due time.
+        // A retryable failure is requeued at its own due time; a permanent one stays failed.
         if (decision.WillRetry && decision.NextAttemptUtc is { } next && message.CanRetry) message.Retry(next);
 
         await PersistAsync(message, record, ct).ConfigureAwait(false);
@@ -603,12 +621,11 @@ public sealed class SendService
         return false;
     }
 
-    private async Task<SendEnvelope> ResolveEnvelopeAsync(OutboxRecord record, CancellationToken ct)
+    /// <summary>The stored envelope is authoritative; parsing the raw bytes can never recover Bcc.</summary>
+    private SendEnvelope ResolveEnvelope(OutboxRecord record, CancellationToken ct)
     {
-        lock (_gate)
-        {
-            if (_envelopes.TryGetValue(record.Id, out var cached)) return cached;
-        }
+        if (record.Envelope is { IsEmpty: false } stored)
+            return new SendEnvelope(stored.From, stored.AllRecipients());
 
         var parsed = _parser.Parse(record.Raw, record.CreatedUtc, ct);
         if (!RecipientExtractor.TryExtract(parsed, out var recipients, out _))
@@ -618,20 +635,7 @@ public sealed class SendService
                 $"The queued message {record.Id} carries no usable recipient addresses.");
         }
 
-        var envelope = new SendEnvelope(recipients.From, recipients.AllRecipients());
-        Remember(record.Id, envelope);
-
-        // Bcc is not recoverable from a parsed message, so a resend after a restart reaches To and Cc only.
-        await _audit.WarnAsync(
-            AuditEvents.OutboxRecipientsRecovered,
-            record.AccountId,
-            CallerContext.Internal,
-            AuditText.Fields(
-                ("outbox", AuditText.Number(record.Id)),
-                ("recipients", AuditText.Number(envelope.Recipients.Count))),
-            ct).ConfigureAwait(false);
-
-        return envelope;
+        return new SendEnvelope(recipients.From, recipients.AllRecipients());
     }
 
     private Task AuditAttemptAsync(
@@ -661,20 +665,6 @@ public sealed class SendService
             },
             ct);
 
-    private void Remember(long outboxId, SendEnvelope envelope)
-    {
-        lock (_gate)
-        {
-            if (_envelopes.Count > 256) _envelopes.Clear();
-            _envelopes[outboxId] = envelope;
-        }
-    }
-
-    private void Forget(long outboxId)
-    {
-        lock (_gate) _envelopes.Remove(outboxId);
-    }
-
     private Task PersistAsync(OutboxMessage message, OutboxRecord record, CancellationToken ct) =>
         _store.SaveOutboxAsync(
             new OutboxRecord
@@ -684,9 +674,14 @@ public sealed class SendService
                 MessageId = message.MessageId,
                 State = message.State,
                 SmtpResponse = message.SmtpResponse,
+                EnhancedStatusCode = message.EnhancedStatusCode,
                 Attempts = message.Attempts,
+                MaxAttempts = message.MaxAttempts,
+                PermanentlyFailed = message.PermanentlyFailed,
                 NextAttemptUtc = message.NextAttemptUtc,
+                LastAttemptUtc = message.LastAttemptUtc,
                 CreatedUtc = message.CreatedUtc,
+                Envelope = record.Envelope,
             },
             ct);
 
@@ -699,10 +694,11 @@ public sealed class SendService
             record.Attempts,
             record.CreatedUtc,
             record.NextAttemptUtc,
-            null,
+            record.LastAttemptUtc,
             record.SmtpResponse,
-            null,
-            record.State == OutboxState.Failed && record.NextAttemptUtc is null);
+            record.EnhancedStatusCode,
+            record.PermanentlyFailed,
+            record.MaxAttempts is { } budget && budget > 0 ? budget : OutboxMessage.DefaultMaxAttempts);
 
     private static SendResult ToResult(OutboxMessage message, int statusCode, bool appended, bool requiresReconnect) =>
         new()
@@ -712,6 +708,7 @@ public sealed class SendService
             State = message.State,
             StatusCode = statusCode,
             SmtpResponse = message.SmtpResponse,
+            EnhancedStatusCode = message.EnhancedStatusCode,
             Attempts = message.Attempts,
             NextAttemptUtc = message.NextAttemptUtc,
             AppendedToSent = appended,

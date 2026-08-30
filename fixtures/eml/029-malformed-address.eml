@@ -1,0 +1,9 @@
+From: "Broken <not-an-address
+To: bob@example.org, , @example.org
+Subject: Malformed addresses everywhere
+Date: Mon, 20 Jan 2025 18:00:00 +0000
+Message-ID: <029-malformed-addr@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain
+
+Address parsing must degrade, not throw.

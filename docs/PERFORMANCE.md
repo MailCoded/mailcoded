@@ -38,17 +38,22 @@ CREATE VIRTUAL TABLE msg_fts USING fts5(
 CREATE VIRTUAL TABLE msg_fts_cjk USING fts5(
   subject, body_text,
   content='',
-  tokenize='trigram',
-  detail='none'           -- trigram ignores position data
+  tokenize='trigram'      -- NO detail= option: see below
 );
 
 -- Secondary indexes: create AFTER backfill
 CREATE INDEX ix_msg_folder_date
-  ON messages(folder_id, date_utc DESC, id, subject, from_addr, flags);  -- covering
-CREATE INDEX ix_msg_unread   ON messages(folder_id) WHERE (flags & 1) = 0;  -- partial
+  ON messages(folder_id, date_utc DESC, id DESC, subject, from_addr, flags);  -- covering, page-ordered
+CREATE INDEX ix_msg_unread   ON messages(folder_id) WHERE (flags & 1) = 1;  -- partial: bit0 is Unread
 CREATE INDEX ix_msg_thread   ON messages(thread_key, date_utc DESC, id);
-CREATE UNIQUE INDEX ix_msg_folder_uid ON messages(folder_id, uid);
+-- messages.UNIQUE (folder_id, uid) already indexes that pair; no standalone index.
 ```
+
+`msg_fts_cjk` must keep FTS5's **default `detail='full'`**. The trigram tokenizer compiles a
+substring search into a phrase query, and FTS5 rejects a phrase query outright when
+`detail` is `none` or `column` — every CJK search fails with
+`fts5: phrase queries are not supported (detail!=full)`. Trigram also needs at least three
+characters, which is exactly why 1–2 character CJK falls back to `LIKE`.
 
 Route queries by script detection: Latin → `msg_fts` (BM25 ranking), CJK → `msg_fts_cjk`, sub-trigram CJK (1-2 chars) → `LIKE` fallback.
 

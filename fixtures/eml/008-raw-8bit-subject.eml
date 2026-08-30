@@ -1,0 +1,10 @@
+From: latin1@example.com
+To: bob@example.org
+Subject: Café réunion prévue
+Date: Fri, 17 Jan 2025 10:00:00 +0100
+Message-ID: <008-raw8bit@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=iso-8859-1
+Content-Transfer-Encoding: 8bit
+
+Résumé de la réunion: rien à signaler.

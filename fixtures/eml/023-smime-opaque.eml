@@ -1,0 +1,12 @@
+From: signed@example.com
+To: bob@example.org
+Subject: Signed message we must not decrypt
+Date: Mon, 20 Jan 2025 12:00:00 +0000
+Message-ID: <023-smime@example.com>
+MIME-Version: 1.0
+Content-Type: application/pkcs7-mime; smime-type=signed-data; name="smime.p7m"
+Content-Transfer-Encoding: base64
+
+MIIBogYJKoZIhvcNAQcCoIIBkzCCAY8CAQExDTALBglghkgBZQMEAgEwCwYJKoZI
+hvcNAQcB
+

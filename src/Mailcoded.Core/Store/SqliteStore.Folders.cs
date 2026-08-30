@@ -8,7 +8,9 @@ namespace Mailcoded.Core.Store;
 public sealed partial class SqliteStore
 {
     private const string SelectFolder =
-        "SELECT id, account_id, name, role, uidvalidity, uidnext, highestmodseq, delta_token, unread_count, total_count FROM folders";
+        "SELECT f.id, f.account_id, f.name, f.role, f.uidvalidity, f.uidnext, f.highestmodseq, f.delta_token, "
+        + "f.unread_count, f.total_count, s.last_sync_utc "
+        + "FROM folders f LEFT JOIN folder_sync_state s ON s.folder_id = f.id";
 
     /// <summary>
     /// Reconciles a provider LIST into the folders table. Denormalized counters are never taken
@@ -65,7 +67,7 @@ public sealed partial class SqliteStore
         {
             var folders = new List<FolderSummary>();
             using var reader = session
-                .Prepare(SelectFolder + " WHERE account_id = $account ORDER BY name", "$account")
+                .Prepare(SelectFolder + " WHERE f.account_id = $account ORDER BY f.name", "$account")
                 .SetInt(0, accountId.Value)
                 .ExecuteReader();
 
@@ -81,7 +83,7 @@ public sealed partial class SqliteStore
         Read<FolderSummary?>(session =>
         {
             using var reader = session
-                .Prepare(SelectFolder + " WHERE id = $id", "$id")
+                .Prepare(SelectFolder + " WHERE f.id = $id", "$id")
                 .SetInt(0, id.Value)
                 .ExecuteReader();
             return reader.Read() ? MapFolder(reader) : null;
@@ -91,7 +93,7 @@ public sealed partial class SqliteStore
         Read<FolderSummary?>(session =>
         {
             using var reader = session
-                .Prepare(SelectFolder + " WHERE account_id = $account AND name = $name", "$account", "$name")
+                .Prepare(SelectFolder + " WHERE f.account_id = $account AND f.name = $name", "$account", "$name")
                 .SetInt(0, accountId.Value)
                 .SetText(1, path.Value)
                 .ExecuteReader();
@@ -109,7 +111,7 @@ public sealed partial class SqliteStore
 
             using (var reader = session.Prepare(
                        "SELECT f.id, f.account_id, f.name, f.uidvalidity, f.highestmodseq, f.total_count, "
-                       + "s.backfill_cursor, s.accepts_custom_keywords "
+                       + "s.backfill_cursor, s.accepts_custom_keywords, s.last_full_diff_utc "
                        + "FROM folders f LEFT JOIN folder_sync_state s ON s.folder_id = f.id WHERE f.id = $id",
                        "$id")
                    .SetInt(0, id.Value)
@@ -129,6 +131,7 @@ public sealed partial class SqliteStore
                     KnownMessageCount = (int)Db.Int(reader, 5),
                     BackfillCursor = backfill is { } cursor && Uid.TryCreate(cursor, out var cursorUid) ? (Uid?)cursorUid : null,
                     ServerAcceptsCustomKeywords = reader.IsDBNull(7) || reader.GetInt64(7) != 0,
+                    LastFullDiffUtc = Db.IntOrNull(reader, 8) is { } diffed ? (DateTimeOffset?)FromUnixMs(diffed) : null,
                 };
             }
 
@@ -239,23 +242,32 @@ public sealed partial class SqliteStore
             context,
             state.FolderId.Value,
             state.BackfillCursor is { } cursor ? (long?)cursor.Value : null,
-            state.ServerAcceptsCustomKeywords);
+            state.ServerAcceptsCustomKeywords,
+            state.LastFullDiffUtc is { } diffed ? (long?)ToUnixMs(diffed) : null);
         return true;
     }
 
-    private static void UpsertFolderSyncState(WriteContext context, long folderId, long? backfillCursor, bool acceptsCustomKeywords)
+    private static void UpsertFolderSyncState(
+        WriteContext context,
+        long folderId,
+        long? backfillCursor,
+        bool acceptsCustomKeywords,
+        long? lastFullDiffUtc)
     {
+        // COALESCE on the diff anchor: a state saved without one must not reset the CONDSTORE cadence.
         context.Session
             .Prepare(
-                "INSERT INTO folder_sync_state (folder_id, backfill_cursor, accepts_custom_keywords, last_sync_utc) "
-                + "VALUES ($id,$cursor,$keywords,$ts) "
+                "INSERT INTO folder_sync_state (folder_id, backfill_cursor, accepts_custom_keywords, last_sync_utc, last_full_diff_utc) "
+                + "VALUES ($id,$cursor,$keywords,$ts,$diff) "
                 + "ON CONFLICT(folder_id) DO UPDATE SET backfill_cursor = excluded.backfill_cursor, "
-                + "accepts_custom_keywords = excluded.accepts_custom_keywords, last_sync_utc = excluded.last_sync_utc",
-                "$id", "$cursor", "$keywords", "$ts")
+                + "accepts_custom_keywords = excluded.accepts_custom_keywords, last_sync_utc = excluded.last_sync_utc, "
+                + "last_full_diff_utc = COALESCE(excluded.last_full_diff_utc, folder_sync_state.last_full_diff_utc)",
+                "$id", "$cursor", "$keywords", "$ts", "$diff")
             .SetInt(0, folderId)
             .SetIntOrNull(1, backfillCursor)
             .SetBool(2, acceptsCustomKeywords)
             .SetInt(3, ToUnixMs(context.Clock.UtcNow))
+            .SetIntOrNull(4, lastFullDiffUtc)
             .Execute();
     }
 
@@ -290,6 +302,7 @@ public sealed partial class SqliteStore
             DeltaToken = Db.Str(reader, 7),
             UnreadCount = (int)Db.Int(reader, 8),
             TotalCount = (int)Db.Int(reader, 9),
+            LastSyncUtc = Db.IntOrNull(reader, 10) is { } synced ? (DateTimeOffset?)FromUnixMs(synced) : null,
         };
     }
 }

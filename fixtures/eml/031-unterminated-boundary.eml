@@ -1,0 +1,12 @@
+From: truncated@example.com
+To: bob@example.org
+Subject: Truncated mid-part
+Date: Mon, 20 Jan 2025 20:00:00 +0000
+Message-ID: <031-truncated@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="bnd031"
+
+--bnd031
+Content-Type: text/plain; charset=utf-8
+
+The closing boundary never arrives.

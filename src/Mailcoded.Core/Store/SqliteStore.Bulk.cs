@@ -14,16 +14,14 @@ public sealed partial class SqliteStore
         "ix_msg_folder_date",
         "ix_msg_unread",
         "ix_msg_thread",
-        "ix_msg_folder_uid",
         "ix_msg_message_id",
     ];
 
     private static readonly string[] SecondaryIndexDdl =
     [
-        "CREATE INDEX IF NOT EXISTS ix_msg_folder_date ON messages(folder_id, date_utc DESC, id, subject, from_addr, flags)",
-        "CREATE INDEX IF NOT EXISTS ix_msg_unread ON messages(folder_id) WHERE (flags & 1) = 0",
+        "CREATE INDEX IF NOT EXISTS ix_msg_folder_date ON messages(folder_id, date_utc DESC, id DESC, subject, from_addr, flags)",
+        "CREATE INDEX IF NOT EXISTS ix_msg_unread ON messages(folder_id) WHERE (flags & 1) = 1",
         "CREATE INDEX IF NOT EXISTS ix_msg_thread ON messages(thread_key, date_utc DESC, id)",
-        "CREATE UNIQUE INDEX IF NOT EXISTS ix_msg_folder_uid ON messages(folder_id, uid)",
         "CREATE INDEX IF NOT EXISTS ix_msg_message_id ON messages(message_id)",
     ];
 

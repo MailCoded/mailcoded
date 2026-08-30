@@ -1,0 +1,9 @@
+From: jose@example.es
+To: bob@example.org
+Subject: Reunión de mañana
+Date: Mon, 20 Jan 2025 09:30:00 +0100
+Message-ID: <020-diacritics@example.es>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+La reunión de mañana se ha pospuesto. Perdón por las molestias.

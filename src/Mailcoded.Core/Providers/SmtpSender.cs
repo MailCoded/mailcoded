@@ -16,7 +16,7 @@ namespace Mailcoded.Core.Providers;
 public sealed class SmtpSender : IMailSender
 {
     private readonly IClock clock;
-    private readonly ImapProviderOptions options;
+    private readonly MailTransportOptions options;
 
     private AccountConfig? config;
     private ISecretStore? secrets;
@@ -24,10 +24,10 @@ public sealed class SmtpSender : IMailSender
     private long lastActivityTicks;
     private int disposed;
 
-    public SmtpSender(IClock? clock = null, ImapProviderOptions? options = null)
+    public SmtpSender(IClock? clock = null, MailTransportOptions? options = null)
     {
         this.clock = clock ?? SystemClock.Instance;
-        this.options = options ?? ImapProviderOptions.Default;
+        this.options = options ?? MailTransportOptions.Default;
     }
 
     public long? MaxMessageSize { get; private set; }

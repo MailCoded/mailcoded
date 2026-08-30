@@ -101,19 +101,19 @@ CREATE VIRTUAL TABLE msg_fts USING fts5(
 );
 
 -- Secondary index for CJK substring search
+-- No detail= option: trigram substring search compiles to a phrase query, which FTS5 rejects
+-- unless detail='full' (the default). See migration 003.
 CREATE VIRTUAL TABLE msg_fts_cjk USING fts5(
   subject, body_text,
   content='',
-  tokenize='trigram',
-  detail='none'           -- trigram ignores position data
+  tokenize='trigram'
 );
 
 -- Secondary indexes: create AFTER backfill
 CREATE INDEX ix_msg_folder_date
-  ON messages(folder_id, date_utc DESC, id, subject, from_addr, flags);  -- covering
-CREATE INDEX ix_msg_unread   ON messages(folder_id) WHERE (flags & 1) = 0;  -- partial
+  ON messages(folder_id, date_utc DESC, id DESC, subject, from_addr, flags);  -- covering
+CREATE INDEX ix_msg_unread   ON messages(folder_id) WHERE (flags & 1) = 1;  -- partial: bit0 is Unread
 CREATE INDEX ix_msg_thread   ON messages(thread_key, date_utc DESC, id);
-CREATE UNIQUE INDEX ix_msg_folder_uid ON messages(folder_id, uid);
 
 CREATE INDEX ix_msg_message_id ON messages(message_id);
 CREATE INDEX ix_outbox_state ON outbox(state, next_attempt_utc);

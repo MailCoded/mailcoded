@@ -1,0 +1,26 @@
+From: organiser@example.com
+To: bob@example.org
+Subject: Invitation: Standup
+Date: Mon, 20 Jan 2025 11:00:00 +0000
+Message-ID: <022-calendar@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bnd022"
+
+--bnd022
+Content-Type: text/plain; charset=utf-8
+
+You have been invited to Standup.
+
+--bnd022
+Content-Type: text/calendar; method=REQUEST; charset=utf-8
+
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:022-standup@example.com
+DTSTART:20250121T090000Z
+SUMMARY:Standup
+END:VEVENT
+END:VCALENDAR
+
+--bnd022--

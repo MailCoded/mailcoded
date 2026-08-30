@@ -16,8 +16,11 @@ namespace Mailcoded.Core.Providers;
 /// </summary>
 public sealed partial class ImapProvider : IMailProvider
 {
+    /// <summary>Under the 85,000-byte LOH threshold, so a stream copy never allocates on the LOH.</summary>
+    private const int CopyBufferSize = 64 * 1024;
+
     private readonly IClock clock;
-    private readonly ImapProviderOptions options;
+    private readonly MailTransportOptions options;
     private readonly ImapCommandQueue queue = new();
     private readonly Dictionary<string, IMailFolder> folderCache = new(StringComparer.Ordinal);
 
@@ -31,10 +34,10 @@ public sealed partial class ImapProvider : IMailProvider
     private bool faulted;
     private int disposed;
 
-    public ImapProvider(IClock? clock = null, ImapProviderOptions? options = null)
+    public ImapProvider(IClock? clock = null, MailTransportOptions? options = null)
     {
         this.clock = clock ?? SystemClock.Instance;
-        this.options = options ?? ImapProviderOptions.Default;
+        this.options = options ?? MailTransportOptions.Default;
     }
 
     public ServerCaps Capabilities => caps;
@@ -84,18 +87,38 @@ public sealed partial class ImapProvider : IMailProvider
             return Describe(imapFolder, folder.Path);
         }, token), ct);
 
+    /// <summary>Convenience form for small messages; anything large belongs on the streaming overload.</summary>
     public Task<byte[]> FetchRawMessageAsync(FolderRef folder, Uid uid, CancellationToken ct) =>
         queue.RunAsync<byte[]>(token => GuardAsync<byte[]>("UID FETCH BODY[]", async inner =>
         {
-            var client = await RequireLiveClientAsync(inner).ConfigureAwait(false);
-            var imapFolder = await ResolveFolderAsync(client, folder.Path, inner).ConfigureAwait(false);
-            await OpenAsync(imapFolder, false, inner).ConfigureAwait(false);
-
-            using var stream = await imapFolder.GetStreamAsync(new UniqueId(uid.Value), inner).ConfigureAwait(false);
             using var buffer = new MemoryStream();
-            await stream.CopyToAsync(buffer, inner).ConfigureAwait(false);
+            await FetchRawCoreAsync(folder, uid, buffer, inner).ConfigureAwait(false);
             return buffer.ToArray();
         }, token), ct);
+
+    public Task FetchRawMessageToAsync(FolderRef folder, Uid uid, Stream destination, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        if (!destination.CanWrite) throw new ArgumentException("The destination stream is not writable.", nameof(destination));
+
+        return queue.RunAsync<bool>(token => GuardAsync<bool>("UID FETCH BODY[]", async inner =>
+        {
+            await FetchRawCoreAsync(folder, uid, destination, inner).ConfigureAwait(false);
+            return true;
+        }, token), ct);
+    }
+
+    /// <summary>§14.2: the body goes socket-to-destination, so a 100 MB attachment never lands on the heap.</summary>
+    private async Task FetchRawCoreAsync(FolderRef folder, Uid uid, Stream destination, CancellationToken ct)
+    {
+        var client = await RequireLiveClientAsync(ct).ConfigureAwait(false);
+        var imapFolder = await ResolveFolderAsync(client, folder.Path, ct).ConfigureAwait(false);
+        await OpenAsync(imapFolder, false, ct).ConfigureAwait(false);
+
+        using var stream = await imapFolder.GetStreamAsync(new UniqueId(uid.Value), ct).ConfigureAwait(false);
+        await stream.CopyToAsync(destination, CopyBufferSize, ct).ConfigureAwait(false);
+        await destination.FlushAsync(ct).ConfigureAwait(false);
+    }
 
     public Task SetFlagsAsync(FolderRef folder, Uid uid, FlagDelta delta, CancellationToken ct)
     {
@@ -112,24 +135,27 @@ public sealed partial class ImapProvider : IMailProvider
             if (imapFolder.Access != FolderAccess.ReadWrite)
                 throw new ProviderException(FailureCategory.Unsupported, $"Folder '{FolderLabel(folder.Path)}' is read-only on the server.");
 
+            var (add, remove) = ImapCapabilityMap.ToStoreFlags(delta);
+
             // 22: without \* in PERMANENTFLAGS a keyword would not survive the session, so tags
             // stay local instead of being pushed in a loop that never sticks.
-            var keywordsPersist = imapFolder.PermanentFlags.HasFlag(ImapFlags.UserDefined);
-            IList<string> addKeywords = keywordsPersist ? ImapCapabilityMap.ToStorableKeywords(delta.AddKeywords) : Array.Empty<string>();
-            IList<string> removeKeywords = keywordsPersist ? ImapCapabilityMap.ToStorableKeywords(delta.RemoveKeywords) : Array.Empty<string>();
+            if (!imapFolder.PermanentFlags.HasFlag(ImapFlags.UserDefined))
+            {
+                add = add with { Keywords = Array.Empty<string>() };
+                remove = remove with { Keywords = Array.Empty<string>() };
+            }
 
-            var (addFlags, removeFlags) = ImapCapabilityMap.ToStoreFlags(delta.Add, delta.Remove);
             var id = new UniqueId(uid.Value);
 
-            if (addFlags != ImapFlags.None || addKeywords.Count > 0)
+            if (!add.IsEmpty)
             {
-                await imapFolder.StoreAsync(id, new StoreFlagsRequest(StoreAction.Add, addFlags, addKeywords) { Silent = true }, inner)
+                await imapFolder.StoreAsync(id, new StoreFlagsRequest(StoreAction.Add, add.Flags, add.Keywords) { Silent = true }, inner)
                     .ConfigureAwait(false);
             }
 
-            if (removeFlags != ImapFlags.None || removeKeywords.Count > 0)
+            if (!remove.IsEmpty)
             {
-                await imapFolder.StoreAsync(id, new StoreFlagsRequest(StoreAction.Remove, removeFlags, removeKeywords) { Silent = true }, inner)
+                await imapFolder.StoreAsync(id, new StoreFlagsRequest(StoreAction.Remove, remove.Flags, remove.Keywords) { Silent = true }, inner)
                     .ConfigureAwait(false);
             }
 
@@ -175,38 +201,52 @@ public sealed partial class ImapProvider : IMailProvider
             return copied is { } c && c.Id > 0 ? new Uid(c.Id) : null;
         }, token), ct);
 
-    public Task<Uid?> AppendAsync(FolderRef folder, byte[] raw, MailcodedFlags flags, DateTimeOffset receivedUtc, CancellationToken ct)
+    /// <summary>Convenience form for small messages; anything large belongs on the streaming overload.</summary>
+    public async Task<Uid?> AppendAsync(FolderRef folder, byte[] raw, MailcodedFlags flags, DateTimeOffset receivedUtc, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(raw);
         if (raw.Length == 0) throw new ArgumentException("Cannot append an empty message.", nameof(raw));
+
+        using var source = new MemoryStream(raw, writable: false);
+        return await AppendAsync(folder, source, flags, receivedUtc, ct).ConfigureAwait(false);
+    }
+
+    public Task<Uid?> AppendAsync(FolderRef folder, Stream raw, MailcodedFlags flags, DateTimeOffset receivedUtc, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(raw);
+        if (!raw.CanRead) throw new ArgumentException("The source stream is not readable.", nameof(raw));
 
         return queue.RunAsync<Uid?>(token => GuardAsync<Uid?>("APPEND", async inner =>
         {
             var client = await RequireLiveClientAsync(inner).ConfigureAwait(false);
 
-            if (client.AppendLimit is { } limit && limit > 0 && raw.LongLength > limit)
+            // A non-seekable source has no length to pre-check, so the server rejects it instead.
+            if (client.AppendLimit is { } limit && limit > 0 && raw.CanSeek && raw.Length - raw.Position > limit)
             {
                 throw new ProviderException(
                     FailureCategory.Full,
-                    $"Message is {raw.LongLength} bytes; the server APPENDLIMIT is {limit} bytes.");
+                    $"Message is {raw.Length - raw.Position} bytes; the server APPENDLIMIT is {limit} bytes.");
             }
 
             var imapFolder = await ResolveFolderAsync(client, folder.Path, inner).ConfigureAwait(false);
 
-            using var source = new MemoryStream(raw, writable: false);
+            // §14.2: MimeMessage parses straight off the source stream, never through a byte[].
             MimeMessage message;
             try
             {
-                message = await MimeMessage.LoadAsync(source, inner).ConfigureAwait(false);
+                message = await MimeMessage.LoadAsync(raw, inner).ConfigureAwait(false);
             }
             catch (FormatException ex)
             {
                 throw new ProviderException(FailureCategory.Protocol, "The message could not be parsed before APPEND.", ex);
             }
 
-            var request = new AppendRequest(message, ImapCapabilityMap.ToImapFlags(flags), receivedUtc);
-            var appended = await imapFolder.AppendAsync(FormatFor(), request, inner).ConfigureAwait(false);
-            return appended is { } a && a.Id > 0 ? new Uid(a.Id) : null;
+            using (message)
+            {
+                var request = new AppendRequest(message, ImapCapabilityMap.ToImapFlags(flags), receivedUtc);
+                var appended = await imapFolder.AppendAsync(FormatFor(), request, inner).ConfigureAwait(false);
+                return appended is { } a && a.Id > 0 ? new Uid(a.Id) : null;
+            }
         }, token), ct);
     }
 

@@ -1,0 +1,10 @@
+From: dup@example.com
+To: bob@example.org
+Subject: Duplicated header
+Date: Thu, 16 Jan 2025 12:00:00 +0000
+Message-ID: <004-dup@example.com>
+Message-ID: <004-dup-second@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain
+
+Two Message-ID headers.

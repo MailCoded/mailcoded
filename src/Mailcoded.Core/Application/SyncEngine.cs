@@ -300,19 +300,22 @@ public sealed class SyncEngine
             }
 
             var caps = CapabilitiesFor(provider, account, latched);
-            var plan = invalidated ? SyncPlanner.PlanInitial(info) : SyncPlanner.Plan(state, info, caps);
+            var nowUtc = _clock.UtcNow;
+            var plan = invalidated ? SyncPlanner.PlanInitial(info) : SyncPlanner.Plan(state, info, caps, nowUtc);
 
             if (plan is SyncPlan.FullDiff)
             {
                 state = _store.LoadFolderState(folder.Id, includeKnownUids: true, ct) ?? state;
-                plan = SyncPlanner.Plan(state, info, caps);
+                plan = SyncPlanner.Plan(state, info, caps, nowUtc);
             }
 
             planName = PlanName(plan);
 
             if (plan is SyncPlan.UpToDate) break;
 
-            if (plan is SyncPlan.FullDiff)
+            // Planning again without a clock disables the periodic rule: a full diff that survives
+            // it is one no delta path could have served.
+            if (plan is SyncPlan.FullDiff && SyncPlanner.Plan(state, info, caps) is SyncPlan.FullDiff)
             {
                 degraded = true;
                 await _audit.DegradedSyncAsync(account.Id, folder.Path, "no usable QRESYNC or CONDSTORE path", ct)
@@ -332,6 +335,11 @@ public sealed class SyncEngine
 
             var run = await RunPlanAsync(provider, account, folder, folderRef, state, info, plan, plannedCursor, ct)
                 .ConfigureAwait(false);
+
+            if (plan is SyncPlan.FullDiff && !run.RequiresReplan)
+            {
+                await _store.SaveFolderStateAsync(run.Next with { LastFullDiffUtc = nowUtc }, ct).ConfigureAwait(false);
+            }
 
             added += run.Added;
             updated += run.Updated;
@@ -448,7 +456,7 @@ public sealed class SyncEngine
             state = final.Next;
         }
 
-        return new PlanRun(added, updated, expunged, batches, quirks, quirkDetail, requiresReplan, nextCursor);
+        return new PlanRun(added, updated, expunged, batches, quirks, quirkDetail, requiresReplan, nextCursor, state);
     }
 
     private async Task<FlushOutcome> FlushAsync(
@@ -661,5 +669,6 @@ public sealed class SyncEngine
         ServerQuirks Quirks,
         string QuirkDetail,
         bool RequiresReplan,
-        Uid? NextCursor);
+        Uid? NextCursor,
+        FolderState Next);
 }

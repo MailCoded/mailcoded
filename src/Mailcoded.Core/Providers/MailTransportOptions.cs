@@ -1,7 +1,7 @@
 namespace Mailcoded.Core.Providers;
 
 /// <summary>Tunables for the IMAP and SMTP adapters. Every interval is monotonic milliseconds.</summary>
-public sealed record ImapProviderOptions
+public sealed record MailTransportOptions
 {
     /// <summary>Hard ceiling from SPEC §5.5 step 6; batches are clamped to this.</summary>
     public const int MaxEnvelopeBatchSize = 500;
@@ -34,7 +34,7 @@ public sealed record ImapProviderOptions
     public string ClientName { get; init; } = "mailcoded";
     public string ClientVersion { get; init; } = "0.1";
 
-    public static readonly ImapProviderOptions Default = new();
+    public static readonly MailTransportOptions Default = new();
 
     internal int EffectiveBatchSize => Math.Clamp(EnvelopeBatchSize, 1, MaxEnvelopeBatchSize);
 

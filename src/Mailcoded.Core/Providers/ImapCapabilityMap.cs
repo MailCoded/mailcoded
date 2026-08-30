@@ -3,6 +3,7 @@ using MailKit.Net.Imap;
 using MailKit.Security;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Sync;
+using Mailcoded.Core.Domain.Tags;
 using ImapFlags = MailKit.MessageFlags;
 using MailcodedFlags = Mailcoded.Core.Domain.Primitives.MessageFlags;
 
@@ -91,31 +92,36 @@ internal static class ImapCapabilityMap
         return result;
     }
 
-    /// <summary>
-    /// Splits a delta into the two STORE directions. \Seen crosses over because the Domain bit
-    /// is Unread, so adding Unread means removing \Seen.
-    /// </summary>
-    public static (ImapFlags Add, ImapFlags Remove) ToStoreFlags(MailcodedFlags add, MailcodedFlags remove)
+    /// <summary>Splits a delta into the two STORE directions; TagFlagMap owns the \Seen inversion.</summary>
+    public static (StoreDirection Add, StoreDirection Remove) ToStoreFlags(FlagDelta delta)
     {
-        var addFlags = ImapFlags.None;
-        var removeFlags = ImapFlags.None;
+        ArgumentNullException.ThrowIfNull(delta);
 
-        if (add.HasFlag(MailcodedFlags.Unread)) removeFlags |= ImapFlags.Seen;
-        if (remove.HasFlag(MailcodedFlags.Unread)) addFlags |= ImapFlags.Seen;
+        var (set, clear) = TagFlagMap.ToServerFlagNames(delta);
+        return (ToDirection(set), ToDirection(clear));
+    }
 
-        if (add.HasFlag(MailcodedFlags.Flagged)) addFlags |= ImapFlags.Flagged;
-        if (remove.HasFlag(MailcodedFlags.Flagged)) removeFlags |= ImapFlags.Flagged;
+    private static StoreDirection ToDirection(IReadOnlyList<string> names)
+    {
+        var flags = ImapFlags.None;
+        var keywords = new List<string>();
 
-        if (add.HasFlag(MailcodedFlags.Answered)) addFlags |= ImapFlags.Answered;
-        if (remove.HasFlag(MailcodedFlags.Answered)) removeFlags |= ImapFlags.Answered;
+        foreach (var name in names)
+        {
+            switch (name)
+            {
+                case TagFlagMap.SeenFlag: flags |= ImapFlags.Seen; break;
+                case TagFlagMap.FlaggedFlag: flags |= ImapFlags.Flagged; break;
+                case TagFlagMap.AnsweredFlag: flags |= ImapFlags.Answered; break;
+                case TagFlagMap.DraftFlag: flags |= ImapFlags.Draft; break;
+                case TagFlagMap.DeletedFlag: flags |= ImapFlags.Deleted; break;
+                default:
+                    if (IsSafeKeyword(name)) keywords.Add(name);
+                    break;
+            }
+        }
 
-        if (add.HasFlag(MailcodedFlags.Draft)) addFlags |= ImapFlags.Draft;
-        if (remove.HasFlag(MailcodedFlags.Draft)) removeFlags |= ImapFlags.Draft;
-
-        if (add.HasFlag(MailcodedFlags.Deleted)) addFlags |= ImapFlags.Deleted;
-        if (remove.HasFlag(MailcodedFlags.Deleted)) removeFlags |= ImapFlags.Deleted;
-
-        return (addFlags, removeFlags);
+        return new StoreDirection(flags, keywords);
     }
 
     public static IReadOnlyList<string> ToKeywords(IReadOnlySet<string>? keywords)
@@ -128,15 +134,6 @@ internal static class ImapCapabilityMap
             if (result.Count >= MaxKeywordCount) break;
             if (IsSafeKeyword(keyword)) result.Add(keyword);
         }
-
-        return result;
-    }
-
-    public static IList<string> ToStorableKeywords(IReadOnlyList<string> keywords)
-    {
-        var result = new List<string>(keywords.Count);
-        foreach (var keyword in keywords)
-            if (IsSafeKeyword(keyword)) result.Add(keyword);
 
         return result;
     }
@@ -190,4 +187,10 @@ internal static class ImapCapabilityMap
 
     private static bool EndsWith(string? host, string suffix) =>
         !string.IsNullOrEmpty(host) && host.EndsWith(suffix, StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>One direction of a STORE: the system flags and the keywords to send together.</summary>
+internal readonly record struct StoreDirection(ImapFlags Flags, IList<string> Keywords)
+{
+    public bool IsEmpty => Flags == ImapFlags.None && Keywords.Count == 0;
 }

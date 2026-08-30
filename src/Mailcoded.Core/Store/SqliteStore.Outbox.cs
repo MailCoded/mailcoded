@@ -7,16 +7,15 @@ namespace Mailcoded.Core.Store;
 
 public sealed partial class SqliteStore
 {
-    private const string SelectOutboxMeta =
-        "SELECT id, account_id, message_id, state, smtp_response, attempts, next_attempt_utc, created_utc FROM outbox";
+    private const string OutboxColumns =
+        "id, account_id, message_id, state, smtp_response, attempts, next_attempt_utc, created_utc, "
+        + "permanently_failed, enhanced_status, last_attempt_utc, max_attempts, envelope_json";
 
-    private const string SelectOutboxFull =
-        "SELECT id, account_id, message_id, state, smtp_response, attempts, next_attempt_utc, created_utc, raw FROM outbox";
+    private const string SelectOutboxMeta = "SELECT " + OutboxColumns + " FROM outbox";
 
-    /// <summary>
-    /// Persists a queued message. The pre-assigned Message-ID is the idempotency key: enqueueing
-    /// the same one twice returns the existing row rather than creating a second send.
-    /// </summary>
+    private const string SelectOutboxFull = "SELECT " + OutboxColumns + ", raw FROM outbox";
+
+    /// <summary>The pre-assigned Message-ID is the idempotency key: a second enqueue returns the first row.</summary>
     public Task<long> EnqueueOutboxAsync(OutboxRecord record, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(record);
@@ -36,9 +35,12 @@ public sealed partial class SqliteStore
 
             return context.Session
                 .Prepare(
-                    "INSERT INTO outbox (account_id, message_id, state, raw, smtp_response, attempts, next_attempt_utc, created_utc) "
-                    + "VALUES ($account,$msgid,$state,$raw,$response,$attempts,$next,$created) RETURNING id",
-                    "$account", "$msgid", "$state", "$raw", "$response", "$attempts", "$next", "$created")
+                    "INSERT INTO outbox (account_id, message_id, state, raw, smtp_response, attempts, next_attempt_utc, "
+                    + "created_utc, permanently_failed, enhanced_status, last_attempt_utc, max_attempts, envelope_json) "
+                    + "VALUES ($account,$msgid,$state,$raw,$response,$attempts,$next,$created,$permanent,$enhanced,$last,$max,$envelope) "
+                    + "RETURNING id",
+                    "$account", "$msgid", "$state", "$raw", "$response", "$attempts", "$next", "$created",
+                    "$permanent", "$enhanced", "$last", "$max", "$envelope")
                 .SetInt(0, record.AccountId.Value)
                 .SetText(1, record.MessageId.Value)
                 .SetText(2, record.State.ToWireValue())
@@ -47,6 +49,11 @@ public sealed partial class SqliteStore
                 .SetInt(5, record.Attempts)
                 .SetIntOrNull(6, record.NextAttemptUtc is { } next ? (long?)ToUnixMs(next) : null)
                 .SetInt(7, ToUnixMs(created))
+                .SetBool(8, record.PermanentlyFailed)
+                .SetText(9, record.EnhancedStatusCode)
+                .SetIntOrNull(10, record.LastAttemptUtc is { } last ? (long?)ToUnixMs(last) : null)
+                .SetIntOrNull(11, record.MaxAttempts)
+                .SetText(12, record.Envelope is { } envelope ? OutboxEnvelopeJson.Write(envelope) : null)
                 .ExecuteInt64();
         }, ct);
     }
@@ -58,16 +65,25 @@ public sealed partial class SqliteStore
 
         return WriteAsync(context =>
         {
+            // A record read from a listing carries no envelope; COALESCE keeps Bcc from being erased.
             var affected = context.Session
                 .Prepare(
                     "UPDATE outbox SET state = $state, smtp_response = $response, attempts = $attempts, "
-                    + "next_attempt_utc = $next WHERE id = $id",
-                    "$state", "$response", "$attempts", "$next", "$id")
+                    + "next_attempt_utc = $next, permanently_failed = $permanent, enhanced_status = $enhanced, "
+                    + "last_attempt_utc = $last, max_attempts = $max, "
+                    + "envelope_json = COALESCE($envelope, envelope_json) WHERE id = $id",
+                    "$state", "$response", "$attempts", "$next", "$permanent", "$enhanced", "$last", "$max",
+                    "$envelope", "$id")
                 .SetText(0, record.State.ToWireValue())
                 .SetText(1, record.SmtpResponse)
                 .SetInt(2, record.Attempts)
                 .SetIntOrNull(3, record.NextAttemptUtc is { } next ? (long?)ToUnixMs(next) : null)
-                .SetInt(4, record.Id)
+                .SetBool(4, record.PermanentlyFailed)
+                .SetText(5, record.EnhancedStatusCode)
+                .SetIntOrNull(6, record.LastAttemptUtc is { } last ? (long?)ToUnixMs(last) : null)
+                .SetIntOrNull(7, record.MaxAttempts)
+                .SetText(8, record.Envelope is { } envelope ? OutboxEnvelopeJson.Write(envelope) : null)
+                .SetInt(9, record.Id)
                 .Execute();
 
             if (affected == 0)
@@ -116,18 +132,18 @@ public sealed partial class SqliteStore
             return (IReadOnlyList<OutboxRecord>)rows;
         }, ct);
 
-    /// <summary>
-    /// Rows whose retry window has opened, plus anything still marked <c>sending</c> — the crash
-    /// window from RELIABILITY §14.4 that must be reconciled against Sent before any re-send.
-    /// </summary>
+    /// <summary>Queued or retryable-failed rows whose window has opened, plus the RELIABILITY §14.4 crash window.</summary>
     public IReadOnlyList<OutboxRecord> ListDueOutbox(DateTimeOffset nowUtc, CancellationToken ct = default) =>
         Read(session =>
         {
             var rows = new List<OutboxRecord>();
             using var reader = session
                 .Prepare(
-                    SelectOutboxMeta + " WHERE state = 'sending' OR (state = 'queued' AND "
-                    + "(next_attempt_utc IS NULL OR next_attempt_utc <= $now)) ORDER BY id",
+                    SelectOutboxMeta + " WHERE state = 'sending' "
+                    + "OR (state = 'queued' AND (next_attempt_utc IS NULL OR next_attempt_utc <= $now)) "
+                    + "OR (state = 'failed' AND permanently_failed = 0 AND next_attempt_utc IS NOT NULL "
+                    + "AND next_attempt_utc <= $now AND (max_attempts IS NULL OR attempts < max_attempts)) "
+                    + "ORDER BY id",
                     "$now")
                 .SetInt(0, ToUnixMs(nowUtc))
                 .ExecuteReader();
@@ -148,6 +164,8 @@ public sealed partial class SqliteStore
             : throw new StoreException(FailureCategory.Protocol, "An outbox row carries an unusable Message-ID.");
 
         var nextAttempt = Db.IntOrNull(reader, 6);
+        var lastAttempt = Db.IntOrNull(reader, 10);
+        var maxAttempts = Db.IntOrNull(reader, 11);
 
         return new OutboxRecord
         {
@@ -159,7 +177,12 @@ public sealed partial class SqliteStore
             Attempts = (int)Db.Int(reader, 5),
             NextAttemptUtc = nextAttempt is { } value ? (DateTimeOffset?)FromUnixMs(value) : null,
             CreatedUtc = FromUnixMs(Db.Int(reader, 7)),
-            Raw = includeRaw ? Db.Blob(reader, 8) ?? Array.Empty<byte>() : Array.Empty<byte>(),
+            PermanentlyFailed = Db.Bool(reader, 8),
+            EnhancedStatusCode = Db.Str(reader, 9),
+            LastAttemptUtc = lastAttempt is { } attempted ? (DateTimeOffset?)FromUnixMs(attempted) : null,
+            MaxAttempts = maxAttempts is { } budget ? (int?)budget : null,
+            Envelope = OutboxEnvelopeJson.Read(Db.Str(reader, 12)),
+            Raw = includeRaw ? Db.Blob(reader, 13) ?? Array.Empty<byte>() : Array.Empty<byte>(),
         };
     }
 }

@@ -1,0 +1,14 @@
+From: folded@example.com
+To: bob@example.org
+Subject: A subject line that has been folded across
+ several continuation lines because it is
+ rather long indeed
+Date: Mon, 20 Jan 2025 21:00:00 +0000
+Message-ID: <032-folded@example.com>
+References: <001-plain@example.com>
+ <017-reply@example.org>
+ <018-subject-thread@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain
+
+Folded headers, including a folded References chain.

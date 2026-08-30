@@ -1,0 +1,13 @@
+From: Bob Example <bob@example.org>
+To: Alice Example <alice@example.com>
+Subject: Re: Quarterly report
+Date: Tue, 14 Jan 2025 10:15:00 +1300
+Message-ID: <017-reply@example.org>
+In-Reply-To: <001-plain@example.com>
+References: <001-plain@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+> The quarterly report is attached to the next email.
+
+No attachment on this one either.

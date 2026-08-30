@@ -1,6 +1,7 @@
 using Mailcoded.Core.Domain.Outbox;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Sync;
+using ParsedQuery = Mailcoded.Core.Domain.Search.SearchQuery;
 
 namespace Mailcoded.Core.Store;
 
@@ -17,6 +18,9 @@ public sealed record FolderSummary
     public string? DeltaToken { get; init; }
     public int UnreadCount { get; init; }
     public int TotalCount { get; init; }
+
+    /// <summary>Last successful sync of this folder, or null when it has never synced.</summary>
+    public DateTimeOffset? LastSyncUtc { get; init; }
 }
 
 /// <summary>
@@ -128,9 +132,38 @@ public sealed record OutboxRecord
     public byte[] Raw { get; init; } = [];
 
     public string? SmtpResponse { get; init; }
+
+    /// <summary>RFC 3463 enhanced status code from the last reply, when the server sent one.</summary>
+    public string? EnhancedStatusCode { get; init; }
+
     public int Attempts { get; init; }
+
+    /// <summary>Retry budget. Null on a row written before this was persisted.</summary>
+    public int? MaxAttempts { get; init; }
+
+    /// <summary>True when nothing further will be attempted without an explicit human retry.</summary>
+    public bool PermanentlyFailed { get; init; }
+
     public DateTimeOffset? NextAttemptUtc { get; init; }
+    public DateTimeOffset? LastAttemptUtc { get; init; }
     public DateTimeOffset CreatedUtc { get; init; }
+
+    /// <summary>Recipients captured at preview time; a parse of Raw can never recover Bcc.</summary>
+    public OutboxEnvelope? Envelope { get; init; }
+}
+
+/// <summary>The addressed envelope of a queued send, including the Bcc list the raw bytes omit.</summary>
+public sealed record OutboxEnvelope
+{
+    public EmailAddress From { get; init; }
+    public IReadOnlyList<EmailAddress> To { get; init; } = [];
+    public IReadOnlyList<EmailAddress> Cc { get; init; } = [];
+    public IReadOnlyList<EmailAddress> Bcc { get; init; } = [];
+
+    public bool IsEmpty => To.Count == 0 && Cc.Count == 0 && Bcc.Count == 0 && string.IsNullOrEmpty(From.Value);
+
+    /// <summary>Every RCPT TO for this send, in header order.</summary>
+    public IReadOnlyList<EmailAddress> AllRecipients() => [.. To, .. Cc, .. Bcc];
 }
 
 /// <summary>An append-only audit row. Never rewritten, never deleted.</summary>
@@ -178,24 +211,29 @@ public enum SearchOrder
     Date,
 }
 
-public sealed record SearchQuery
+/// <summary>
+/// A search as the store executes it: the structured query <c>SearchQueryParser</c> produced,
+/// plus scope and paging. Every predicate in it is served by SQL — nothing is left for
+/// a caller to re-filter in managed code.
+/// </summary>
+public sealed record StoreSearchRequest
 {
-    /// <summary>
-    /// Free text only. Field predicates (<c>from:</c>, <c>tag:</c>) are parsed by Application and
-    /// arrive here as the structured filters below.
-    /// </summary>
-    public required string Text { get; init; }
+    public required ParsedQuery Query { get; init; }
 
+    /// <summary>Scope filters applied on top of the query's own <c>folder:</c>/account predicates.</summary>
     public AccountId? AccountId { get; init; }
+
     public FolderId? FolderId { get; init; }
-    public Tag? Tag { get; init; }
     public int Limit { get; init; } = 50;
     public string? Cursor { get; init; }
+
+    /// <summary>Ignored unless the query has Latin full-text terms; every other shape pages by date.</summary>
     public SearchOrder Order { get; init; } = SearchOrder.Relevance;
+
     public bool IncludeSnippet { get; init; } = true;
 }
 
-public sealed record SearchHit
+public sealed record StoreSearchHit
 {
     public required LocalMessageId Id { get; init; }
     public required FolderId FolderId { get; init; }
@@ -208,14 +246,22 @@ public sealed record SearchHit
     public string? Snippet { get; init; }
 }
 
-public sealed record SearchResult
+public sealed record StoreSearchResult
 {
-    public required IReadOnlyList<SearchHit> Hits { get; init; }
+    public required IReadOnlyList<StoreSearchHit> Hits { get; init; }
+
+    /// <summary>Cursor for the next page, or null when this page is the last one servable.</summary>
     public string? NextCursor { get; init; }
+
+    /// <summary>
+    /// True only when matches were dropped that no further call can reach — the relevance offset
+    /// cap. A date-ordered page always sets this false, because its cursor reaches any depth.
+    /// </summary>
     public bool Truncated { get; init; }
+
     public SearchRoute Route { get; init; }
 
-    public static SearchResult Empty(SearchRoute route) => new() { Hits = [], Route = route };
+    public static StoreSearchResult Empty(SearchRoute route) => new() { Hits = [], Route = route };
 }
 
 public sealed record StoreStats

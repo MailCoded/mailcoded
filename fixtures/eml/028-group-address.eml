@@ -1,0 +1,10 @@
+From: secretary@example.com
+To: Board Members: alice@example.com, bob@example.org;
+Cc: undisclosed-recipients:;
+Subject: Board pack
+Date: Mon, 20 Jan 2025 17:00:00 +0000
+Message-ID: <028-group@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain
+
+RFC 5322 group address syntax in To and Cc.

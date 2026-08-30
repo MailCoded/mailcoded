@@ -125,19 +125,29 @@ public sealed partial class ImapProvider
                 () => folder.FetchAsync(UniqueIdRange.All, new FetchRequest(FlagItems()) { ChangedSince = plan.Since.Value }, ct))
                 .ConfigureAwait(false);
 
-            var requested = new List<UniqueId>(changed.Count);
+            // At or below FromUid the message is already stored, so a CHANGEDSINCE hit is a flag
+            // change and the FLAGS this fetch already returned are the whole answer.
+            var flagOnly = new List<IMessageSummary>();
+            var arrivals = new List<UniqueId>(changed.Count);
             foreach (var summary in changed)
-                if (summary.UniqueId.Id > 0) requested.Add(summary.UniqueId);
+            {
+                if (summary.UniqueId.Id == 0) continue;
+                if (plan.FromUid is { } known && summary.UniqueId.Id <= known.Value) flagOnly.Add(summary);
+                else arrivals.Add(summary.UniqueId);
+            }
+
+            foreach (var e in FlagChangeEvents(flagOnly))
+                yield return e;
 
             var delivered = new HashSet<uint>();
-            await foreach (var e in FetchEnvelopesAsync(folder, requested, newestFirst: false, ct).ConfigureAwait(false))
+            await foreach (var e in FetchEnvelopesAsync(folder, arrivals, newestFirst: false, ct).ConfigureAwait(false))
             {
                 if (e is SyncEvent.EnvelopeAdded added) delivered.Add(added.Envelope.Uid.Value);
                 yield return e;
             }
 
             var missing = new List<Uid>();
-            foreach (var uid in requested)
+            foreach (var uid in arrivals)
                 if (!delivered.Contains(uid.Id)) missing.Add(new Uid(uid.Id));
 
             if (missing.Count > 0 && !capture.Observed)
@@ -186,29 +196,13 @@ public sealed partial class ImapProvider
                 () => folder.FetchAsync(UniqueIdRange.All, new FetchRequest(FlagItems()) { ChangedSince = since.Value }, ct))
                 .ConfigureAwait(false);
 
-            var batchSize = options.EffectiveBatchSize;
-            var pending = 0;
-            var modSeq = ModSeq.Zero;
-
+            // FromUid is the first arrival here, so everything below it is an existing message.
+            var flagOnly = new List<IMessageSummary>();
             foreach (var summary in changed)
-            {
-                if (summary.UniqueId.Id == 0 || summary.UniqueId.Id >= threshold.Value) continue;
+                if (summary.UniqueId.Id > 0 && summary.UniqueId.Id < threshold.Value) flagOnly.Add(summary);
 
-                var change = ToFlagsChanged(summary);
-                modSeq = ModSeq.Max(modSeq, change.ModSeq);
-                pending++;
-                yield return change;
-
-                if (pending < batchSize) continue;
-
-                // HighestUid stays null: a flag pass proves nothing about which envelopes we hold.
-                yield return new SyncEvent.BatchComplete(modSeq, null, pending);
-                pending = 0;
-                modSeq = ModSeq.Zero;
-            }
-
-            if (pending > 0)
-                yield return new SyncEvent.BatchComplete(modSeq, null, pending);
+            foreach (var e in FlagChangeEvents(flagOnly))
+                yield return e;
         }
 
         var arrivals = fromUid is { } start
@@ -371,6 +365,31 @@ public sealed partial class ImapProvider
 
             yield return new SyncEvent.BatchComplete(modSeq, null, count);
         }
+    }
+
+    /// <summary>HighestUid stays null: a flag pass proves nothing about which envelopes we hold.</summary>
+    private IEnumerable<SyncEvent> FlagChangeEvents(List<IMessageSummary> summaries)
+    {
+        var batchSize = options.EffectiveBatchSize;
+        var pending = 0;
+        var modSeq = ModSeq.Zero;
+
+        foreach (var summary in summaries)
+        {
+            var change = ToFlagsChanged(summary);
+            modSeq = ModSeq.Max(modSeq, change.ModSeq);
+            pending++;
+            yield return change;
+
+            if (pending < batchSize) continue;
+
+            yield return new SyncEvent.BatchComplete(modSeq, null, pending);
+            pending = 0;
+            modSeq = ModSeq.Zero;
+        }
+
+        if (pending > 0)
+            yield return new SyncEvent.BatchComplete(modSeq, null, pending);
     }
 
     private async Task OpenReadAsync(IMailFolder folder, CancellationToken ct) =>

@@ -27,7 +27,7 @@ internal static class ImapConnectionFactory
     public static async Task<ImapConnection> ConnectAsync(
         AccountConfig cfg,
         ISecretStore secrets,
-        ImapProviderOptions options,
+        MailTransportOptions options,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(cfg);
@@ -122,7 +122,7 @@ internal static class ImapConnectionFactory
         }
     }
 
-    private static async Task OpenSocketAsync(ImapClient client, AccountConfig cfg, ImapProviderOptions options, CancellationToken ct)
+    private static async Task OpenSocketAsync(ImapClient client, AccountConfig cfg, MailTransportOptions options, CancellationToken ct)
     {
         using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
@@ -193,7 +193,7 @@ internal static class ImapConnectionFactory
         }
     }
 
-    private static async Task IdentifyAsync(ImapClient client, ImapProviderOptions options, CancellationToken ct)
+    private static async Task IdentifyAsync(ImapClient client, MailTransportOptions options, CancellationToken ct)
     {
         var implementation = new ImapImplementation
         {
