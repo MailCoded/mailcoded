@@ -15,7 +15,7 @@ public sealed class DocumentationTests
         var license = Read("LICENSE");
 
         Assert.Contains("MIT License", license, StringComparison.Ordinal);
-        Assert.Contains("Copyright (c) 2026 Andrew (@lywedo)", license, StringComparison.Ordinal);
+        Assert.Contains("Copyright (c) 2026 Yu Lin (@lywedo)", license, StringComparison.Ordinal);
         Assert.Contains("Permission is hereby granted, free of charge", license, StringComparison.Ordinal);
         Assert.Contains("WITHOUT WARRANTY OF ANY KIND", license, StringComparison.Ordinal);
     }

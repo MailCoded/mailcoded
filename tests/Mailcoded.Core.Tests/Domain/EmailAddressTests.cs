@@ -136,10 +136,10 @@ public sealed class EmailAddressTests
     [Fact]
     public void The_domain_is_lower_cased_and_the_local_part_is_left_alone()
     {
-        var address = EmailAddress.Parse("  Andrew.Lin@EXAMPLE.CO.NZ  ");
+        var address = EmailAddress.Parse("  First.Last@EXAMPLE.CO.NZ  ");
 
-        Assert.Equal("Andrew.Lin@example.co.nz", address.Value);
-        Assert.Equal("Andrew.Lin", address.LocalPart);
+        Assert.Equal("First.Last@example.co.nz", address.Value);
+        Assert.Equal("First.Last", address.LocalPart);
         Assert.Equal("example.co.nz", address.Domain);
     }
 
