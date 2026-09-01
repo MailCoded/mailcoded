@@ -119,8 +119,11 @@ Per-entity ordinal maps live next to the entity.
 
 **CI size gate:** warn > 12 MB, fail > 20 MB uncompressed per RID; warn > 6 MB, fail > 10 MB compressed. Archive `.mstat` and publish a size-trend chart. Tighten after the first real measurement with sizoscope (`dotnet tool install sizoscope --global`; artifacts land in `obj/Release/net10.0/<rid>/native/`).
 
-**Measured, 2026-08-30, linux-x64 Release AOT:** `mailcoded-daemon` is **13.3 MB** — over the
-12 MB warning line, under the 20 MB gate — with **zero** IL2xxx/IL3xxx trim or AOT warnings.
+**Measured, linux-x64 Release AOT:** `mailcoded-daemon` **13.3 MB** and `mailcoded` (CLI)
+**12.0 MB** — both over the 12 MB warning line, both well under the 20 MB gate — with **zero**
+IL2xxx/IL3xxx trim or AOT warnings. The AOT CLI was then exercised end to end: all 35 MIME
+fixtures import, and FTS, CJK-trigram, short-CJK `LIKE` and metadata-only search all return the
+same results as the JIT build. MimeKit and SQLitePCLRaw both survive trimming intact.
 
 **Correction: it is not literally one file.** The AOT output is the executable *plus*
 `libe_sqlite3.so` (1.5 MB), and the daemon cannot start without it. The `SQLite` native package

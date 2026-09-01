@@ -7,7 +7,10 @@ daemon="$dir/mailcoded-daemon"
 [ -x "$daemon" ] || daemon="$dir/mailcoded-daemon.exe"
 [ -x "$daemon" ] || { echo "daemon binary not found in $dir"; exit 1; }
 
-store="$(mktemp -d)/store.db"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+out="$work/out"
+err="$work/err"
 
 frame() {
   local body="$1"
@@ -17,13 +20,16 @@ frame() {
 {
   frame '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientName":"ci","clientVersion":"0","protocolVersion":1}}'
   frame '{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}'
-} | "$daemon" --store "$store" > /tmp/mailcoded-smoke.out 2>/tmp/mailcoded-smoke.err || true
+} | "$daemon" --store "$work/store.db" > "$out" 2> "$err" || true
 
-if ! grep -q '"protocolVersion"' /tmp/mailcoded-smoke.out; then
-  echo "smoke test failed: no initialize response"
-  echo "--- stdout ---"; cat /tmp/mailcoded-smoke.out
-  echo "--- stderr ---"; cat /tmp/mailcoded-smoke.err
+fail() {
+  echo "smoke test failed: $1"
+  echo "--- stdout ---"; cat "$out" || true
+  echo "--- stderr ---"; cat "$err" || true
   exit 1
-fi
+}
+
+grep -q '"protocolVersion"' "$out" || fail "no initialize response"
+grep -q '"id":2' "$out" || fail "no shutdown response"
 
 echo "stdio smoke test passed"
