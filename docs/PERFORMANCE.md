@@ -123,6 +123,8 @@ PRAGMA wal_checkpoint(TRUNCATE);
 PRAGMA synchronous=NORMAL;      -- restore
 ```
 
+**Exception to "DROP secondary indexes":** drop only indexes that serve *queries*. `ix_msg_message_id` stays, because the writer itself probes it once per `References`/`In-Reply-To` entry while resolving thread keys — dropping it makes every one of those lookups a full scan of the growing `messages` table, which is quadratic in the size of the backfill.
+
 `synchronous=OFF` is safe against app crash but not OS/power crash. Acceptable **only** in the backfill window because IMAP is the source of truth and the DB can be rebuilt. Never in steady state.
 
 `BEGIN CONCURRENT` and `wal2` remain branch-only in mainline SQLite as of 2026 — do not depend on them; the single-writer queue already sidesteps the need.

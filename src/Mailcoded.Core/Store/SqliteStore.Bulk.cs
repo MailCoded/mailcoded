@@ -8,21 +8,23 @@ namespace Mailcoded.Core.Store;
 
 public sealed partial class SqliteStore
 {
-    /// <summary>Kept in step with the index list in Migrations/001_initial.sql.</summary>
-    private static readonly string[] SecondaryIndexNames =
+    /// <summary>
+    /// Query-only indexes, dropped for the backfill window; kept in step with Migrations/002.
+    /// <c>ix_msg_message_id</c> is deliberately not here: the ingest path itself probes it once per
+    /// References entry, so dropping it turns every thread-key lookup into a full table scan.
+    /// </summary>
+    private static readonly string[] DroppedIndexNames =
     [
         "ix_msg_folder_date",
         "ix_msg_unread",
         "ix_msg_thread",
-        "ix_msg_message_id",
     ];
 
-    private static readonly string[] SecondaryIndexDdl =
+    private static readonly string[] DroppedIndexDdl =
     [
         "CREATE INDEX IF NOT EXISTS ix_msg_folder_date ON messages(folder_id, date_utc DESC, id DESC, subject, from_addr, flags)",
         "CREATE INDEX IF NOT EXISTS ix_msg_unread ON messages(folder_id) WHERE (flags & 1) = 1",
         "CREATE INDEX IF NOT EXISTS ix_msg_thread ON messages(thread_key, date_utc DESC, id)",
-        "CREATE INDEX IF NOT EXISTS ix_msg_message_id ON messages(message_id)",
     ];
 
     private int _bulkSessions;
@@ -64,7 +66,7 @@ public sealed partial class SqliteStore
                 session.Exec(Pragma("cache_size", -_options.BulkCacheSizeKiB));
                 session.Exec("PRAGMA temp_store = MEMORY");
 
-                foreach (var index in SecondaryIndexNames)
+                foreach (var index in DroppedIndexNames)
                     session.Exec("DROP INDEX IF EXISTS " + index);
 
                 session.Exec("CREATE TEMP TABLE IF NOT EXISTS bulk_pending (id INTEGER PRIMARY KEY)");
@@ -125,7 +127,7 @@ public sealed partial class SqliteStore
                 session.Commit();
                 session.BeginImmediate();
 
-                foreach (var ddl in SecondaryIndexDdl) session.Exec(ddl);
+                foreach (var ddl in DroppedIndexDdl) session.Exec(ddl);
 
                 ftsRows = session.Exec(
                     "INSERT INTO msg_fts(rowid, subject, body_text, from_addr, to_addr) "
@@ -166,7 +168,7 @@ public sealed partial class SqliteStore
             try
             {
                 session.Rollback();
-                foreach (var ddl in SecondaryIndexDdl) session.Exec(ddl);
+                foreach (var ddl in DroppedIndexDdl) session.Exec(ddl);
                 session.Exec("DELETE FROM bulk_pending");
             }
             finally
