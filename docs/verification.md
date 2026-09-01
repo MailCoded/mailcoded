@@ -6,18 +6,22 @@ What has actually been exercised, and what has not. This file exists because
 
 Environment: NixOS on WSL2, .NET SDK 10.0.302, linux-x64. Docker was **not** available.
 
+An adversarial review (six independent lenses, then a skeptic per finding instructed to refute it)
+produced 16 confirmed defects, all since fixed with regression tests. The store schema is at
+`user_version` 5.
+
 ## Verified by running it
 
 | Area | What was run | Result |
 |---|---|---|
 | Build | `dotnet build Mailcoded.slnx` with `TreatWarningsAsErrors=true` | clean, 0 warnings |
-| Unit suite | `tests/Mailcoded.Core.Tests` (xunit.v3) | **869 passed, 0 failed** |
+| Unit suite | `tests/Mailcoded.Core.Tests` (xunit.v3) | **941 passed, 0 failed** |
 | Architecture tests | NetArchTest rules from ARCHITECTURE §12.7 | green, incl. the no-removal-verb rule |
 | Native AOT | `dotnet publish -r linux-x64 -p:PublishAot=true`, daemon and CLI | 13.3 MB / 12.0 MB, **zero IL2xxx/IL3xxx warnings** |
 | AOT runtime | the AOT **CLI** imported all 35 fixtures and ran FTS, CJK-trigram, short-CJK `LIKE` and metadata search | identical results to the JIT build — MimeKit and SQLitePCLRaw survive trimming |
 | Daemon stdio | `scripts/aot-smoke.sh` plus a pipelined 4-request session | `initialize`, `account.list`, `folder.list`, `stats`, `health`, `shutdown` all answered; framing correct |
 | FTS5 assertion | startup check against `PRAGMA compile_options` | present; store opens at `user_version` 4 |
-| MIME corpus | `mailcoded import-eml fixtures/eml` | 35/35 imported, **0 failures** |
+| MIME corpus | `mailcoded import-eml fixtures/eml` | 36/36 imported, **0 failures** |
 | Search | FTS terms, phrases, diacritics, CJK ≥3 chars (trigram), CJK 1–2 chars (`LIKE`), `from:`, `subject:`, `tag:`, `is:unread`, `is:flagged`, `has:attachment`, `before:`/`after:`, negation | correct hits, correct reported route |
 | Malformed query | `search 'from: AND AND "unclosed'` | `ok: true` with a populated `errors` array — never throws |
 | IMAP sync | first sync against a minimal local IMAP server | plan `invalidate`, 3 envelopes ingested, 3 batches |
@@ -36,6 +40,10 @@ Environment: NixOS on WSL2, .NET SDK 10.0.302, linux-x64. Docker was **not** ava
 | Audit trail | `sync_log` after CLI activity | a row per call with `interface=cli`, a decision, and an args **digest** — no bodies, no credentials |
 | Exit codes | one invocation per class | 0 / 2 validation / 3 not-found / 4 forbidden, distinct and documented in `help` |
 | Integration suite | run with no Docker | **5 skipped** with the reason printed, 0 failed — never silently passes |
+| **Agent send cap** | seven `draft`/`send-preview`/`send-draft` triples, each in a **separate CLI process** | five transmitted, the sixth and seventh refused `1005 rate_limited`; the SMTP sink saw exactly five deliveries and `send_budget` held five rows |
+| **HTML text loss** | a message whose body contains `<3`, `<5000`, `<10%` | the payload after each now reaches `body_text` — `wire`, `999-888`, `CFO` and `IMPORTANT` are all searchable |
+| Script exclusion | fixture 011 (HTML-only with `<script>` and `javascript:`) | `body_text` carries none of it; the only `alert` match in the corpus is fixture 035's deliberately **undecoded** UTF-7 text |
+| Clean clone | `git clone` then build and test | builds and passes 941/941 — nothing required is missing from git |
 
 ## Milestone status against SPEC §9
 
