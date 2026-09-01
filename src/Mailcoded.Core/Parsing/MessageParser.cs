@@ -7,11 +7,9 @@ using MimeKit.Utils;
 
 namespace Mailcoded.Core.Parsing;
 
-/// <summary>
-/// Raw RFC822 -> <see cref="ParsedMessage"/>. The only place MimeKit is allowed to appear on the
-/// read path (SPEC invariant 8). Parsing is streaming and bounded: nothing here reads a whole
-/// attachment, and no malformed input escapes as an exception.
-/// </summary>
+/// <summary>Raw RFC822 -> <see cref="ParsedMessage"/>, the only place MimeKit appears on the read path
+/// (SPEC invariant 8). Parsing is streaming and bounded: malformed input becomes a warning, and only a
+/// message past a structural limit is refused, with <see cref="MimeStructureLimitException"/>.</summary>
 public sealed class MessageParser
 {
     private readonly MessageParserOptions _options;
@@ -38,32 +36,45 @@ public sealed class MessageParser
     /// IMAP INTERNALDATE, used when the Date header is missing or absurd (RELIABILITY edge case 18).
     /// Pass <c>default</c> when the caller has none.
     /// </param>
+    /// <exception cref="MimeStructureLimitException">The raw bytes exceed a structural bound. Throwing
+    /// beats returning: an empty body here would be stored as the message's real body.</exception>
     public ParsedMessage Parse(Stream raw, DateTimeOffset internalDateUtc, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(raw);
         ct.ThrowIfCancellationRequested();
 
-        MimeMessage message;
+        var bounded = Bind(raw, ct);
+
         try
         {
-            message = MimeMessage.Load(_mimeOptions, raw, raw.CanSeek, ct);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (IOException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            return Unparsable(internalDateUtc, ex);
-        }
+            MimeMessage message;
+            try
+            {
+                message = MimeMessage.Load(_mimeOptions, bounded.Source, bounded.Source.CanSeek, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (IOException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                bounded.ThrowIfRejected();
+                return Unparsable(internalDateUtc, ex);
+            }
 
-        using (message)
+            using (message)
+            {
+                bounded.ThrowIfRejected();
+                return ToParsedMessage(message, internalDateUtc, ct);
+            }
+        }
+        finally
         {
-            return ToParsedMessage(message, internalDateUtc, ct);
+            bounded.Dispose();
         }
     }
 
@@ -79,27 +90,40 @@ public sealed class MessageParser
         ArgumentNullException.ThrowIfNull(raw);
         ct.ThrowIfCancellationRequested();
 
-        MimeMessage message;
+        var bounded = await BindAsync(raw, ct).ConfigureAwait(false);
+
         try
         {
-            message = await MimeMessage.LoadAsync(_mimeOptions, raw, raw.CanSeek, ct).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (IOException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            return Unparsable(internalDateUtc, ex);
-        }
+            MimeMessage message;
+            try
+            {
+                message = await MimeMessage
+                    .LoadAsync(_mimeOptions, bounded.Source, bounded.Source.CanSeek, ct)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (IOException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                bounded.ThrowIfRejected();
+                return Unparsable(internalDateUtc, ex);
+            }
 
-        using (message)
+            using (message)
+            {
+                bounded.ThrowIfRejected();
+                return ToParsedMessage(message, internalDateUtc, ct);
+            }
+        }
+        finally
         {
-            return ToParsedMessage(message, internalDateUtc, ct);
+            bounded.Dispose();
         }
     }
 
@@ -139,57 +163,14 @@ public sealed class MessageParser
         ArgumentNullException.ThrowIfNull(destination);
         if (index < 0) return null;
 
-        MimeMessage message;
+        var bounded = Bind(raw, ct);
+
         try
         {
-            message = MimeMessage.Load(_mimeOptions, raw, raw.CanSeek, ct);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (IOException)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-
-        using (message)
-        {
-            var walk = new BodyWalk(new List<string>()) { SkipText = true };
+            MimeMessage message;
             try
             {
-                Walk(message.Body, 0, walk, ct);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception)
-            {
-                return null;
-            }
-
-            if (index >= walk.Entities.Count) return null;
-
-            try
-            {
-                switch (walk.Entities[index])
-                {
-                    case MessagePart nested when nested.Message is { } inner:
-                        inner.WriteTo(destination, ct);
-                        break;
-
-                    case MimePart part when part.Content is { } content:
-                        content.DecodeTo(destination, ct);
-                        break;
-
-                    default:
-                        return null;
-                }
+                message = MimeMessage.Load(_mimeOptions, bounded.Source, bounded.Source.CanSeek, ct);
             }
             catch (OperationCanceledException)
             {
@@ -201,11 +182,128 @@ public sealed class MessageParser
             }
             catch (Exception)
             {
+                bounded.ThrowIfRejected();
                 return null;
             }
 
-            return walk.Attachments[index];
+            using (message)
+            {
+                bounded.ThrowIfRejected();
+
+                var walk = new BodyWalk(new List<string>()) { SkipText = true };
+                try
+                {
+                    Walk(message.Body, 0, walk, ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception)
+                {
+                    return null;
+                }
+
+                if (index >= walk.Entities.Count) return null;
+
+                try
+                {
+                    switch (walk.Entities[index])
+                    {
+                        case MessagePart nested when nested.Message is { } inner:
+                            inner.WriteTo(destination, ct);
+                            break;
+
+                        case MimePart part when part.Content is { } content:
+                            content.DecodeTo(destination, ct);
+                            break;
+
+                        default:
+                            return null;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (IOException)
+                {
+                    throw;
+                }
+                catch (Exception)
+                {
+                    return null;
+                }
+
+                return walk.Attachments[index];
+            }
         }
+        finally
+        {
+            bounded.Dispose();
+        }
+    }
+
+    /// <summary>Bounds the raw bytes before MimeKit sees them, so a part-count bomb is refused while
+    /// the tree whose allocation is the attack does not exist yet. A seekable source is pre-scanned and
+    /// rewound; a forward-only one is cut short at the limit as the parser consumes it.</summary>
+    private BoundedSource Bind(Stream raw, CancellationToken ct)
+    {
+        if (!raw.CanSeek) return new BoundedSource(new ScanningReadStream(raw, _options));
+
+        var scanner = new MimeShapeScanner(_options);
+        var start = raw.Position;
+        var buffer = ArrayPool<byte>.Shared.Rent(RawMessageHasher.BufferSize);
+
+        try
+        {
+            while (!scanner.Rejected)
+            {
+                ct.ThrowIfCancellationRequested();
+                var read = raw.Read(buffer, 0, buffer.Length);
+                if (read <= 0) break;
+                scanner.Feed(buffer.AsSpan(0, read));
+            }
+
+            scanner.Finish();
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+            raw.Position = start;
+        }
+
+        scanner.ThrowIfRejected();
+        return new BoundedSource(raw);
+    }
+
+    private async Task<BoundedSource> BindAsync(Stream raw, CancellationToken ct)
+    {
+        if (!raw.CanSeek) return new BoundedSource(new ScanningReadStream(raw, _options));
+
+        var scanner = new MimeShapeScanner(_options);
+        var start = raw.Position;
+        var buffer = ArrayPool<byte>.Shared.Rent(RawMessageHasher.BufferSize);
+
+        try
+        {
+            while (!scanner.Rejected)
+            {
+                var read = await raw.ReadAsync(buffer.AsMemory(), ct).ConfigureAwait(false);
+                if (read <= 0) break;
+                scanner.Feed(buffer.AsSpan(0, read));
+            }
+
+            scanner.Finish();
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+            raw.Position = start;
+        }
+
+        scanner.ThrowIfRejected();
+        return new BoundedSource(raw);
     }
 
     private ParsedMessage ToParsedMessage(MimeMessage message, DateTimeOffset internalDateUtc, CancellationToken ct)
@@ -590,6 +688,287 @@ public sealed class MessageParser
         ParseWarnings = ["unparsable-message:" + ex.GetType().Name],
     };
 
+    private readonly struct BoundedSource
+    {
+        private readonly ScanningReadStream? _guard;
+
+        public BoundedSource(Stream source)
+        {
+            _guard = null;
+            Source = source;
+        }
+
+        public BoundedSource(ScanningReadStream guard)
+        {
+            _guard = guard;
+            Source = guard;
+        }
+
+        public Stream Source { get; }
+
+        public void ThrowIfRejected() => _guard?.ThrowIfRejected();
+
+        public void Dispose() => _guard?.Dispose();
+    }
+
+    /// <summary>Forward-only guard that reports EOF once the scanner has seen enough, so the parser
+    /// stops building parts rather than the process running out of memory.</summary>
+    private sealed class ScanningReadStream(Stream inner, MessageParserOptions options) : Stream
+    {
+        private readonly MimeShapeScanner _scanner = new(options);
+        private long _read;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => _read;
+            set => throw new NotSupportedException();
+        }
+
+        public void ThrowIfRejected() => _scanner.ThrowIfRejected();
+
+        public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+
+        public override int Read(Span<byte> buffer)
+        {
+            if (_scanner.Rejected) return 0;
+            return Observe(buffer, inner.Read(buffer));
+        }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_scanner.Rejected) return 0;
+            var read = await inner.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+            return Observe(buffer.Span, read);
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override int ReadByte()
+        {
+            Span<byte> one = stackalloc byte[1];
+            return Read(one) == 1 ? one[0] : -1;
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        private int Observe(ReadOnlySpan<byte> buffer, int read)
+        {
+            if (read <= 0)
+            {
+                _scanner.Finish();
+                return read;
+            }
+
+            _read += read;
+            _scanner.Feed(buffer[..read]);
+            return read;
+        }
+    }
+
+    /// <summary>Counts boundary delimiters in the raw bytes. Lines matching a boundary this scan saw
+    /// declared answer to the tight bound; any other line opening with "--" answers to the loose one, so
+    /// hiding a declaration from the scan still buys no unbounded tree.</summary>
+    private sealed class MimeShapeScanner(MessageParserOptions options)
+    {
+        private const int MaxLineBytes = 512;
+        private const int MaxBoundaryBytes = 70;
+        private const int MaxBoundaries = 64;
+
+        private readonly byte[] _line = new byte[MaxLineBytes];
+        private readonly ulong[] _boundaries = new ulong[MaxBoundaries];
+        private int _boundaryCount;
+        private int _lineLength;
+        private bool _overflowed;
+        private int _matched;
+        private int _candidates;
+        private string? _kind;
+        private int _count;
+        private int _limit;
+
+        public bool Rejected => _kind is not null;
+
+        public void Feed(ReadOnlySpan<byte> bytes)
+        {
+            while (!Rejected && !bytes.IsEmpty)
+            {
+                var newline = bytes.IndexOf((byte)'\n');
+                if (newline < 0)
+                {
+                    Append(bytes);
+                    return;
+                }
+
+                Append(bytes[..newline]);
+                EndLine();
+                bytes = bytes[(newline + 1)..];
+            }
+        }
+
+        public void Finish()
+        {
+            if (!Rejected && _lineLength > 0) EndLine();
+        }
+
+        public void ThrowIfRejected()
+        {
+            if (_kind is null) return;
+
+            throw new MimeStructureLimitException(
+                $"The raw message carries at least {_count} {_kind}, past the parse limit of {_limit}; "
+                + "it was refused before a MIME tree was built.");
+        }
+
+        private void Append(ReadOnlySpan<byte> chunk)
+        {
+            var room = MaxLineBytes - _lineLength;
+            if (chunk.Length > room)
+            {
+                _overflowed = true;
+                chunk = chunk[..room];
+            }
+
+            chunk.CopyTo(_line.AsSpan(_lineLength));
+            _lineLength += chunk.Length;
+        }
+
+        private void EndLine()
+        {
+            var line = _line.AsSpan(0, _lineLength);
+            if (!line.IsEmpty && line[^1] == (byte)'\r') line = line[..^1];
+
+            Inspect(line);
+            _lineLength = 0;
+            _overflowed = false;
+        }
+
+        private void Inspect(ReadOnlySpan<byte> line)
+        {
+            if (line.Length >= 2 && line[0] == (byte)'-' && line[1] == (byte)'-')
+            {
+                if (++_candidates > Positive(options.MaxRawDelimiterCandidates))
+                {
+                    Reject("delimiter-shaped lines", _candidates, Positive(options.MaxRawDelimiterCandidates));
+                    return;
+                }
+
+                if (!IsDeclaredBoundary(line[2..])) return;
+
+                if (++_matched > Positive(options.MaxRawBoundaryLines))
+                    Reject("MIME boundary delimiters", _matched, Positive(options.MaxRawBoundaryLines));
+
+                return;
+            }
+
+            if (_overflowed || _boundaryCount >= MaxBoundaries) return;
+            if (line.Length < 9 || line.IndexOf((byte)'=') < 0) return;
+
+            LearnBoundary(line);
+        }
+
+        private void LearnBoundary(ReadOnlySpan<byte> line)
+        {
+            for (var i = 0; i + 9 <= line.Length; i++)
+            {
+                if (!IsBoundaryKeyword(line[i..])) continue;
+
+                var j = i + 8;
+                while (j < line.Length && (line[j] is (byte)' ' or (byte)'\t' or (byte)'*' || IsDigit(line[j]))) j++;
+                if (j >= line.Length || line[j] != (byte)'=') continue;
+
+                var value = line[(j + 1)..];
+                while (!value.IsEmpty && value[0] is (byte)' ' or (byte)'\t') value = value[1..];
+
+                if (!value.IsEmpty && value[0] == (byte)'"')
+                {
+                    value = value[1..];
+                    var close = value.IndexOf((byte)'"');
+                    if (close >= 0) value = value[..close];
+                }
+                else
+                {
+                    var end = 0;
+                    while (end < value.Length && value[end] is not ((byte)';' or (byte)' ' or (byte)'\t')) end++;
+                    value = value[..end];
+                }
+
+                if (value.Length is > 0 and <= MaxBoundaryBytes) Remember(Hash(value));
+                return;
+            }
+        }
+
+        private bool IsDeclaredBoundary(ReadOnlySpan<byte> token)
+        {
+            if (token.EndsWith("--"u8)) token = token[..^2];
+            while (!token.IsEmpty && token[^1] is (byte)' ' or (byte)'\t') token = token[..^1];
+            if (token.Length is 0 or > MaxBoundaryBytes) return false;
+
+            var hash = Hash(token);
+            for (var i = 0; i < _boundaryCount; i++)
+                if (_boundaries[i] == hash)
+                    return true;
+
+            return false;
+        }
+
+        private void Remember(ulong hash)
+        {
+            for (var i = 0; i < _boundaryCount; i++)
+                if (_boundaries[i] == hash)
+                    return;
+
+            if (_boundaryCount < MaxBoundaries) _boundaries[_boundaryCount++] = hash;
+        }
+
+        private void Reject(string kind, int count, int limit)
+        {
+            _kind = kind;
+            _count = count;
+            _limit = limit;
+        }
+
+        private static bool IsBoundaryKeyword(ReadOnlySpan<byte> s)
+        {
+            const string keyword = "boundary";
+            if (s.Length < keyword.Length) return false;
+
+            for (var i = 0; i < keyword.Length; i++)
+                if ((s[i] | 0x20) != keyword[i])
+                    return false;
+
+            return true;
+        }
+
+        private static bool IsDigit(byte b) => b is >= (byte)'0' and <= (byte)'9';
+
+        private static int Positive(int value) => value > 0 ? value : 1;
+
+        private static ulong Hash(ReadOnlySpan<byte> value)
+        {
+            var hash = 14695981039346656037UL;
+            foreach (var b in value)
+            {
+                hash ^= b;
+                hash *= 1099511628211UL;
+            }
+
+            return hash;
+        }
+    }
+
     private sealed class BodyWalk(List<string> warnings)
     {
         public StringBuilder Text { get; } = new();
@@ -613,3 +992,7 @@ public sealed class MessageParser
 
 /// <summary>A parsed message together with the blob identity of the bytes it came from.</summary>
 public sealed record ParsedRawMessage(ParsedMessage Message, string Sha256Hex, long RawSize);
+
+/// <summary>A message whose raw bytes exceed a structural parse bound. A <see cref="FormatException"/>
+/// so every surface already treats it as unreadable input rather than as an empty body.</summary>
+public sealed class MimeStructureLimitException(string message) : FormatException(message);

@@ -50,6 +50,7 @@ that identifies a person. `example.com`, `example.org`, `example.net` and the re
 | 033 | a non-ASCII (EAI) sender address (edge case 29) |
 | 034 | a base64-encoded body that must still be indexed as text |
 | 035 | a declared UTF-7 body — an established sanitizer-bypass vector |
+| 036 | HTML text where `<` starts no tag (`<3`, `<5000`, `<10%`) — body text a reader sees |
 
 Edge case 14 (a 100 MB+ attachment) is deliberately **not** a file here. It is exercised
 by a synthetic stream in `tests/Mailcoded.Core.Tests`, because committing the payload

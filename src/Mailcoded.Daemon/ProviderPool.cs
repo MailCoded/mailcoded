@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using Mailcoded.Core.Application;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Providers;
@@ -57,7 +58,15 @@ internal sealed class ProviderPool : IAsyncDisposable
         await slot.Gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            if (slot.Imap is { IsConnected: true } live) return live;
+            if (slot.Imap is { IsConnected: true } live)
+            {
+                slot.ImapPolicy?.RecordSuccess();
+                return live;
+            }
+
+            // Every IDLE burst lands here, so a dead credential or a dead network would otherwise
+            // mean one full TCP+TLS+AUTHENTICATE per signal (RELIABILITY §14.4).
+            ThrowIfCoolingDown(accountId, slot);
 
             var provider = slot.Imap;
             if (provider is null)
@@ -72,12 +81,19 @@ internal sealed class ProviderPool : IAsyncDisposable
             {
                 await provider.ConnectAsync(config, secrets, ct).ConfigureAwait(false);
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 Report(accountId, ConnectionRole.Imap, ex);
-                throw;
+                throw StartCooldown(accountId, slot, ex);
             }
 
+            slot.ImapCooldownUntilTicks = 0;
+            slot.ImapCooldownCategory = null;
+            slot.ImapPolicy?.RecordSuccess();
             connections.Observe(accountId, ConnectionRole.Imap, ConnectionState.Connected);
             return provider;
         }
@@ -86,6 +102,63 @@ internal sealed class ProviderPool : IAsyncDisposable
             slot.Gate.Release();
         }
     }
+
+    /// <summary>Refuses the connect attempt while the account's reconnect backoff is still running.</summary>
+    private void ThrowIfCoolingDown(AccountId accountId, AccountTransports slot)
+    {
+        if (slot.ImapCooldownCategory is not { } category) return;
+
+        var remaining = slot.ImapCooldownUntilTicks - clock.Ticks;
+        if (remaining <= 0)
+        {
+            slot.ImapCooldownCategory = null;
+            return;
+        }
+
+        throw category == FailureCategory.Auth
+            ? new ProviderException(
+                FailureCategory.Auth,
+                $"Account {accountId.Value} needs re-authorization before it can connect again ({RetryDecision.AuthRequired}).")
+            : new ProviderException(
+                FailureCategory.Network,
+                $"Account {accountId.Value} is in reconnect backoff for another {remaining.ToString(CultureInfo.InvariantCulture)} ms.");
+    }
+
+    /// <summary>
+    /// Arms the backoff and returns what the caller should throw. A hard AUTHENTICATIONFAILED is
+    /// counted separately and surfaces as <c>auth-required</c> rather than being retried at speed.
+    /// </summary>
+    private Exception StartCooldown(AccountId accountId, AccountTransports slot, Exception failure)
+    {
+        var policy = slot.ImapPolicy ??= NewPolicy();
+        var category = Categorize(failure);
+        var decision = policy.OnFailure(category);
+
+        var cooldownMs = decision.ShouldRetry
+            ? (long)decision.Delay.TotalMilliseconds
+            : ReconnectPolicy.DefaultMaxDelayMs;
+
+        slot.ImapCooldownUntilTicks = clock.Ticks + cooldownMs;
+        slot.ImapCooldownCategory = category;
+
+        if (!decision.RequiresUserAction) return failure;
+
+        log.Warn($"Account {accountId.Value} needs re-authorization; reconnects are paused ({RetryDecision.AuthRequired}).");
+        return new ProviderException(
+            FailureCategory.Auth,
+            $"Account {accountId.Value} needs re-authorization ({RetryDecision.AuthRequired}).",
+            failure);
+    }
+
+    private ReconnectPolicy NewPolicy() =>
+        new(clock, options.RandomSeed is { } seed ? new Random(seed) : Random.Shared);
+
+    private static FailureCategory Categorize(Exception failure) => failure switch
+    {
+        ProviderException provider => provider.Category,
+        SecretStoreException => FailureCategory.Auth,
+        _ => FailureCategory.Network,
+    };
 
     public async Task<IMailSender> GetSenderAsync(AccountId accountId, CancellationToken ct)
     {
@@ -197,5 +270,12 @@ internal sealed class ProviderPool : IAsyncDisposable
         public ImapProvider? Imap { get; set; }
 
         public SmtpSender? Smtp { get; set; }
+
+        public ReconnectPolicy? ImapPolicy { get; set; }
+
+        /// <summary>Monotonic deadline; wall clock is never a basis for an interval (§14.4).</summary>
+        public long ImapCooldownUntilTicks { get; set; }
+
+        public FailureCategory? ImapCooldownCategory { get; set; }
     }
 }

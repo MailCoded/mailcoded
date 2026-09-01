@@ -268,10 +268,14 @@ recipients, body), `"quoted phrases"`, `from:`, `to:`, `cc:`, `subject:`, `tag:`
 
 Every message sharing a thread key, oldest first. An empty or blank `threadKey` → `-32602`.
 
-- There is **no cursor**. `truncated: true` means `messages.length` hit `limit` and the rest of the
-  conversation was not returned — raise `limit` and call again.
-- `limit` absent, `0`, or negative uses the Core default of **500**. The RPC surface does not clamp
-  `limit`; the CLI and the MCP adapter clamp it differently (see [§7.2](#72-surface-divergences)).
+- There is **no cursor**. `truncated: true` means `messages.length` reached the limit that was
+  *applied* and the rest of the conversation was not returned — raise `limit` and call again.
+- `limit` absent, `0`, or negative applies the default of **500**. A `limit` above **2000** is
+  clamped to 2000, the store's own page cap: ask for 5000 and you get at most 2000 messages with
+  `truncated: true`.
+- `truncated` is computed against the limit actually applied, never against the number you sent. A
+  700-message thread requested with no `limit` returns 500 messages and `truncated: true`.
+- The CLI and the MCP adapter clamp differently again (see [§7.2](#72-surface-divergences)).
 
 ### `message.get`
 `{ "messageId": 4213, "format": "text", "fetchIfMissing": true }`
@@ -292,6 +296,11 @@ daemon connects to IMAP, fetches the body once, stores and indexes it. Pass `fet
 false` to stay offline.
 
 `parseWarnings` are stable slugs (`missing-date`, …). They never echo mail content.
+
+A message whose raw bytes exceed a structural parse bound — the boundary-delimiter count that caps
+a MIME part-count bomb — is **refused**, with `-32602` and category `protocol`, rather than returned
+as a parsed message with an empty body. The refusal message carries counts only, never mail content.
+The envelope stays readable and `bodyFetched` stays false, so nothing empty is recorded as the body.
 
 > ### `bodyHtml` is returned RAW. Sanitizing it is the client's job.
 >
@@ -606,10 +615,10 @@ read from the code.
 |---|---|---|
 | CLI `mailcoded thread --limit` | `1..1000`, default **200** | `mailcoded help thread` says 1..1000, default 200 — correct |
 | MCP `thread` tool | `1..500`, default **200** | its JSON Schema says `maximum: 500` (correct) but *"Defaults to 500"* — **wrong**, the adapter passes 200 |
-| RPC `thread.get` | unclamped; absent/`0` → Core default **500** | — |
+| RPC `thread.get` | `1..2000`, default **500** | — |
 
-Three defaults (200, 200, 500) and two maxima (1000, 500) for the same operation. A client that
-moves between surfaces must pass `limit` explicitly rather than rely on any default.
+Three defaults (200, 200, 500) and three maxima (1000, 500, 2000) for the same operation. A client
+that moves between surfaces must pass `limit` explicitly rather than rely on any default.
 
 **Draft body size**
 

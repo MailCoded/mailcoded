@@ -273,7 +273,9 @@ public sealed class MessageService
             AuditText.Fields(
                 ("message", AuditText.Number(id.Value)),
                 ("from", source.Path.Value),
-                ("to", target.Path.Value)),
+                ("to", target.Path.Value),
+                // "pending": no COPYUID, so the next sync adopts the row by Message-ID.
+                ("uid", newUid is { } assigned ? AuditText.Number(assigned.Value) : "pending")),
             ct).ConfigureAwait(false);
     }
 

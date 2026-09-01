@@ -32,6 +32,9 @@ internal sealed class RpcDispatcher
     /// skipping the handshake must not buy more capability (no HTML bodies, no move, gated send).</summary>
     private const CallerKind UninitializedKind = CallerKind.Mcp;
 
+    /// <summary>The store's own thread-page cap, which no request may exceed.</summary>
+    private const int ThreadGetMaxLimit = 2000;
+
     private static readonly string[] SupportedNotifications =
         [RpcNotifications.MailAdded, RpcNotifications.FolderUpdated, RpcNotifications.SyncError];
 
@@ -284,7 +287,12 @@ internal sealed class RpcDispatcher
         if (!ThreadKey.TryCreate(request.ThreadKey, out var threadKey))
             throw new ArgumentException("threadKey must be a non-empty string.");
 
-        var limit = request.Limit ?? 0;
+        // truncated has to be read against the limit that was actually applied, so the clamp Core and
+        // the store would apply anyway happens here, where the answer is still knowable.
+        var requested = request.Limit ?? 0;
+        var limit = requested <= 0
+            ? MessageServiceOptions.Default.ThreadPageSize
+            : Math.Min(requested, ThreadGetMaxLimit);
         var view = host.Messages.GetThread(threadKey, limit, ct);
 
         var messages = new List<EnvelopeDto>(view.Messages.Count);
@@ -292,7 +300,7 @@ internal sealed class RpcDispatcher
             messages.Add(WireMapper.ToDto(row, Combine(row.Flags, view.Tags, row.Id)));
 
         return RpcPayloads.Value(
-            new ThreadGetResult { Messages = messages, Truncated = limit > 0 && messages.Count >= limit },
+            new ThreadGetResult { Messages = messages, Truncated = messages.Count >= limit },
             ProtocolJsonContext.Default.ThreadGetResult);
     }
 

@@ -15,7 +15,7 @@ public sealed class SyncPlannerApplyTests
             Added(10, modSeq: 5),
             FlagsChanged(10, MessageFlags.Flagged, modSeq: 7),
             Expunged(3),
-            Batch(modSeq: 9, highestUid: 12, count: 1));
+            Batch(modSeq: 9, highestUid: 12, count: 1)) with { PlanComplete = true };
 
         var result = SyncPlanner.Apply(state, response);
 
@@ -28,8 +28,12 @@ public sealed class SyncPlannerApplyTests
     [Fact]
     public void Apply_takes_the_maximum_uid_and_modseq_regardless_of_arrival_order()
     {
-        var ascending = SyncPlanner.Apply(State(), ServerResponse.Of(Added(1, 10), Added(9, 90), Added(5, 50)));
-        var descending = SyncPlanner.Apply(State(), ServerResponse.Of(Added(9, 90), Added(5, 50), Added(1, 10)));
+        var ascending = SyncPlanner.Apply(
+            State(),
+            ServerResponse.Of(Added(1, 10), Added(9, 90), Added(5, 50)) with { PlanComplete = true });
+        var descending = SyncPlanner.Apply(
+            State(),
+            ServerResponse.Of(Added(9, 90), Added(5, 50), Added(1, 10)) with { PlanComplete = true });
 
         Assert.Equal(new Uid(9), ascending.Next.HighestKnownUid);
         Assert.Equal(new ModSeq(90), ascending.Next.HighestModSeq);
@@ -41,7 +45,9 @@ public sealed class SyncPlannerApplyTests
     {
         var state = State(modSeq: 500, highestUid: 900);
 
-        var result = SyncPlanner.Apply(state, ServerResponse.Of(Added(3, 4), Batch(modSeq: 5, highestUid: 6, count: 1)));
+        var result = SyncPlanner.Apply(
+            state,
+            ServerResponse.Of(Added(3, 4), Batch(modSeq: 5, highestUid: 6, count: 1)) with { PlanComplete = true });
 
         Assert.Equal(new ModSeq(500), result.Next.HighestModSeq);
         Assert.Equal(new Uid(900), result.Next.HighestKnownUid);
@@ -62,6 +68,7 @@ public sealed class SyncPlannerApplyTests
             ],
             ReportedHighestModSeq = new ModSeq(170),
             NextBackfillCursor = new Uid(40),
+            PlanComplete = true,
             PermanentFlagsAllowCustomKeywords = false,
         };
 
@@ -78,7 +85,7 @@ public sealed class SyncPlannerApplyTests
     public void Replaying_a_committed_batch_is_safe_for_the_high_water_marks_but_not_for_the_counter()
     {
         var state = State(modSeq: 100, highestUid: 50, count: 10);
-        var response = ServerResponse.Of(Added(60, 200), Added(55, 150));
+        var response = ServerResponse.Of(Added(60, 200), Added(55, 150)) with { PlanComplete = true };
 
         var once = SyncPlanner.Apply(state, response);
         var twice = SyncPlanner.Apply(once.Next, response);
@@ -148,7 +155,7 @@ public sealed class SyncPlannerApplyTests
     public void A_regressing_reported_modseq_latches_the_condstore_quirk_and_does_not_move_the_watermark()
     {
         var state = State(modSeq: 500);
-        var response = new ServerResponse { Events = [], ReportedHighestModSeq = new ModSeq(400) };
+        var response = new ServerResponse { Events = [], ReportedHighestModSeq = new ModSeq(400), PlanComplete = true };
 
         var result = SyncPlanner.Apply(state, response);
 
@@ -163,7 +170,7 @@ public sealed class SyncPlannerApplyTests
     public void An_unknown_reported_modseq_is_not_evidence_of_a_broken_server()
     {
         var state = State(modSeq: 500);
-        var response = new ServerResponse { Events = [], ReportedHighestModSeq = ModSeq.Zero };
+        var response = new ServerResponse { Events = [], ReportedHighestModSeq = ModSeq.Zero, PlanComplete = true };
 
         var result = SyncPlanner.Apply(state, response);
 
@@ -176,7 +183,7 @@ public sealed class SyncPlannerApplyTests
     {
         var result = SyncPlanner.Apply(
             State(modSeq: 500),
-            new ServerResponse { Events = [], ReportedHighestModSeq = new ModSeq(600) });
+            new ServerResponse { Events = [], ReportedHighestModSeq = new ModSeq(600), PlanComplete = true });
 
         Assert.Equal(new ModSeq(600), result.Next.HighestModSeq);
         Assert.Equal(ServerQuirks.None, result.Quirks);
@@ -289,6 +296,48 @@ public sealed class SyncPlannerApplyTests
     {
         Assert.Throws<ArgumentNullException>(() => SyncPlanner.Apply(null!, ServerResponse.Of()));
         Assert.Throws<ArgumentNullException>(() => SyncPlanner.Apply(State(), null!));
+    }
+
+    [Fact]
+    public void A_checkpoint_commits_its_rows_but_never_advances_the_watermark()
+    {
+        var state = State(modSeq: 50, highestUid: 999, count: 999);
+        var checkpoint = ServerResponse.Of(
+            FlagsChanged(500, MessageFlags.None, modSeq: 101),
+            Batch(modSeq: 101, highestUid: null, count: 1));
+
+        var result = SyncPlanner.Apply(state, checkpoint);
+
+        Assert.Equal(new SyncCounts(Added: 0, Updated: 1, Expunged: 0), result.Counts);
+        Assert.True(
+            result.Next.HighestModSeq == new ModSeq(50),
+            "A QRESYNC plan yields flag changes before the arrivals it has not fetched yet. Committing MODSEQ 101 "
+            + "at this checkpoint and then losing the connection would leave the arrival at MODSEQ 100 below the "
+            + "watermark, and CHANGEDSINCE never offers it again.");
+    }
+
+    [Fact]
+    public void Only_a_drained_plan_advances_the_watermark()
+    {
+        var state = State(modSeq: 50, highestUid: 999, count: 999);
+        var events = new SyncEvent[]
+        {
+            FlagsChanged(500, MessageFlags.None, modSeq: 101),
+            Added(1_000, modSeq: 100),
+        };
+
+        var interrupted = SyncPlanner.Apply(state, new ServerResponse { Events = events });
+        var drained = SyncPlanner.Apply(
+            state,
+            new ServerResponse { Events = events, ReportedHighestModSeq = new ModSeq(101), PlanComplete = true });
+
+        Assert.Equal(new ModSeq(50), interrupted.Next.HighestModSeq);
+        Assert.Equal(new ModSeq(101), drained.Next.HighestModSeq);
+
+        Assert.True(
+            interrupted.Next.HighestKnownUid == new Uid(1_000),
+            "Rows are still committed at a checkpoint — only the watermark waits. Holding the rows back too would "
+            + "make a long plan restart from nothing after every drop.");
     }
 
     private static FolderState State(

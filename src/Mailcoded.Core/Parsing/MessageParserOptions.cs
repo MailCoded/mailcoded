@@ -1,10 +1,8 @@
 namespace Mailcoded.Core.Parsing;
 
-/// <summary>
-/// Bounds for parsing untrusted mail. Every limit exists so a hostile message cannot turn into
-/// unbounded memory, CPU or FTS content; exceeding one is a <see cref="ParsedMessage.ParseWarnings"/>
-/// entry, never an exception.
-/// </summary>
+/// <summary>Bounds for parsing untrusted mail, so a hostile message cannot turn into unbounded memory,
+/// CPU or FTS content. Exceeding one is a <see cref="ParsedMessage.ParseWarnings"/> entry, except for
+/// the raw-shape bounds, which refuse the message outright.</summary>
 public sealed record MessageParserOptions
 {
     public static MessageParserOptions Default { get; } = new();
@@ -26,6 +24,13 @@ public sealed record MessageParserOptions
 
     /// <summary>Entities visited in the whole tree.</summary>
     public int MaxParts { get; init; } = 512;
+
+    /// <summary>Boundary delimiter lines the raw bytes may carry. Checked before MimeKit builds the
+    /// tree, because the tree is the allocation a part-count bomb is buying.</summary>
+    public int MaxRawBoundaryLines { get; init; } = 4_096;
+
+    /// <summary>Backstop for lines that open a part but match no boundary this scan saw declared.</summary>
+    public int MaxRawDelimiterCandidates { get; init; } = 16_384;
 
     public int MaxAttachments { get; init; } = 512;
 

@@ -302,4 +302,97 @@ public sealed partial class SqliteStore
             .Prepare("DELETE FROM confirm_tokens WHERE expires_utc <= $now", "$now")
             .SetInt(0, ToUnixMs(nowUtc))
             .Execute();
+
+    private const string CountSendBudgetSql =
+        "SELECT COUNT(*), COALESCE(MIN(sent_utc), 0) FROM send_budget WHERE sent_utc > $floor";
+
+    /// <summary>How much of the hourly agent send budget the window still counts.</summary>
+    public SendBudgetUsage ReadSendBudget(long windowFloorMs, CancellationToken ct = default) =>
+        Read(session =>
+        {
+            using var reader = session
+                .Prepare(CountSendBudgetSql, "$floor")
+                .SetInt(0, windowFloorMs)
+                .ExecuteReader();
+
+            if (!reader.Read()) return new SendBudgetUsage(0, 0);
+            return new SendBudgetUsage((int)Db.Int(reader, 0), Db.Int(reader, 1));
+        }, ct);
+
+    /// <summary>Counts the window and reserves a slot in one writer transaction, so two racing
+    /// sends can never share the last one. The refused caller learns when a slot frees up.</summary>
+    public Task<SendBudgetReservation> TryReserveSendBudgetAsync(
+        string callerInterface,
+        int recipientCount,
+        DateTimeOffset sentUtc,
+        long windowFloorMs,
+        int maxSends,
+        CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(callerInterface);
+        if (recipientCount < 0) throw new ArgumentOutOfRangeException(nameof(recipientCount));
+        if (maxSends < 0) throw new ArgumentOutOfRangeException(nameof(maxSends));
+
+        return WriteAsync(context =>
+        {
+            // Pruning uses the very floor the count uses, so it can never drop a row that still counts.
+            context.Session
+                .Prepare("DELETE FROM send_budget WHERE sent_utc <= $floor", "$floor")
+                .SetInt(0, windowFloorMs)
+                .Execute();
+
+            int used;
+            long oldest;
+
+            using (var reader = context.Session
+                .Prepare(CountSendBudgetSql, "$floor")
+                .SetInt(0, windowFloorMs)
+                .ExecuteReader())
+            {
+                if (!reader.Read()) return SendBudgetReservation.Refused(0);
+                used = (int)Db.Int(reader, 0);
+                oldest = Db.Int(reader, 1);
+            }
+
+            if (used >= maxSends) return SendBudgetReservation.Refused(oldest - windowFloorMs);
+
+            var id = context.Session
+                .Prepare(
+                    "INSERT INTO send_budget (sent_utc, interface, recipients) "
+                    + "VALUES ($sent,$interface,$recipients) RETURNING id",
+                    "$sent", "$interface", "$recipients")
+                .SetInt(0, ToUnixMs(sentUtc))
+                .SetText(1, callerInterface)
+                .SetInt(2, recipientCount)
+                .ExecuteInt64();
+
+            return SendBudgetReservation.Granted(id);
+        }, ct);
+    }
+
+    /// <summary>Hands a reserved slot back when the send it was reserved for never reached the wire.</summary>
+    public Task ReleaseSendBudgetAsync(long reservationId, CancellationToken ct)
+    {
+        if (reservationId <= 0) return Task.CompletedTask;
+
+        return WriteAsync(context =>
+        {
+            context.Session
+                .Prepare("DELETE FROM send_budget WHERE id = $id", "$id")
+                .SetInt(0, reservationId)
+                .Execute();
+        }, ct);
+    }
+}
+
+/// <summary>The agent send budget as the window sees it: slots used, and the oldest one's wall clock.</summary>
+public readonly record struct SendBudgetUsage(int Used, long OldestSentUtcMs);
+
+/// <summary>A reserved slot of the agent send budget, or the refusal that replaced it.</summary>
+public readonly record struct SendBudgetReservation(bool IsGranted, long Id, long RetryAfterMs)
+{
+    public static SendBudgetReservation Granted(long id) => new(true, id, 0);
+
+    public static SendBudgetReservation Refused(long retryAfterMs) =>
+        new(false, 0, retryAfterMs < 0 ? 0 : retryAfterMs);
 }

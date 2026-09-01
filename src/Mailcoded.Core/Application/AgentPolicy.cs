@@ -1,4 +1,5 @@
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Store;
 
 namespace Mailcoded.Core.Application;
 
@@ -58,6 +59,13 @@ public sealed record SqlGateDecision
     }
 }
 
+/// <summary>A send that has passed every gate and holds one slot of the hourly budget, or the
+/// decision that refused it. The slot is released when the send it paid for never happened.</summary>
+public readonly record struct SendReservation(SendGateDecision Decision, long SlotId)
+{
+    public bool Granted => Decision.Allowed;
+}
+
 /// <summary>The AGENT-INTERFACE §13.6 posture matrix as one class. Gates live here, never in an adapter.</summary>
 public sealed class AgentPolicy
 {
@@ -65,18 +73,24 @@ public sealed class AgentPolicy
 
     private readonly IClock _clock;
     private readonly Lock _gate = new();
-    private readonly Queue<long> _sendTicks = new();
+    private readonly long _baseWallMs;
+    private readonly long _baseTicks;
+    private SqliteStore? _store;
 
-    public AgentPolicy(AgentPolicyOptions options, IClock clock)
+    public AgentPolicy(AgentPolicyOptions options, IClock clock, SqliteStore? store = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(clock);
 
         Options = options;
         _clock = clock;
+        _store = store;
+        _baseWallMs = clock.UtcNow.ToUnixTimeMilliseconds();
+        _baseTicks = clock.Ticks;
     }
 
-    public static AgentPolicy FromEnvironment(IClock clock) => new(AgentPolicyOptions.FromEnvironment(), clock);
+    public static AgentPolicy FromEnvironment(IClock clock, SqliteStore? store = null) =>
+        new(AgentPolicyOptions.FromEnvironment(), clock, store);
 
     public AgentPolicyOptions Options { get; }
 
@@ -118,62 +132,62 @@ public sealed class AgentPolicy
     {
         ArgumentNullException.ThrowIfNull(recipients);
 
-        if (caller.Kind == CallerKind.Internal) return SendGateDecision.Allow;
+        if (EvaluatePosture(caller, recipients) is { } denied) return denied;
         if (!caller.IsAgentSurface) return SendGateDecision.Allow;
 
-        if (!Options.SendEnabled)
-        {
-            return SendGateDecision.Deny(
-                PolicyDenialReason.SendDisabled,
-                $"Sending from the agent surface requires {AgentPolicyOptions.SendEnvVar}=1.");
-        }
+        var floor = WindowFloorMs();
+        var usage = Store.ReadSendBudget(floor);
+        if (usage.Used < Options.MaxSendsPerHour) return SendGateDecision.Allow;
 
-        foreach (var recipient in recipients)
-        {
-            if (IsRecipientApproved(recipient, Options.ApprovedRecipients)) continue;
-
-            return SendGateDecision.Deny(
-                PolicyDenialReason.RecipientNotApproved,
-                $"Recipient '{recipient.Value}' is not in {AgentPolicyOptions.ApprovedRecipientsEnvVar}.");
-        }
-
-        lock (_gate)
-        {
-            Evict();
-            if (_sendTicks.Count < Options.MaxSendsPerHour) return SendGateDecision.Allow;
-
-            var oldest = _sendTicks.Peek();
-            var elapsed = _clock.Ticks - oldest;
-            var remaining = SendWindowMs - elapsed;
-            if (remaining < 0) remaining = 0;
-
-            return SendGateDecision.Deny(
-                PolicyDenialReason.RateLimited,
-                $"The agent send budget of {Options.MaxSendsPerHour} per hour is spent.",
-                TimeSpan.FromMilliseconds(remaining));
-        }
+        return RateLimited(usage.OldestSentUtcMs - floor);
     }
 
-    /// <summary>Consumes one slot of the sliding window. Called only after the send was dispatched.</summary>
-    public void RecordSend(CallerContext caller)
+    /// <summary>Evaluates the gate and reserves one budget slot in the same store transaction, so
+    /// two concurrent sends with one slot left cannot both pass. Reserve before spending the token:
+    /// a refusal here must leave the token redeemable.</summary>
+    public async Task<SendReservation> TryReserveSendAsync(
+        CallerContext caller,
+        IReadOnlyList<EmailAddress> recipients,
+        CancellationToken ct)
     {
-        if (!caller.IsAgentSurface) return;
+        ArgumentNullException.ThrowIfNull(recipients);
 
-        lock (_gate)
-        {
-            Evict();
-            _sendTicks.Enqueue(_clock.Ticks);
-        }
+        if (EvaluatePosture(caller, recipients) is { } denied) return new SendReservation(denied, 0);
+        if (!caller.IsAgentSurface) return new SendReservation(SendGateDecision.Allow, 0);
+
+        var reservation = await Store
+            .TryReserveSendBudgetAsync(
+                caller.InterfaceName,
+                recipients.Count,
+                _clock.UtcNow,
+                WindowFloorMs(),
+                Options.MaxSendsPerHour,
+                ct)
+            .ConfigureAwait(false);
+
+        return reservation.IsGranted
+            ? new SendReservation(SendGateDecision.Allow, reservation.Id)
+            : new SendReservation(RateLimited(reservation.RetryAfterMs), 0);
     }
+
+    /// <summary>Returns a slot to the window when the send it was reserved for never reached the wire.</summary>
+    public Task ReleaseSendAsync(SendReservation reservation, CancellationToken ct) =>
+        reservation.SlotId <= 0
+            ? Task.CompletedTask
+            : Store.ReleaseSendBudgetAsync(reservation.SlotId, ct);
 
     public int RemainingSendsInWindow()
     {
-        lock (_gate)
-        {
-            Evict();
-            var remaining = Options.MaxSendsPerHour - _sendTicks.Count;
-            return remaining < 0 ? 0 : remaining;
-        }
+        var remaining = Options.MaxSendsPerHour - Store.ReadSendBudget(WindowFloorMs()).Used;
+        return remaining < 0 ? 0 : remaining;
+    }
+
+    /// <summary>Called by <see cref="SendService"/> so a hand-wired host cannot end up with a
+    /// budget that only counts the current process.</summary>
+    internal void AttachStore(SqliteStore store)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        lock (_gate) _store ??= store;
     }
 
     /// <summary>Exact address or <c>@domain</c> / <c>*@domain</c>. An empty allowlist approves nothing.</summary>
@@ -266,10 +280,61 @@ public sealed class AgentPolicy
 
     private static bool IsAgent(CallerKind caller) => caller is CallerKind.Cli or CallerKind.Mcp;
 
-    private void Evict()
+    private SqliteStore Store
     {
-        var now = _clock.Ticks;
-        while (_sendTicks.Count > 0 && now - _sendTicks.Peek() >= SendWindowMs) _sendTicks.Dequeue();
+        get
+        {
+            lock (_gate)
+            {
+                return _store ?? throw new InvalidOperationException(
+                    "This AgentPolicy has no store attached, so the hourly send budget could not be "
+                    + "counted across processes. Pass the SqliteStore to the constructor or to a SendService.");
+            }
+        }
+    }
+
+    private SendGateDecision? EvaluatePosture(CallerContext caller, IReadOnlyList<EmailAddress> recipients)
+    {
+        if (caller.Kind == CallerKind.Internal) return null;
+        if (!caller.IsAgentSurface) return null;
+
+        if (!Options.SendEnabled)
+        {
+            return SendGateDecision.Deny(
+                PolicyDenialReason.SendDisabled,
+                $"Sending from the agent surface requires {AgentPolicyOptions.SendEnvVar}=1.");
+        }
+
+        foreach (var recipient in recipients)
+        {
+            if (IsRecipientApproved(recipient, Options.ApprovedRecipients)) continue;
+
+            return SendGateDecision.Deny(
+                PolicyDenialReason.RecipientNotApproved,
+                $"Recipient '{recipient.Value}' is not in {AgentPolicyOptions.ApprovedRecipientsEnvVar}.");
+        }
+
+        return null;
+    }
+
+    private SendGateDecision RateLimited(long retryAfterMs)
+    {
+        if (retryAfterMs < 0) retryAfterMs = 0;
+        if (retryAfterMs > SendWindowMs) retryAfterMs = SendWindowMs;
+
+        return SendGateDecision.Deny(
+            PolicyDenialReason.RateLimited,
+            $"The agent send budget of {Options.MaxSendsPerHour} per hour is spent.",
+            TimeSpan.FromMilliseconds(retryAfterMs));
+    }
+
+    /// <summary>Slots carry wall clock because that is what survives a restart, and the floor never
+    /// advances faster than monotonic time, so no clock step can buy budget.</summary>
+    private long WindowFloorMs()
+    {
+        var wall = _clock.UtcNow.ToUnixTimeMilliseconds();
+        var monotonic = _baseWallMs + (_clock.Ticks - _baseTicks);
+        return (wall < monotonic ? wall : monotonic) - SendWindowMs;
     }
 
     private static int SkipTrivia(ReadOnlySpan<char> span)

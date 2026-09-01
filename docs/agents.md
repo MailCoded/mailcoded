@@ -117,16 +117,21 @@ without a valid, unexpired, unconsumed token fails with exit 6 (RPC 1003); with 
 gate it fails with exit 4 (RPC 1006); over budget it fails with exit 5 and a
 `retry_after_ms`. There is a ceiling of 5 agent sends per rolling hour regardless.
 
-**A limitation to know before you rely on this.** The token store is in-memory and
-process-scoped (`confirm_token_scope: "process"` in the preview output). Because the CLI
-is one-shot, a token printed by `mailcoded send-preview` cannot be redeemed by a later
-`mailcoded send-draft` process — it is refused with 1003. In practice the two-phase send
-completes only inside a long-lived process: the MCP server, or the daemon. Sending from
-the bare CLI is preview-only today. Nothing about this is unsafe; it just means "let the
-agent send" in practice means "let the agent send through MCP".
+**Where the token lives, and what that means.** The token is persisted in the store as a
+salted hash, not held in process memory: `send-preview` reports `confirm_token_scope:
+"store"`. So the pair above is a **real send from the bare CLI** — the token minted by one
+one-shot `send-preview` process is redeemable by the later `send-draft` process. It is
+single-use, bound to that one draft and its Message-ID, expires 10 minutes after it is
+minted, and is compared in constant time; the token value itself is never written to the
+store, the log, or an audit row. Treat the preview output as a bearer capability: within
+those 10 minutes, whoever can read the agent's stdout can spend it.
+
+The 5-per-rolling-hour budget is store-backed too, so one window is shared by every
+process on the machine — CLI, MCP server and daemon draw down the same allowance, and
+starting a fresh process does not reset it.
 
 Everything above is enforced inside Core. Running the agent through MCP instead of the
-CLI does not change it.
+CLI does not change it, and neither does running one command per shell invocation.
 
 ## Turning raw SQL on
 
@@ -179,7 +184,7 @@ sqlite3 -readonly ~/.local/share/mailcoded/store.db \
 `mailcoded health --json` gives the live posture in one line: `send_enabled`,
 `approved_recipient_patterns`, `raw_sql_enabled`, plus the store path and schema version.
 `mailcoded stats --json` reports `remaining_sends_in_window` and outstanding confirm
-tokens.
+tokens; both are read from the store, so every process reports the same numbers.
 
 ## The residual risk you are accepting
 
@@ -257,10 +262,10 @@ new-mail notifications; the agent polls `search` and `stats`. Transport is stdio
 stdout carries protocol frames only — all logging goes to stderr.
 
 To unlock sending here, put `MAILCODED_SEND` and `MAILCODED_APPROVED_RECIPIENTS` in that
-`env` block. Because the server is a long-lived process, the `send_preview` →
-`send_draft` token flow works end to end: `send_preview` returns `confirm_token` in its
-result and `send_draft` requires it as an argument, with the gate enforced in Core rather
-than in the adapter.
+`env` block. The `send_preview` → `send_draft` token flow works end to end: `send_preview`
+returns `confirm_token` in its result and `send_draft` requires it as an argument, with the
+gate enforced in Core rather than in the adapter. The token and the hourly budget live in
+the store, so this surface and the CLI share one window rather than one each.
 
 **Reach caveat (AGENT-INTERFACE §13.5).** This is a *local stdio* server. It reaches
 Claude Desktop's local config and Cursor's no-terminal mode. It does **not** reach
@@ -273,6 +278,8 @@ you want mail access from a phone, this is not the mechanism.
 Unset `MAILCODED_SEND`, `MAILCODED_APPROVED_RECIPIENTS`, and `MAILCODED_ENABLE_SQL` in
 the agent host's environment (for MCP, remove the `env` entries and restart the client).
 Everything returns to the default posture immediately — the gates are read from the
-environment at process start, and nothing about "unlocked" state is persisted in the
-store. To remove the surface entirely, delete the binary from `PATH` and remove the MCP
-server entry; the mail store is untouched by either.
+environment at process start, and no "unlocked" state is persisted in the store. An
+outstanding confirm token and the spent-send window *are* rows in the store and survive a
+restart, but a leftover token buys nothing with the gate shut: the gate is evaluated
+before the token is even looked at. To remove the surface entirely, delete the binary from
+`PATH` and remove the MCP server entry; the mail store is untouched by either.

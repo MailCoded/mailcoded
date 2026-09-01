@@ -63,18 +63,28 @@ public static class HtmlToText
             var closing = j < n && html[j] == '/';
             if (closing) j++;
 
-            var nameStart = j;
-            while (j < n && (char.IsAsciiLetterOrDigit(html[j]) || html[j] == '-' || html[j] == ':')) j++;
-            var nameLength = j - nameStart;
-
-            if (nameLength == 0)
+            // HTML5 tag-open: only ASCII alpha starts a tag name, so '<3' is text a reader sees and
+            // dropping it here would hide body content from FTS that the HTML view still shows.
+            if (j >= n || !char.IsAsciiLetter(html[j]))
             {
-                sb.Append('<');
-                i++;
+                if (closing)
+                {
+                    var bogus = html.IndexOf('>', j);
+                    i = bogus < 0 ? n : bogus + 1;
+                }
+                else
+                {
+                    sb.Append('<');
+                    i++;
+                }
+
                 continue;
             }
 
-            var name = html.AsSpan(nameStart, nameLength);
+            var nameStart = j;
+            while (j < n && (char.IsAsciiLetterOrDigit(html[j]) || html[j] == '-' || html[j] == ':')) j++;
+
+            var name = html.AsSpan(nameStart, j - nameStart);
             var tagEnd = FindTagEnd(html, j);
             var afterTag = tagEnd >= n ? n : tagEnd + 1;
 

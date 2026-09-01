@@ -13,8 +13,17 @@ public sealed partial class SqliteStore
         "SELECT id, account_id, folder_id, uid, message_id, thread_key, date_utc, from_addr, to_addrs, cc_addrs, "
         + "subject, flags, modseq, size, has_attachments, blob_id, body_fetched FROM messages";
 
+    private const string ExistingMessageColumns =
+        "id, flags, subject, from_addr, to_addrs, body_fetched, thread_key, message_id";
+
     private const string SelectExistingMessage =
-        "SELECT id, flags, subject, from_addr, to_addrs, body_fetched, thread_key FROM messages WHERE folder_id = $folder AND uid = $uid";
+        "SELECT " + ExistingMessageColumns + " FROM messages WHERE folder_id = $folder AND uid = $uid";
+
+    /// <summary>A row a local move left in this folder without a server UID, keyed by Message-ID:
+    /// the server's copy of the same message must adopt it instead of inserting a duplicate.</summary>
+    private const string SelectMovedInMessage =
+        "SELECT " + ExistingMessageColumns + " FROM messages "
+        + "WHERE folder_id = $folder AND uid IS NULL AND message_id = $msgid ORDER BY id LIMIT 1";
 
     private const string InsertMessage =
         "INSERT INTO messages (account_id, folder_id, uid, message_id, thread_key, date_utc, from_addr, to_addrs, "
@@ -41,6 +50,7 @@ public sealed partial class SqliteStore
         return WriteAsync(context =>
         {
             var accountId = RequireAccountForFolder(context.Session, batch.FolderId.Value);
+            var adoptUnlinked = HasUnlinkedRows(context.Session, batch.FolderId.Value);
             var added = 0;
             var updated = 0;
             var expunged = 0;
@@ -48,7 +58,7 @@ public sealed partial class SqliteStore
             foreach (var envelope in batch.Added)
             {
                 ct.ThrowIfCancellationRequested();
-                if (UpsertEnvelope(context, accountId, batch.FolderId.Value, envelope, threader)) added++;
+                if (UpsertEnvelope(context, accountId, batch.FolderId.Value, envelope, threader, adoptUnlinked: adoptUnlinked)) added++;
                 else updated++;
             }
 
@@ -95,13 +105,14 @@ public sealed partial class SqliteStore
         return WriteAsync(context =>
         {
             var accountId = RequireAccountForFolder(context.Session, folderId.Value);
+            var adoptUnlinked = HasUnlinkedRows(context.Session, folderId.Value);
             var inserted = 0;
             var updated = 0;
 
             foreach (var envelope in envelopes)
             {
                 ct.ThrowIfCancellationRequested();
-                if (UpsertEnvelope(context, accountId, folderId.Value, envelope, threader)) inserted++;
+                if (UpsertEnvelope(context, accountId, folderId.Value, envelope, threader, adoptUnlinked: adoptUnlinked)) inserted++;
                 else updated++;
             }
 
@@ -428,14 +439,17 @@ public sealed partial class SqliteStore
         return accountId ?? throw new StoreException(FailureCategory.NotFound, $"No folder with id {folderId}.");
     }
 
-    /// <summary>Returns true when the envelope was newly inserted, false when an existing row was refreshed.</summary>
+    /// <summary>Returns true when the envelope was newly inserted, false when an existing row was refreshed.
+    /// <paramref name="adoptUnlinked"/> is the caller's batch-level answer to "could a local move have left a
+    /// uid-NULL row here?" — the bulk backfill window never fetches the high UIDs a move produces.</summary>
     private static bool UpsertEnvelope(
         WriteContext context,
         long accountId,
         long folderId,
         RemoteEnvelope envelope,
         IThreader? threader,
-        bool deferFts = false)
+        bool deferFts = false,
+        bool adoptUnlinked = false)
     {
         var session = context.Session;
         var flags = (long)(int)envelope.Flags;
@@ -446,11 +460,13 @@ public sealed partial class SqliteStore
 
         long existingId = 0;
         var found = false;
+        var adopted = false;
         long oldFlags = 0;
         string? oldSubject = null;
         string? oldFrom = null;
         string? oldTo = null;
         string? oldThreadKey = null;
+        string? oldMessageId = null;
 
         using (var reader = session.Prepare(SelectExistingMessage, "$folder", "$uid")
                    .SetInt(0, folderId)
@@ -466,15 +482,56 @@ public sealed partial class SqliteStore
                 oldFrom = Db.Str(reader, 3);
                 oldTo = Db.Str(reader, 4);
                 oldThreadKey = Db.Str(reader, 6);
+                oldMessageId = Db.Str(reader, 7);
             }
         }
 
+        if (!found && adoptUnlinked && envelope.MessageIdHeader is { } incoming)
+        {
+            using var reader = session.Prepare(SelectMovedInMessage, "$folder", "$msgid")
+                .SetInt(0, folderId)
+                .SetText(1, incoming)
+                .ExecuteReader();
+
+            if (reader.Read())
+            {
+                found = true;
+                adopted = true;
+                existingId = reader.GetInt64(0);
+                oldFlags = Db.Int(reader, 1);
+                oldSubject = Db.Str(reader, 2);
+                oldFrom = Db.Str(reader, 3);
+                oldTo = Db.Str(reader, 4);
+                oldThreadKey = Db.Str(reader, 6);
+                oldMessageId = Db.Str(reader, 7);
+            }
+        }
+
+        // Edge case 3: the same UID now holds a different message, so nothing the old one owned —
+        // thread key, body, blob, FTS rows — describes this row any more.
+        var reusedUid = found
+            && !adopted
+            && oldMessageId is not null
+            && envelope.MessageIdHeader is not null
+            && !string.Equals(oldMessageId, envelope.MessageIdHeader, StringComparison.Ordinal);
+
         // A settled thread key is never recomputed: the resolve costs a lookup per envelope and
         // the UPDATE below would COALESCE it away anyway.
-        var threadKey = oldThreadKey ?? ResolveThreadKey(session, threader, envelope, folderId);
+        var threadKey = reusedUid || oldThreadKey is null
+            ? ResolveThreadKey(session, threader, envelope, folderId)
+            : oldThreadKey;
 
         if (found)
         {
+            var ftsWritten = !(deferFts && IsFtsDeferred(session, existingId));
+
+            if (reusedUid)
+            {
+                InvalidateReusedUid(
+                    session, accountId, folderId, existingId, envelope.Uid,
+                    oldSubject, oldFrom, oldTo, ftsWritten, context.Clock.UtcNow);
+            }
+
             session.Prepare(UpdateMessage,
                     "$msgid", "$thread", "$date", "$from", "$to", "$cc", "$subject", "$flags", "$modseq", "$size", "$hasatt", "$id")
                 .SetText(0, envelope.MessageIdHeader)
@@ -491,6 +548,15 @@ public sealed partial class SqliteStore
                 .SetInt(11, existingId)
                 .Execute();
 
+            if (adopted)
+            {
+                session
+                    .Prepare("UPDATE messages SET uid = $uid WHERE id = $id", "$uid", "$id")
+                    .SetInt(0, envelope.Uid.Value)
+                    .SetInt(1, existingId)
+                    .Execute();
+            }
+
             var oldUnread = (oldFlags & 1) != 0 ? 1 : 0;
             context.AddFolderDelta(folderId, 0, unread - oldUnread);
 
@@ -501,7 +567,11 @@ public sealed partial class SqliteStore
                 || !string.Equals(oldFrom, from, StringComparison.Ordinal)
                 || !string.Equals(oldTo, to, StringComparison.Ordinal);
 
-            if (indexedColumnsMoved && !(deferFts && IsFtsDeferred(session, existingId)))
+            if (reusedUid)
+            {
+                if (ftsWritten) Fts.Insert(session, existingId, subject, string.Empty, from, to);
+            }
+            else if (indexedColumnsMoved && ftsWritten)
             {
                 var body = ReadBodyTextForFts(session, existingId);
                 Fts.Replace(session, existingId, oldSubject, body, oldFrom, oldTo, subject, body, from, to);
@@ -534,6 +604,54 @@ public sealed partial class SqliteStore
 
         context.AddFolderDelta(folderId, 1, unread);
         return true;
+    }
+
+    /// <summary>Whether this folder holds a row a local move left without a server UID. One probe per
+    /// batch keeps the adoption lookup out of the per-envelope path when there is nothing to adopt.</summary>
+    private static bool HasUnlinkedRows(DbSession session, long folderId) =>
+        session
+            .Prepare("SELECT 1 FROM messages WHERE folder_id = $folder AND uid IS NULL LIMIT 1", "$folder")
+            .SetInt(0, folderId)
+            .ExecuteNullableInt64() is not null;
+
+    /// <summary>Edge case 3: whatever the previous occupant of this UID owned — body, blob, thread key,
+    /// FTS text — describes a different message and must not be served under the new headers.</summary>
+    private static void InvalidateReusedUid(
+        DbSession session,
+        long accountId,
+        long folderId,
+        long messageId,
+        Uid uid,
+        string? oldSubject,
+        string? oldFrom,
+        string? oldTo,
+        bool ftsWritten,
+        DateTimeOffset nowUtc)
+    {
+        if (ftsWritten)
+            Fts.Delete(session, messageId, oldSubject, ReadBodyTextForFts(session, messageId), oldFrom, oldTo);
+
+        session
+            .Prepare("DELETE FROM body_text WHERE message_id = $id", "$id")
+            .SetInt(0, messageId)
+            .Execute();
+
+        session
+            .Prepare("UPDATE messages SET blob_id = NULL, body_fetched = 0, thread_key = NULL WHERE id = $id", "$id")
+            .SetInt(0, messageId)
+            .Execute();
+
+        AppendSyncLogCore(
+            session,
+            new SyncLogEntry
+            {
+                Event = "uid_reused",
+                Level = "warn",
+                AccountId = new AccountId(accountId),
+                Detail = string.Create(CultureInfo.InvariantCulture, $"folder={folderId} uid={uid.Value}"),
+                Interface = "internal",
+            },
+            nowUtc);
     }
 
     private static bool ApplyFlagCore(WriteContext context, long folderId, FlagUpdate change)

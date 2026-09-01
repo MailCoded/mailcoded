@@ -277,6 +277,11 @@ internal sealed class MailTools
         var record = FindDraft(draftId, ct)
             ?? throw new ToolFailureException(ToolErrorCodes.NotFound, $"No draft with id {draftId}.");
 
+        // The gate runs before anything authenticates, so a closed gate cannot drive provider logins.
+        _host.Policy
+            .EvaluateSend(_host.Caller, record.Envelope?.AllRecipients() ?? [])
+            .ThrowIfDenied();
+
         var sender = await _host.Connections.SenderAsync(record.AccountId, ct).ConfigureAwait(false);
         var provider = await _host.Connections.TryProviderAsync(record.AccountId, ct).ConfigureAwait(false);
 

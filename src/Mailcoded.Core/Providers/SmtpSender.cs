@@ -17,6 +17,7 @@ public sealed class SmtpSender : IMailSender
 {
     private readonly IClock clock;
     private readonly MailTransportOptions options;
+    private readonly ImapCommandQueue queue = new();
 
     private AccountConfig? config;
     private ISecretStore? secrets;
@@ -39,7 +40,7 @@ public sealed class SmtpSender : IMailSender
     /// path, so readiness is "auth was not required, or it was required and it succeeded".</summary>
     public bool IsConnected => submissionReady && client is { IsConnected: true };
 
-    public async Task ConnectAsync(AccountConfig cfg, ISecretStore secretStore, CancellationToken ct)
+    public Task ConnectAsync(AccountConfig cfg, ISecretStore secretStore, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(cfg);
         ArgumentNullException.ThrowIfNull(secretStore);
@@ -51,6 +52,15 @@ public sealed class SmtpSender : IMailSender
         config = cfg;
         secrets = secretStore;
 
+        return queue.RunAsync(token => ConnectCoreAsync(cfg, smtp, secretStore, token), ct);
+    }
+
+    private async Task ConnectCoreAsync(
+        AccountConfig cfg,
+        SmtpConfig smtp,
+        ISecretStore secretStore,
+        CancellationToken ct)
+    {
         await CloseAsync().ConfigureAwait(false);
 
         var next = new SmtpClient
@@ -112,7 +122,9 @@ public sealed class SmtpSender : IMailSender
         SupportsSmtpUtf8 = next.Capabilities.HasFlag(SmtpCapabilities.UTF8);
     }
 
-    public async Task<string> SendAsync(
+    /// <summary>Every command is queued: MailKit allows one in flight per client, and two RPC
+    /// requests share this sender, so an overlapping submission would desync the reply stream.</summary>
+    public Task<string> SendAsync(
         byte[] raw,
         EmailAddress from,
         IReadOnlyList<EmailAddress> recipients,
@@ -125,6 +137,15 @@ public sealed class SmtpSender : IMailSender
         if (raw.Length == 0) throw new ArgumentException("Cannot send an empty message.", nameof(raw));
         if (recipients.Count == 0) throw new ArgumentException("A message needs at least one recipient.", nameof(recipients));
 
+        return queue.RunAsync<string>(token => SendCoreAsync(raw, from, recipients, token), ct);
+    }
+
+    private async Task<string> SendCoreAsync(
+        byte[] raw,
+        EmailAddress from,
+        IReadOnlyList<EmailAddress> recipients,
+        CancellationToken ct)
+    {
         var live = client ?? throw new ProviderException(FailureCategory.Network, "The SMTP connection has not been established.");
         if (!live.IsConnected || !submissionReady)
             throw new ProviderException(FailureCategory.Network, "The SMTP connection is not usable; a reconnect is required.");
@@ -228,6 +249,7 @@ public sealed class SmtpSender : IMailSender
         if (Interlocked.Exchange(ref disposed, 1) != 0) return;
 
         await CloseAsync().ConfigureAwait(false);
+        queue.Dispose();
     }
 
     private static SmtpDeliveryException Classify(SmtpCommandException ex)

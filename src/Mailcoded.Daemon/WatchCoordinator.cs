@@ -33,6 +33,7 @@ internal sealed class WatchCoordinator : IAsyncDisposable
 
     private readonly ConcurrentDictionary<(long Account, long Folder), Watch> watches = new();
     private readonly CancellationTokenSource lifetime = new();
+    private int liveCancellations;
     private int disposed;
 
     public WatchCoordinator(
@@ -67,6 +68,13 @@ internal sealed class WatchCoordinator : IAsyncDisposable
 
     /// <summary>False on a secondary instance: another live daemon already owns this store's IDLE set.</summary>
     public bool WatchEnabled => watchEnabled;
+
+    /// <summary>
+    /// Linked token sources created and not yet disposed. Every one of them stays registered on the
+    /// daemon lifetime token until it is disposed, so on a weeks-long process this must return to
+    /// zero as watches end (RELIABILITY §14.4 leak guards).
+    /// </summary>
+    public int LiveWatchCancellations => Volatile.Read(ref liveCancellations);
 
     public bool IsWatching(AccountId accountId)
     {
@@ -103,9 +111,11 @@ internal sealed class WatchCoordinator : IAsyncDisposable
             if (watches.ContainsKey(key)) continue;
 
             var watch = new Watch(CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token));
+            Interlocked.Increment(ref liveCancellations);
+
             if (!watches.TryAdd(key, watch))
             {
-                watch.Cancellation.Dispose();
+                Release(watch);
                 continue;
             }
 
@@ -190,6 +200,10 @@ internal sealed class WatchCoordinator : IAsyncDisposable
         {
             connections.Observe(accountId, ConnectionRole.ImapWatch, ConnectionState.Disconnected);
             watches.TryRemove((accountId.Value, folder.Id.Value), out _);
+
+            // A loop can end without a shutdown — an exhausted auth retry budget — and its linked
+            // source would otherwise stay registered on the lifetime token for the whole process.
+            Release(watch);
         }
     }
 
@@ -305,14 +319,25 @@ internal sealed class WatchCoordinator : IAsyncDisposable
             }
         }
 
-        foreach (var entry in pending) entry.Cancellation.Dispose();
+        foreach (var entry in pending) Release(entry);
 
         watches.Clear();
         lifetime.Dispose();
     }
 
+    /// <summary>Idempotent, so a self-terminating loop and shutdown cannot double-dispose.</summary>
+    private void Release(Watch watch)
+    {
+        if (!watch.TryClaimDisposal()) return;
+
+        watch.Cancellation.Dispose();
+        Interlocked.Decrement(ref liveCancellations);
+    }
+
     private sealed class Watch
     {
+        private int released;
+
         public Watch(CancellationTokenSource cancellation) => Cancellation = cancellation;
 
         public CancellationTokenSource Cancellation { get; }
@@ -320,6 +345,8 @@ internal sealed class WatchCoordinator : IAsyncDisposable
         public Task? Loop { get; set; }
 
         public Coalescer Coalescer { get; } = new();
+
+        public bool TryClaimDisposal() => Interlocked.Exchange(ref released, 1) == 0;
     }
 
     /// <summary>One in-flight pass per folder plus a single dirty bit — a storm cannot queue work.</summary>

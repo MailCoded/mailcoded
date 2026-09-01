@@ -43,6 +43,12 @@ public static class SyncPlanner
 
         if (QresyncUsable(local, server, caps))
         {
+            // A CHANGEDSINCE can only return messages above our watermark, so a watermark that has
+            // outrun the folder's contents makes every QRESYNC an empty no-op forever. Only a full
+            // diff can see the UIDs it skips.
+            if (WatermarkAheadOfContents(local, server))
+                return SyncPlan.Full(local.KnownUidsOrEmpty());
+
             return server.HighestModSeq == local.HighestModSeq && NoNewMessages(local, server)
                 ? SyncPlan.NoWork
                 : SyncPlan.Qresync(local.HighestModSeq, local.UidValidity, local.HighestKnownUid);
@@ -119,6 +125,19 @@ public static class SyncPlanner
     {
         if (local.LastFullDiffUtc is not { } last) return true;
         return nowUtc - last >= CondstoreFullDiffInterval;
+    }
+
+    /// <summary>Watermark at or past the server's, yet the server holds more messages than we do: no
+    /// delta can reach them. EXISTS, not UIDNEXT — an expunged tail leaves UIDNEXT ahead legitimately.</summary>
+    public static bool WatermarkAheadOfContents(FolderState local, ServerFolderInfo server)
+    {
+        ArgumentNullException.ThrowIfNull(local);
+        ArgumentNullException.ThrowIfNull(server);
+
+        if (server.HighestModSeq.IsUnknown || local.HighestModSeq.IsUnknown) return false;
+        if (server.HighestModSeq > local.HighestModSeq) return false;
+
+        return server.TotalCount > local.KnownMessageCount;
     }
 
     private static bool NoNewMessages(FolderState local, ServerFolderInfo server)
@@ -203,7 +222,10 @@ public static class SyncPlanner
 
         next = state with
         {
-            HighestModSeq = highestModSeq,
+            // A checkpoint commits rows, never the watermark: the plan can still die before the
+            // messages between here and the reported MODSEQ arrive, and CHANGEDSINCE would then
+            // never offer them again.
+            HighestModSeq = response.PlanComplete ? highestModSeq : state.HighestModSeq,
             HighestKnownUid = highestUid,
             KnownMessageCount = count < 0 ? 0 : count,
             // Silence leaves an in-progress backfill alone; only an explicit completion ends it.
@@ -233,6 +255,10 @@ public sealed record ServerResponse
 
     /// <summary>The provider declaring the backfill finished. Nothing else clears the stored cursor.</summary>
     public bool BackfillComplete { get; init; }
+
+    /// <summary>The plan drained, so the MODSEQ watermark may advance. A mid-plan checkpoint may not:
+    /// CHANGEDSINCE never re-offers the messages a raised watermark skips.</summary>
+    public bool PlanComplete { get; init; }
 
     /// <summary>Null when the server said nothing about PERMANENTFLAGS in this batch.</summary>
     public bool? PermanentFlagsAllowCustomKeywords { get; init; }

@@ -419,7 +419,8 @@ public sealed class SyncEngine
             if (e is SyncEvent.BatchComplete complete) checkpointModSeq = complete.HighestModSeq;
 
             var flush = await FlushAsync(
-                provider, account, folder, state, info, pending, null, plannedCursor, backfillComplete: false, ct)
+                provider, account, folder, state, info, pending, null, plannedCursor,
+                backfillComplete: false, planComplete: false, ct)
                 .ConfigureAwait(false);
 
             pending.Clear();
@@ -451,8 +452,11 @@ public sealed class SyncEngine
                 nextCursor = state.BackfillCursor;
             }
 
+            // Reached only once the provider stream has drained, which is what makes it safe to
+            // move the watermark: an exception mid-plan skips this flush entirely.
             var final = await FlushAsync(
-                provider, account, folder, state, info, pending, checkpointModSeq, nextCursor, backfillComplete, ct)
+                provider, account, folder, state, info, pending, checkpointModSeq, nextCursor,
+                backfillComplete, planComplete: true, ct)
                 .ConfigureAwait(false);
 
             batches++;
@@ -476,6 +480,7 @@ public sealed class SyncEngine
         ModSeq? reportedModSeq,
         Uid? backfillCursor,
         bool backfillComplete,
+        bool planComplete,
         CancellationToken ct)
     {
         var response = new ServerResponse
@@ -484,6 +489,7 @@ public sealed class SyncEngine
             ReportedHighestModSeq = reportedModSeq,
             NextBackfillCursor = backfillCursor,
             BackfillComplete = backfillComplete,
+            PlanComplete = planComplete,
             PermanentFlagsAllowCustomKeywords = info.PermanentFlagsAllowCustomKeywords,
         };
 

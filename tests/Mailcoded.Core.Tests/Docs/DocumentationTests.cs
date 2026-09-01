@@ -113,7 +113,7 @@ public sealed class DocumentationTests
 
         Assert.Contains("`1..1000`, default **200**", section, StringComparison.Ordinal);
         Assert.Contains("`1..500`, default **200**", section, StringComparison.Ordinal);
-        Assert.Contains("Core default **500**", section, StringComparison.Ordinal);
+        Assert.Contains("`1..2000`, default **500**", section, StringComparison.Ordinal);
         Assert.Contains("1,048,576 bytes", section, StringComparison.Ordinal);
         Assert.Contains("no body-size limit at all", section, StringComparison.Ordinal);
     }

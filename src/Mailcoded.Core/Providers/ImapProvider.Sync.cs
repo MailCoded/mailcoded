@@ -61,13 +61,14 @@ public sealed partial class ImapProvider
         [EnumeratorCancellation] CancellationToken ct)
     {
         await OpenReadAsync(folder, ct).ConfigureAwait(false);
+        var opened = Snapshot(folder);
 
         var uids = await ImapAsync<IList<UniqueId>>("UID SEARCH ALL", () => folder.SearchAsync(SearchQuery.All, ct)).ConfigureAwait(false);
 
         await foreach (var e in FetchEnvelopesAsync(folder, uids, newestFirst: false, ct).ConfigureAwait(false))
             yield return e;
 
-        yield return CompleteCheckpoint(folder);
+        yield return CompleteCheckpoint(opened);
     }
 
     private async IAsyncEnumerable<SyncEvent> QresyncAsync(
@@ -117,6 +118,10 @@ public sealed partial class ImapProvider
                 yield break;
             }
 
+            // Captured before the first FETCH: what arrives mid-plan is not covered by this
+            // CHANGEDSINCE, and a watermark taken afterwards would silently skip it.
+            var opened = Snapshot(folder);
+
             foreach (var vanished in capture.Vanished)
                 yield return new SyncEvent.MessageExpunged(vanished);
 
@@ -163,7 +168,7 @@ public sealed partial class ImapProvider
             foreach (var uid in missing)
                 yield return new SyncEvent.MessageExpunged(uid);
 
-            yield return CompleteCheckpoint(folder);
+            yield return CompleteCheckpoint(opened);
         }
         finally
         {
@@ -178,6 +183,7 @@ public sealed partial class ImapProvider
         [EnumeratorCancellation] CancellationToken ct)
     {
         await OpenReadAsync(folder, ct).ConfigureAwait(false);
+        var opened = Snapshot(folder);
 
         if (BrokenModSeq(folder, since, out var reason))
         {
@@ -215,7 +221,7 @@ public sealed partial class ImapProvider
         await foreach (var e in FetchEnvelopesAsync(folder, arrivals, newestFirst: false, ct).ConfigureAwait(false))
             yield return e;
 
-        yield return CompleteCheckpoint(folder);
+        yield return CompleteCheckpoint(opened);
     }
 
     private async IAsyncEnumerable<SyncEvent> FullDiffAsync(
@@ -224,6 +230,7 @@ public sealed partial class ImapProvider
         [EnumeratorCancellation] CancellationToken ct)
     {
         await OpenReadAsync(folder, ct).ConfigureAwait(false);
+        var opened = Snapshot(folder);
 
         var serverUids = await ImapAsync<IList<UniqueId>>("UID SEARCH ALL", () => folder.SearchAsync(SearchQuery.All, ct)).ConfigureAwait(false);
 
@@ -253,7 +260,7 @@ public sealed partial class ImapProvider
         await foreach (var e in FetchEnvelopesAsync(folder, arrivals, newestFirst: false, ct).ConfigureAwait(false))
             yield return e;
 
-        yield return CompleteCheckpoint(folder);
+        yield return CompleteCheckpoint(opened);
     }
 
     private async IAsyncEnumerable<SyncEvent> BackfillAsync(
@@ -428,10 +435,13 @@ public sealed partial class ImapProvider
         return false;
     }
 
-    private static SyncEvent CompleteCheckpoint(IMailFolder folder)
+    private static FolderSnapshot Snapshot(IMailFolder folder) =>
+        new(folder.HighestModSeq, folder.UidNext is { } next ? next.Id : 0u);
+
+    private static SyncEvent CompleteCheckpoint(FolderSnapshot opened)
     {
-        Uid? highest = folder.UidNext is { } next && next.Id > 1 ? new Uid(next.Id - 1) : null;
-        return new SyncEvent.BatchComplete(new ModSeq(folder.HighestModSeq), highest, 0);
+        Uid? highest = opened.UidNext > 1 ? new Uid(opened.UidNext - 1) : null;
+        return new SyncEvent.BatchComplete(new ModSeq(opened.HighestModSeq), highest, 0);
     }
 
     private MessageSummaryItems EnvelopeItems()
@@ -534,6 +544,9 @@ public sealed partial class ImapProvider
         var cleaned = ProviderErrors.SanitizeDetail(raw, maxLength);
         return cleaned.Length == 0 ? null : cleaned;
     }
+
+    /// <summary>What the server reported at SELECT/EXAMINE, before this plan fetched anything.</summary>
+    private readonly record struct FolderSnapshot(ulong HighestModSeq, uint UidNext);
 
     private sealed class VanishedCapture
     {

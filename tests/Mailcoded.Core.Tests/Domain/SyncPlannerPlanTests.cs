@@ -299,6 +299,37 @@ public sealed class SyncPlannerPlanTests
             p => p is SyncPlan.QresyncDelta),
 
         new PlanCase(
+            "qresync/watermark-ahead-of-contents-self-heals",
+            "A watermark that outran the folder cannot be repaired by another CHANGEDSINCE: MODSEQ 101 is already "
+            + "ours, so a delta returns nothing, yet the server holds one message more than we do. Only a full diff "
+            + "can see it, so the folder must not keep re-running an empty QRESYNC forever.",
+            Local(uidValidity: 42, modSeq: 101, highestUid: 999, count: 999),
+            Server(uidValidity: 42, modSeq: 101, uidNext: 1_001, total: 1_000),
+            new ServerCaps { Qresync = true, Condstore = true },
+            Now,
+            p => p is SyncPlan.FullDiff),
+
+        new PlanCase(
+            "qresync/expunged-tail-is-not-a-gap",
+            "UIDNEXT ahead of our highest UID is normal after the newest messages were expunged or moved. The "
+            + "counts agree, so this is a cheap empty delta and must never become a full diff on every sync.",
+            Local(uidValidity: 42, modSeq: 100, highestUid: 100, count: 100),
+            Server(uidValidity: 42, modSeq: 100, uidNext: 141, total: 100),
+            new ServerCaps { Qresync = true },
+            Now,
+            p => p is SyncPlan.QresyncDelta),
+
+        new PlanCase(
+            "qresync/watermark-ahead-with-no-uidnext-self-heals",
+            "The evidence is EXISTS, not UIDNEXT: a server that withholds UIDNEXT still reveals the gap, and an "
+            + "expunged tail (UIDNEXT ahead, counts equal) must NOT be mistaken for one.",
+            Local(uidValidity: 42, modSeq: 101, highestUid: 999, count: 999),
+            Server(uidValidity: 42, modSeq: 101, total: 1_000),
+            new ServerCaps { Qresync = true },
+            Now,
+            p => p is SyncPlan.FullDiff),
+
+        new PlanCase(
             "degraded/no-extension-at-all",
             "§14.5 case 5: no usable extension leaves only a full UID-range diff. The caller logs degraded_sync.",
             Local(uidValidity: 42, highestUid: 100),

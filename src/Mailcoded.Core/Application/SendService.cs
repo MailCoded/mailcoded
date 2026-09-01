@@ -129,8 +129,9 @@ public sealed class SendService
         _tokens = tokens;
         _defaults = options ?? SendOptions.Default;
 
-        // A confirm token has to outlive the one-shot CLI process that minted it.
+        // A confirm token and the hourly send budget both have to outlive the one-shot CLI process.
         tokens.AttachStore(store);
+        policy.AttachStore(store);
     }
 
     public IReadOnlyList<OutboxRecord> ListOutbox(OutboxState? state = null, CancellationToken ct = default) =>
@@ -258,10 +259,12 @@ public sealed class SendService
         var digest = AuditText.Digest(record.Raw);
         var envelope = ResolveEnvelope(record, ct);
 
-        // The agent gates run before the token is consumed so a denied call never burns it.
-        var gate = _policy.EvaluateSend(caller, envelope.Recipients);
-        if (!gate.Allowed)
+        // The agent gates run and the budget slot is taken before the token is consumed, so neither
+        // a denial nor a spent budget burns it.
+        var reservation = await _policy.TryReserveSendAsync(caller, envelope.Recipients, ct).ConfigureAwait(false);
+        if (!reservation.Granted)
         {
+            var gate = reservation.Decision;
             await AuditAttemptAsync(caller, record, digest, gate.Label, envelope.Recipients.Count, false, gate.Reason.ToString(), AuditLog.LevelWarn, ct)
                 .ConfigureAwait(false);
             gate.ThrowIfDenied();
@@ -273,6 +276,7 @@ public sealed class SendService
 
         if (!consumed)
         {
+            await _policy.ReleaseSendAsync(reservation, ct).ConfigureAwait(false);
             await AuditAttemptAsync(caller, record, digest, "denied", envelope.Recipients.Count, false, "confirm-required", AuditLog.LevelWarn, ct)
                 .ConfigureAwait(false);
 
@@ -280,12 +284,14 @@ public sealed class SendService
                 "A valid one-time confirm token from send.preview is required before a message is sent.");
         }
 
-        _policy.RecordSend(caller);
-
         await AuditAttemptAsync(caller, record, digest, "allowed", envelope.Recipients.Count, true, null, AuditLog.LevelInfo, ct)
             .ConfigureAwait(false);
 
         var outcome = await DispatchAsync(caller, sender, provider, record, envelope, settings, ct).ConfigureAwait(false);
+
+        // Nothing reached the wire, so the slot was never spent.
+        if (!outcome.Dispatched) await _policy.ReleaseSendAsync(reservation, ct).ConfigureAwait(false);
+
         if (outcome.Failure is { } failure) ExceptionDispatchInfo.Capture(failure).Throw();
 
         return outcome.Result;
@@ -449,7 +455,7 @@ public sealed class SendService
 
         if (message.State == OutboxState.Sent)
         {
-            return new DispatchOutcome(ToResult(message, 250, false, false), null);
+            return new DispatchOutcome(ToResult(message, 250, false, false), null, false);
         }
 
         if (message.State == OutboxState.Sending)
@@ -458,7 +464,8 @@ public sealed class SendService
                 ToResult(message, 0, false, false),
                 new ProviderException(
                     FailureCategory.Busy,
-                    "This message is mid-dispatch; reconcile it against Sent before another attempt."));
+                    "This message is mid-dispatch; reconcile it against Sent before another attempt."),
+                false);
         }
 
         if (message.State == OutboxState.Failed)
@@ -467,7 +474,8 @@ public sealed class SendService
             {
                 return new DispatchOutcome(
                     ToResult(message, 0, false, false),
-                    new ProviderException(FailureCategory.Permanent, "This message will not be retried automatically."));
+                    new ProviderException(FailureCategory.Permanent, "This message will not be retried automatically."),
+                    false);
             }
 
             message.Retry(_clock.UtcNow);
@@ -488,7 +496,7 @@ public sealed class SendService
         catch (SmtpDeliveryException ex)
         {
             var result = SmtpResult.FromResponse(ex.StatusCode, ex.Message);
-            return new DispatchOutcome(await FailAsync(caller, message, record, result, ex.RequiresReconnect, ct).ConfigureAwait(false), ex);
+            return new DispatchOutcome(await FailAsync(caller, message, record, result, ex.RequiresReconnect, ct).ConfigureAwait(false), ex, true);
         }
         catch (ProviderException ex)
         {
@@ -497,7 +505,7 @@ public sealed class SendService
             var result = ex.IsPermanent
                 ? SmtpResult.FromResponse(GenericPermanentCode, ex.Message)
                 : SmtpResult.NetworkFailure(ex.Message);
-            return new DispatchOutcome(await FailAsync(caller, message, record, result, false, ct).ConfigureAwait(false), ex);
+            return new DispatchOutcome(await FailAsync(caller, message, record, result, false, ct).ConfigureAwait(false), ex, true);
         }
 
         var accepted = SmtpResult.Accepted(response);
@@ -524,7 +532,7 @@ public sealed class SendService
             },
             ct).ConfigureAwait(false);
 
-        return new DispatchOutcome(ToResult(message, accepted.Code, appended, false), null);
+        return new DispatchOutcome(ToResult(message, accepted.Code, appended, false), null, true);
     }
 
     private async Task<SendResult> FailAsync(
@@ -737,5 +745,5 @@ public sealed class SendService
 
     private readonly record struct SendEnvelope(EmailAddress From, IReadOnlyList<EmailAddress> Recipients);
 
-    private readonly record struct DispatchOutcome(SendResult Result, Exception? Failure);
+    private readonly record struct DispatchOutcome(SendResult Result, Exception? Failure, bool Dispatched);
 }
