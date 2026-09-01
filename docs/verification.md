@@ -37,6 +37,23 @@ Environment: NixOS on WSL2, .NET SDK 10.0.302, linux-x64. Docker was **not** ava
 | Exit codes | one invocation per class | 0 / 2 validation / 3 not-found / 4 forbidden, distinct and documented in `help` |
 | Integration suite | run with no Docker | **5 skipped** with the reason printed, 0 failed — never silently passes |
 
+## Milestone status against SPEC §9
+
+The SPEC checkboxes are deliberately left unticked: several criteria need Docker, reference
+hardware, or the other two OS legs, none of which were available here.
+
+| Milestone | State | What is missing |
+|---|---|---|
+| **M0** Scaffold | criteria met on linux-x64 | the macOS and Windows CI legs have not run |
+| **M1** Store + MIME | met | — |
+| **M2** IMAP sync + send | mostly met | verified against a minimal local IMAP server, not Dovecot: the QRESYNC/CONDSTORE arms, IDLE, `APPEND`-to-Sent and the 5k-message timing are unrun |
+| **M3** Daemon + secrets + extension skeleton | backend met | the Windows/macOS keyrings are untested, and the VS Code extension does not exist |
+| **M4** Read/act/compose in the extension | not started | the extension is a separate repository |
+| **M-perf** | harness only | benchmarks never run; `baseline.json` is zeros on purpose |
+| **M5** Polish + agents + packaging | agent surface met | `vsce`/Open VSX packaging, screenshots, and the release tag are human steps |
+| **M-chaos / M-soak** | not started | no Toxiproxy run, no 24h soak |
+| **M6** Launch | drafts only | a human posts; see `docs/launch.md` |
+
 ## NOT verified — do not claim these
 
 - **M-perf gates.** The harness and the deterministic 500k corpus generator exist and the generator
