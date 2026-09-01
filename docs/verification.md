@@ -1,0 +1,67 @@
+# Verification record
+
+What has actually been exercised, and what has not. This file exists because
+`STRATEGY.md` §5 gates every public claim on a measurement, so "implemented" and
+"verified" have to be separable. Nothing here is a performance claim.
+
+Environment: NixOS on WSL2, .NET SDK 10.0.302, linux-x64. Docker was **not** available.
+
+## Verified by running it
+
+| Area | What was run | Result |
+|---|---|---|
+| Build | `dotnet build Mailcoded.slnx` with `TreatWarningsAsErrors=true` | clean, 0 warnings |
+| Unit suite | `tests/Mailcoded.Core.Tests` (xunit.v3) | **869 passed, 0 failed** |
+| Architecture tests | NetArchTest rules from ARCHITECTURE §12.7 | green, incl. the no-removal-verb rule |
+| Native AOT | `dotnet publish -r linux-x64 -p:PublishAot=true`, daemon and CLI | 13.3 MB / 12.0 MB, **zero IL2xxx/IL3xxx warnings** |
+| AOT runtime | the AOT **CLI** imported all 35 fixtures and ran FTS, CJK-trigram, short-CJK `LIKE` and metadata search | identical results to the JIT build — MimeKit and SQLitePCLRaw survive trimming |
+| Daemon stdio | `scripts/aot-smoke.sh` plus a pipelined 4-request session | `initialize`, `account.list`, `folder.list`, `stats`, `health`, `shutdown` all answered; framing correct |
+| FTS5 assertion | startup check against `PRAGMA compile_options` | present; store opens at `user_version` 4 |
+| MIME corpus | `mailcoded import-eml fixtures/eml` | 35/35 imported, **0 failures** |
+| Search | FTS terms, phrases, diacritics, CJK ≥3 chars (trigram), CJK 1–2 chars (`LIKE`), `from:`, `subject:`, `tag:`, `is:unread`, `is:flagged`, `has:attachment`, `before:`/`after:`, negation | correct hits, correct reported route |
+| Malformed query | `search 'from: AND AND "unclosed'` | `ok: true` with a populated `errors` array — never throws |
+| IMAP sync | first sync against a minimal local IMAP server | plan `invalidate`, 3 envelopes ingested, 3 batches |
+| Re-sync | second sync, same server | `added: 0`, row count unchanged, 96 ms — idempotent |
+| Tag↔Flag | `\Seen` / `\Flagged` / unflagged messages | `flags` 0 / 3 / 1; `is:unread` and `is:flagged` return the right rows |
+| Lazy body fetch | `read <id>` on an unfetched message | body fetched over IMAP, blob stored, `body_fetched` set on **that row only**, FTS row upgraded — the body became CJK-searchable only after the fetch |
+| Offline tagging | `tag <id> +triaged -inbox` with no reachable server | Tag persisted locally and immediately searchable; `push_deferred_reason` reported |
+| SMTP send | full two-phase send against a local SMTP sink | `250`, state `sent`, enhanced status recorded |
+| **Bcc privacy** | the same send, inspected at the wire | RCPT TO carried **both** recipients; DATA carried **no** `Bcc:` header |
+| **Confirm token** | preview in one process, send in another | succeeded once; reuse, cross-draft use and a garbage token all rejected `1003` having sent **no RCPT and no DATA** — exactly one transmission |
+| Send gate | agent surface without `MAILCODED_SEND=1`, then without an allowlist match | denied `1006` before any connection was opened or account config read |
+| Raw SQL gate | `query --sql` off, then on with a write statement | `1006` when off; "only a single SELECT or WITH" when on |
+| No-delete | `delete`, `expunge`, `trash`, `purge`, `remove`, `rm` on the CLI | every one unknown, with a message saying no such verb exists and no flag adds one |
+| Agent plaintext | `read` on an HTML-only message with `<script>` and `javascript:` | plaintext only; no script content, no `alert(1)`, no `bodyHtml` key |
+| MCP surface | `tools/list` and three `tools/call` round trips | 8 tools, **no** delete/expunge/trash tool, `send_draft` marked dangerous |
+| Audit trail | `sync_log` after CLI activity | a row per call with `interface=cli`, a decision, and an args **digest** — no bodies, no credentials |
+| Exit codes | one invocation per class | 0 / 2 validation / 3 not-found / 4 forbidden, distinct and documented in `help` |
+| Integration suite | run with no Docker | **5 skipped** with the reason printed, 0 failed — never silently passes |
+
+## NOT verified — do not claim these
+
+- **M-perf gates.** The harness and the deterministic 500k corpus generator exist and the generator
+  is reproducible (same seed → identical digest), but the benchmarks have **not** been run on
+  reference hardware. `baseline.json` is committed with zeros on purpose. Every number in
+  PERFORMANCE §15.2 is a target, not a measurement.
+- **QRESYNC and CONDSTORE delta paths.** The local test server advertises neither, so only the
+  full-diff arm has executed. The planner's delta arms are covered by unit tests, not by a server.
+- **IMAP IDLE notifications**, `APPEND`-to-Sent, and `MOVE`.
+- **The Windows and macOS keyring backends.** Only `EncryptedFileStore` and the libsecret
+  *unavailable* path ran here. The macOS and libsecret interop needs a smoke test on real hardware.
+- **The Dovecot / smtp4dev integration path**, including the crash-reconciliation and
+  UIDVALIDITY-change tests. Docker was unavailable.
+- **M-chaos and M-soak**: no Toxiproxy run, no 24h soak, so the RELIABILITY §14.1 resource budgets
+  are unmeasured extrapolations.
+- **Windows and macOS CI legs.** The matrix is defined in `.github/workflows/ci.yml` and has not run.
+- **The VS Code extension.** Not built.
+
+## Reproducing the local checks
+
+```bash
+scripts/build.sh                                   # restores offline if nuget.org is unreachable
+scripts/test.sh                                    # the 869-test unit suite
+dotnet publish src/Mailcoded.Daemon -c Release -r linux-x64 -p:PublishAot=true -o artifacts/linux-x64
+scripts/aot-smoke.sh artifacts/linux-x64
+scripts/size-gate.sh artifacts/linux-x64
+dotnet run -c Release --project tests/Mailcoded.Bench -- --generate --size 10000 --verify
+```
