@@ -288,7 +288,7 @@ Stated plainly, because these are the things you would otherwise discover on day
   engine, no IMAP server mode, no mobile or web client.
 - No release binaries yet, and therefore no measured performance numbers. Build from source.
 
-Direction, and why some things are deliberately not built yet: [ROADMAP.md](ROADMAP.md).
+What has actually been run against the real binaries, and what has not: [docs/verification.md](docs/verification.md). Direction, and why some things are deliberately not built yet: [ROADMAP.md](ROADMAP.md).
 
 ## Documentation
 
@@ -301,6 +301,7 @@ Direction, and why some things are deliberately not built yet: [ROADMAP.md](ROAD
 | [docs/RELIABILITY.md](docs/RELIABILITY.md) | sync edge cases, backoff, recovery |
 | [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | data-layer budgets and query shapes |
 | [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md) | the closed dependency allowlist |
+| [docs/verification.md](docs/verification.md) | what has been run, and what must not be claimed |
 | [ROADMAP.md](ROADMAP.md) | what's next, and what isn't |
 
 ## Contributing
