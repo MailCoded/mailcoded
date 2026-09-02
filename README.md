@@ -35,17 +35,37 @@ Two consequences of that framing are load-bearing:
 No release binaries yet. Build from source:
 
 ```bash
-git clone https://github.com/Mailcoded/mailcoded
+git clone https://github.com/MailCoded/mailcoded
 cd mailcoded
-dotnet build Mailcoded.slnx           # or: scripts/build.sh
+scripts/install.sh                    # publishes, then puts the commands on PATH
 ```
 
 Requires the .NET 10 SDK. On NixOS/WSL, `nix develop` first.
 
-The three executables are `mailcoded` (CLI), `mailcoded-daemon` (JSON-RPC daemon), and
-`mailcoded-mcp` (MCP adapter). Native AOT publishing is wired up and exercised in CI:
+That installs three commands: **`mailcoded`** (CLI), **`mailcoded-daemon`** (JSON-RPC daemon)
+and **`mailcoded-mcp`** (MCP adapter). Without this step `dotnet build` alone leaves the
+binaries under `src/*/bin/` and nothing is on your PATH, so none of the commands below will
+resolve.
 
 ```bash
+scripts/install.sh                       # Native AOT, into ~/.local
+scripts/install.sh --no-aot              # much faster; needs the .NET runtime at run time
+scripts/install.sh --prefix /usr/local   # somewhere else
+scripts/install.sh --uninstall           # remove it again
+```
+
+The payload goes to `$PREFIX/libexec/mailcoded` and only symlinks land in `$PREFIX/bin`. Two
+reasons, both load-bearing: the AOT binaries load `libe_sqlite3.so` from their own directory and
+will not start without it, so the executable and the library must stay together; and
+`$PREFIX/share/mailcoded` is *not* available for this, because on Linux that path is
+`$XDG_DATA_HOME/mailcoded` — the mail store itself. The installer refuses to write over or
+delete any directory containing `store.db`, `blobs` or `secrets.vault`.
+
+To build without installing:
+
+```bash
+scripts/build.sh                      # or: dotnet build Mailcoded.slnx -m:1
+scripts/test.sh                       # the unit suite
 dotnet publish src/Mailcoded.Daemon -c Release -r linux-x64 /p:PublishAot=true
 ```
 

@@ -125,6 +125,20 @@ IL2xxx/IL3xxx trim or AOT warnings. The AOT CLI was then exercised end to end: a
 fixtures import, and FTS, CJK-trigram, short-CJK `LIKE` and metadata-only search all return the
 same results as the JIT build. MimeKit and SQLitePCLRaw both survive trimming intact.
 
+**BouncyCastle: trimmed out of the AOT binaries, shipped by the framework-dependent one.**
+CLAUDE.md invariant 2 says "no S/MIME / PGP / BouncyCastle anywhere", but MimeKit's `net10.0`
+target declares `BouncyCastle.Cryptography` and `System.Security.Cryptography.Pkcs`, so both enter
+the graph the moment MailKit is referenced. Measured from a real install: the AOT `mailcoded` and
+`mailcoded-daemon` contain **zero** references to it — the trimmer removes it because no code path
+reaches it. The framework-dependent `mailcoded-mcp` publish, which does not trim, **does** ship
+`BouncyCastle.Cryptography.dll` and `System.Security.Cryptography.Pkcs.dll` next to it, and
+`scripts/install.sh --no-aot` ships them for all three commands.
+
+Read the invariant as what it protects: no crypto *code path*, and none of it in the AOT binaries
+that are the shipping artifact. Two consequences to keep in view — the MCP adapter's disk footprint
+carries dead crypto, and it inherits that library's CVE surface even though nothing calls it. If
+that becomes unacceptable, the fix is to make the MCP adapter AOT-clean, not to fork MimeKit.
+
 **Correction: it is not literally one file.** The AOT output is the executable *plus*
 `libe_sqlite3.so` (1.5 MB), and the daemon cannot start without it. The `SQLite` native package
 ships a static `e_sqlite3.a` for the iOS RIDs only; every desktop RID ships the shared library
