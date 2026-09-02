@@ -27,10 +27,16 @@ This roadmap signals direction, not dates. Order and scope change based on real 
 
 ## Entry gates (why things aren't built yet)
 
+Every client in the family has a repository from the start, so the shape of the thing is legible
+and the constraints each client inherits are written down where that client's author will look.
+A repository existing is not a claim that work has begun — each placeholder says plainly that it
+is one, and names the gate it is waiting on. Code is what is gated, not folders.
+
 - A second client ships only after the HTTP/socket transport is hardened (bearer token, Host/Origin allowlist, localhost-only bind).
 - Obsidian ships after the VS Code extension shows real traction.
 - Docker ships when enough of you ask for always-on sync.
 - Web ships only if Docker users need remote or mobile access — Roundcube and SnappyMail already exist for general webmail.
+- **One in flight at a time.** Exactly one client is under active development; the rest stay placeholders.
 
 ## Known gaps (deliberate, for now)
 
