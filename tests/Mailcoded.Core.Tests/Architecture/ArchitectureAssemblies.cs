@@ -17,6 +17,7 @@ internal static class ArchitectureAssemblies
     public const string DaemonAssemblyName = "mailcoded-daemon";
     public const string CliAssemblyName = "mailcoded";
     public const string McpAssemblyName = "mailcoded-mcp";
+    public const string TuiAssemblyName = "mailcoded-tui";
 
     public static Assembly Core => typeof(SyncPlanner).Assembly;
 
@@ -28,15 +29,18 @@ internal static class ArchitectureAssemblies
 
     public static Assembly? Mcp { get; } = TryLoad(McpAssemblyName);
 
+    public static Assembly? Tui { get; } = TryLoad(TuiAssemblyName);
+
     /// <summary>Host assemblies this test project can see. The daemon is always one of them.</summary>
     public static IReadOnlyList<Assembly> ReachableHosts
     {
         get
         {
-            var hosts = new List<Assembly>(3);
+            var hosts = new List<Assembly>(4);
             if (Daemon is { } daemon) hosts.Add(daemon);
             if (Cli is { } cli) hosts.Add(cli);
             if (Mcp is { } mcp) hosts.Add(mcp);
+            if (Tui is { } tui) hosts.Add(tui);
             return hosts;
         }
     }

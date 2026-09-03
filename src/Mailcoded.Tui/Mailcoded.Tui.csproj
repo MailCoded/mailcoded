@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Mailcoded.Tui</RootNamespace>
+    <AssemblyName>mailcoded-tui</AssemblyName>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <PredefinedCulturesOnly>true</PredefinedCulturesOnly>
+    <InvariantTimezone>false</InvariantTimezone>
+    <OptimizationPreference>Size</OptimizationPreference>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <IlcFoldIdenticalMethodBodies>true</IlcFoldIdenticalMethodBodies>
+    <StripSymbols>true</StripSymbols>
+    <DebuggerSupport Condition="'$(Configuration)'=='Release'">false</DebuggerSupport>
+    <StackTraceSupport>true</StackTraceSupport>
+    <EventSourceSupport>true</EventSourceSupport>
+    <MetricsSupport>true</MetricsSupport>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <IlcGenerateMstatFile Condition="'$(Configuration)'=='Release'">true</IlcGenerateMstatFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.GC.HeapHardLimitPercent" Value="25" Trim="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Mailcoded.Protocol/Mailcoded.Protocol.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Mailcoded.Core.Tests" />
+  </ItemGroup>
+</Project>

@@ -5,6 +5,7 @@
     <Project Path="src/Mailcoded.Daemon/Mailcoded.Daemon.csproj" />
     <Project Path="src/Mailcoded.Mcp/Mailcoded.Mcp.csproj" />
     <Project Path="src/Mailcoded.Protocol/Mailcoded.Protocol.csproj" />
+    <Project Path="src/Mailcoded.Tui/Mailcoded.Tui.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Mailcoded.Bench/Mailcoded.Bench.csproj" />
