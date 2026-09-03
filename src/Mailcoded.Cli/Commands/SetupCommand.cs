@@ -1,5 +1,6 @@
 using System.Globalization;
 using Mailcoded.Core.Application;
+using Mailcoded.Core.Auth;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Providers;
 using Mailcoded.Core.Secrets;
@@ -36,16 +37,27 @@ internal static class SetupCommand
 
         Prompt.Heading($"Provider: {preset.DisplayName}");
 
-        if (preset.Discouraged is { } warning)
+        var useOAuth = false;
+        if (preset.Credential == CredentialStyle.OAuthOnly)
         {
-            Prompt.Say(warning);
+            Prompt.Say(preset.Discouraged ?? preset.Advice ?? string.Empty);
             Prompt.Say();
-            if (!Prompt.Confirm("Try anyway with a password or app password?", false))
+
+            var choice = Prompt.Choose(
+                "How would you like to sign in?",
+                [
+                    "Sign in with Microsoft (opens a browser, recommended)",
+                    "Use a password or app password",
+                    "Cancel",
+                ]);
+
+            if (choice == 2)
             {
-                Prompt.Say("Nothing was saved. OAuth sign-in for this provider is tracked in ROADMAP.md.");
+                Prompt.Say("Nothing was saved.");
                 return ExitCodes.Unsupported;
             }
 
+            useOAuth = choice == 0;
             Prompt.Say();
         }
 
@@ -53,6 +65,8 @@ internal static class SetupCommand
         else Prompt.Say("Settings are built in, so there is nothing to look up.");
 
         var settings = ConfirmSettings(preset, line);
+
+        if (useOAuth) return await RunOAuthAsync(host, line, output, email, settings, ct).ConfigureAwait(false);
 
         Prompt.Heading("Credential");
         if (preset.Credential == CredentialStyle.AppPassword)
@@ -136,6 +150,135 @@ internal static class SetupCommand
         Prompt.Say($"Synced {report.Added} new, {report.Updated} updated, across {report.Folders} folders.");
         Prompt.Say();
         Prompt.Say("Try:  mailcoded search 'is:unread' --json");
+        return ExitCodes.Ok;
+    }
+
+    /// <summary>
+    /// Device-code sign-in. The browser step happens on any device; nothing but the resulting
+    /// grant is stored, and it goes to the secret store like any other credential.
+    /// </summary>
+    private static async Task<int> RunOAuthAsync(
+        CliHost host,
+        CommandLine line,
+        CliOutput output,
+        EmailAddress email,
+        ConnectionSettings settings,
+        CancellationToken ct)
+    {
+        var options = OAuthOptions.FromEnvironment();
+        if (line.Value("client-id") is { } overrideId && overrideId.Length > 0)
+            options = options with { ClientId = overrideId };
+        if (line.Value("tenant") is { } tenant && tenant.Length > 0)
+            options = options with { Tenant = tenant };
+
+        Prompt.Heading("Sign in with Microsoft");
+
+        if (options.UsesPlaceholderClientId)
+        {
+            Prompt.Say("NOTE: mailcoded has no OAuth client registration of its own yet, so it is");
+            Prompt.Say("reusing a public one. The consent screen will name a different application,");
+            Prompt.Say("and Microsoft can refuse or revoke it at any time. To use your own, register");
+            Prompt.Say($"a public-client app with device code flow enabled and set {OAuthOptions.ClientIdEnvVar}.");
+            Prompt.Say();
+        }
+
+        var secretRef = $"acct:{email.Value}:oauth";
+        var auth = new MicrosoftOAuth(
+            options,
+            host.Secrets,
+            MicrosoftScopeSet.MailProtocols,
+            (prompt, _) =>
+            {
+                Prompt.Say(prompt.Message);
+                Prompt.Say();
+                Prompt.Say($"  Open:  {prompt.VerificationUrl}");
+                Prompt.Say($"  Code:  {prompt.UserCode}");
+                Prompt.Say();
+                Prompt.Say("Waiting for you to finish in the browser...");
+                return Task.CompletedTask;
+            });
+
+        try
+        {
+            await auth.SignInAsync(secretRef, ct).ConfigureAwait(false);
+        }
+        catch (ReauthorizationRequiredException ex)
+        {
+            Prompt.Say();
+            Prompt.Say(ex.Message);
+            Prompt.Say();
+            Prompt.Say("Nothing was saved.");
+            return ExitCodes.Auth;
+        }
+
+        Prompt.Say("Signed in.");
+
+        var config = new AccountConfig
+        {
+            Email = email.Value,
+            Provider = ProviderKind.Imap,
+            Imap = settings.Imap with { Username = email.Value },
+            Smtp = settings.Smtp with { Username = email.Value },
+            Auth = AuthKind.OAuth2,
+            SecretRef = secretRef,
+        };
+
+        Prompt.Heading("Verifying");
+        await using (var probe = new ImapProvider(host.Clock, MailTransportOptions.Default, auth))
+        {
+            try
+            {
+                await probe.ConnectAsync(config, host.Secrets, ct).ConfigureAwait(false);
+                await probe.ListFoldersAsync(ct).ConfigureAwait(false);
+            }
+            catch (ProviderException ex)
+            {
+                var failure = Explain(ex, settings);
+                Prompt.Say(failure.Headline);
+                Prompt.Say();
+                foreach (var hint in failure.Hints) Prompt.Say("  - " + hint);
+                Prompt.Say();
+                Prompt.Say("The sign-in worked but the mailbox refused the token. This usually means");
+                Prompt.Say("the OAuth app was not consented for IMAP access.");
+                return failure.ExitCode;
+            }
+        }
+
+        Prompt.Say("IMAP login succeeded.");
+
+        var accountId = await host.Accounts.AddAsync(
+            new AddAccountRequest
+            {
+                Email = email.Value,
+                DisplayName = line.Value("display-name"),
+                Provider = ProviderKind.Imap,
+                Imap = config.Imap,
+                Smtp = config.Smtp,
+                Auth = AuthKind.OAuth2,
+                SecretRef = secretRef,
+                Secret = null,
+            },
+            host.Caller,
+            ct).ConfigureAwait(false);
+
+        Prompt.Heading("Done");
+        Prompt.Say($"Account {accountId.Value} added. The Microsoft grant is in {host.Accounts.SecretBackendName};");
+        Prompt.Say("mailcoded refreshes the access token itself from now on.");
+
+        if (output.Json)
+        {
+            var writer = output.BeginJson();
+            writer.WriteNumber("account_id", accountId.Value);
+            writer.WriteString("email", email.Value);
+            writer.WriteString("auth", "oauth2");
+            writer.WriteString("imap_host", config.Imap.Host);
+            writer.WriteBoolean("verified", true);
+            writer.WriteBoolean("placeholder_client_id", options.UsesPlaceholderClientId);
+            output.EndJson(writer);
+        }
+
+        Prompt.Say();
+        Prompt.Say($"Next:  mailcoded sync --account {accountId.Value.ToString(CultureInfo.InvariantCulture)}");
         return ExitCodes.Ok;
     }
 

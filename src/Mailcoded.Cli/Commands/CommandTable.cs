@@ -66,7 +66,7 @@ internal static class CommandTable
         new CliCommandDefinition("sync", new VerbSpec(["account", "folder"], []), SyncCommand.RunAsync),
 
         new CliCommandDefinition("setup",
-            new VerbSpec(["email", "display-name", "imap-host", "imap-port", "smtp-host", "smtp-port"], []),
+            new VerbSpec(["email", "display-name", "imap-host", "imap-port", "smtp-host", "smtp-port", "client-id", "tenant"], []),
             SetupCommand.RunAsync),
 
         new CliCommandDefinition("account add",

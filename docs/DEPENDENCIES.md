@@ -125,6 +125,13 @@ IL2xxx/IL3xxx trim or AOT warnings. The AOT CLI was then exercised end to end: a
 fixtures import, and FTS, CJK-trigram, short-CJK `LIKE` and metadata-only search all return the
 same results as the JIT build. MimeKit and SQLitePCLRaw both survive trimming intact.
 
+**Microsoft.Identity.Client (MSAL) is AOT-clean, and costs about 3 MB.** Measured with the
+OAuth device-code path actually referenced: **zero** IL2xxx/IL3xxx warnings, and the linux-x64
+Release AOT CLI grows from 12.1 MB to **15.1 MB**. That is past the 12 MB warning line but well
+inside the 20 MB gate. If the daemon later approaches the gate, the lever is to move OAuth behind
+a capability the MCP adapter does not carry, not to drop the dependency — token refresh is not
+optional once an account uses OAuth.
+
 **BouncyCastle: trimmed out of the AOT binaries, shipped by the framework-dependent one.**
 CLAUDE.md invariant 2 says "no S/MIME / PGP / BouncyCastle anywhere", but MimeKit's `net10.0`
 target declares `BouncyCastle.Cryptography` and `System.Security.Cryptography.Pkcs`, so both enter

@@ -1,3 +1,4 @@
+using Mailcoded.Core.Auth;
 using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -28,7 +29,8 @@ internal static class ImapConnectionFactory
         AccountConfig cfg,
         ISecretStore secrets,
         MailTransportOptions options,
-        CancellationToken ct)
+        CancellationToken ct,
+        IAccessTokenSource? tokens = null)
     {
         ArgumentNullException.ThrowIfNull(cfg);
         ArgumentNullException.ThrowIfNull(secrets);
@@ -44,7 +46,7 @@ internal static class ImapConnectionFactory
         try
         {
             await OpenSocketAsync(client, cfg, options, ct).ConfigureAwait(false);
-            await AuthenticateAsync(client, cfg, secrets, ct).ConfigureAwait(false);
+            await AuthenticateAsync(client, cfg, secrets, ct, tokens).ConfigureAwait(false);
         }
         catch
         {
@@ -153,14 +155,24 @@ internal static class ImapConnectionFactory
         }
     }
 
-    private static async Task AuthenticateAsync(ImapClient client, AccountConfig cfg, ISecretStore secrets, CancellationToken ct)
+    private static async Task AuthenticateAsync(
+        ImapClient client,
+        AccountConfig cfg,
+        ISecretStore secrets,
+        CancellationToken ct,
+        IAccessTokenSource? tokens = null)
     {
         var user = cfg.Imap.Username;
         if (string.IsNullOrWhiteSpace(user)) user = cfg.Email;
 
         try
         {
-            var secret = await secrets.GetAsync(cfg.SecretRef, ct).ConfigureAwait(false);
+            // An access token expires roughly hourly, so an OAuth account asks the token source
+            // for a fresh one rather than reusing whatever was last written to the secret store.
+            var secret = cfg.Auth == AuthKind.OAuth2 && tokens is not null
+                ? await tokens.GetAccessTokenAsync(cfg, ct).ConfigureAwait(false)
+                : await secrets.GetAsync(cfg.SecretRef, ct).ConfigureAwait(false);
+
             if (string.IsNullOrEmpty(secret))
             {
                 throw new ProviderException(

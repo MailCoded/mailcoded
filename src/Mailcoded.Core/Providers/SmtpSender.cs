@@ -1,3 +1,4 @@
+using Mailcoded.Core.Auth;
 using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -26,10 +27,16 @@ public sealed class SmtpSender : IMailSender
     private long lastActivityTicks;
     private int disposed;
 
-    public SmtpSender(IClock? clock = null, MailTransportOptions? options = null)
+    private readonly IAccessTokenSource? tokens;
+
+    public SmtpSender(
+        IClock? clock = null,
+        MailTransportOptions? options = null,
+        IAccessTokenSource? tokens = null)
     {
         this.clock = clock ?? SystemClock.Instance;
         this.options = options ?? MailTransportOptions.Default;
+        this.tokens = tokens;
     }
 
     public long? MaxMessageSize { get; private set; }
@@ -91,7 +98,7 @@ public sealed class SmtpSender : IMailSender
                 }
             }
 
-            var authenticationRequired = await AuthenticateAsync(next, cfg, smtp, secretStore, ct).ConfigureAwait(false);
+            var authenticationRequired = await AuthenticateAsync(next, cfg, smtp, secretStore, ct, tokens).ConfigureAwait(false);
             if (authenticationRequired && !next.IsAuthenticated)
             {
                 throw new ProviderException(
@@ -306,7 +313,8 @@ public sealed class SmtpSender : IMailSender
         AccountConfig cfg,
         SmtpConfig smtp,
         ISecretStore secrets,
-        CancellationToken ct)
+        CancellationToken ct,
+        IAccessTokenSource? tokens)
     {
         if (!target.Capabilities.HasFlag(SmtpCapabilities.Authentication)) return false;
 
@@ -315,7 +323,11 @@ public sealed class SmtpSender : IMailSender
 
         try
         {
-            var secret = await secrets.GetAsync(cfg.SecretRef, ct).ConfigureAwait(false);
+            // Access tokens expire; ask the source for a live one rather than reusing a stored copy.
+            var secret = cfg.Auth == AuthKind.OAuth2 && tokens is not null
+                ? await tokens.GetAccessTokenAsync(cfg, ct).ConfigureAwait(false)
+                : await secrets.GetAsync(cfg.SecretRef, ct).ConfigureAwait(false);
+
             if (string.IsNullOrEmpty(secret))
             {
                 throw new ProviderException(

@@ -57,7 +57,7 @@ public sealed partial class ImapProvider
             {
                 // A dedicated client per watched folder: a connection parked in IDLE cannot also
                 // serve on-demand commands.
-                session = await ImapConnectionFactory.ConnectAsync(cfg, store, options, ct).ConfigureAwait(false);
+                session = await ImapConnectionFactory.ConnectAsync(cfg, store, options, ct, tokens).ConfigureAwait(false);
 
                 var watched = await ResolveWatchFolderAsync(session.Client, folder.Path, ct).ConfigureAwait(false);
                 await watched.OpenAsync(FolderAccess.ReadOnly, ct).ConfigureAwait(false);

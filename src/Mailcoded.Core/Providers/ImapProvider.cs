@@ -1,3 +1,4 @@
+using Mailcoded.Core.Auth;
 using MailKit;
 using MailKit.Net.Imap;
 using MimeKit;
@@ -34,10 +35,16 @@ public sealed partial class ImapProvider : IMailProvider
     private bool faulted;
     private int disposed;
 
-    public ImapProvider(IClock? clock = null, MailTransportOptions? options = null)
+    private readonly IAccessTokenSource? tokens;
+
+    public ImapProvider(
+        IClock? clock = null,
+        MailTransportOptions? options = null,
+        IAccessTokenSource? tokens = null)
     {
         this.clock = clock ?? SystemClock.Instance;
         this.options = options ?? MailTransportOptions.Default;
+        this.tokens = tokens;
     }
 
     public ServerCaps Capabilities => caps;
@@ -62,7 +69,7 @@ public sealed partial class ImapProvider : IMailProvider
         {
             await TearDownAsync().ConfigureAwait(false);
 
-            var session = await ImapConnectionFactory.ConnectAsync(cfg, secretStore, options, token).ConfigureAwait(false);
+            var session = await ImapConnectionFactory.ConnectAsync(cfg, secretStore, options, token, tokens).ConfigureAwait(false);
             connection = session;
             quirks = session.Quirks;
             caps = session.Caps;
