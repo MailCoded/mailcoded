@@ -172,6 +172,7 @@ internal static class SetupCommand
             options = options with { Tenant = tenant };
 
         Prompt.Heading("Sign in with Microsoft");
+        Prompt.Say("Asking Microsoft for a sign-in code (a few seconds)...");
 
         if (options.UsesPlaceholderClientId)
         {

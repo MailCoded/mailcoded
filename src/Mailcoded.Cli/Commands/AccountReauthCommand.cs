@@ -44,6 +44,7 @@ internal static class AccountReauthCommand
         if (line.Value("tenant") is { Length: > 0 } tenant) options = options with { Tenant = tenant };
 
         Prompt.Heading($"Sign in again: {account.Email}");
+        Prompt.Say("Asking Microsoft for a sign-in code (a few seconds)...");
 
         var auth = new MicrosoftOAuth(
             options,

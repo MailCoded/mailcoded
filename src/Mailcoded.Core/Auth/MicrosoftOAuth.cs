@@ -104,15 +104,24 @@ public sealed class MicrosoftOAuth : IAccessTokenSource
         }
     }
 
+    /// <summary>How long Microsoft may take to hand back a code. The wait AFTER the code is the
+    /// human's and must stay long; this bounds only the silent part, which otherwise looks hung.</summary>
+    public static readonly TimeSpan DeviceCodeTimeout = TimeSpan.FromSeconds(45);
+
     private async Task<AuthenticationResult> SignInAsync(
         IPublicClientApplication app,
         IReadOnlyList<string> scopes,
         CancellationToken ct)
     {
+        using var attempt = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var arrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
         try
         {
-            return await app.AcquireTokenWithDeviceCode(scopes, async code =>
+            var signIn = app.AcquireTokenWithDeviceCode(scopes, async code =>
             {
+                arrived.TrySetResult();
+
                 await _onDeviceCode!(
                     new DeviceCodePrompt
                     {
@@ -122,7 +131,21 @@ public sealed class MicrosoftOAuth : IAccessTokenSource
                         ExpiresUtc = code.ExpiresOn,
                     },
                     ct).ConfigureAwait(false);
-            }).ExecuteAsync(ct).ConfigureAwait(false);
+            }).ExecuteAsync(attempt.Token);
+
+            var first = await Task.WhenAny(arrived.Task, signIn, Task.Delay(DeviceCodeTimeout, attempt.Token))
+                .ConfigureAwait(false);
+
+            if (first != arrived.Task && first != signIn)
+            {
+                await attempt.CancelAsync().ConfigureAwait(false);
+
+                throw new ReauthorizationRequiredException(
+                    "Microsoft did not return a sign-in code within "
+                    + $"{DeviceCodeTimeout.TotalSeconds:F0}s. Check the network, then try again.");
+            }
+
+            return await signIn.ConfigureAwait(false);
         }
         catch (MsalServiceException ex) when (IsClientRejected(ex))
         {
@@ -135,6 +158,11 @@ public sealed class MicrosoftOAuth : IAccessTokenSource
                     : $" ({ex.ErrorCode}). Check that the app allows public client flows and that device "
                       + "code flow is enabled."),
                 ex);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new ReauthorizationRequiredException(
+                "The Microsoft sign-in was abandoned before it finished.");
         }
     }
 
