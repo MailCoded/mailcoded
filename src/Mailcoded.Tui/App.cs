@@ -87,7 +87,7 @@ internal sealed partial class App
 
                 if (next.Kind == EventKind.Key)
                 {
-                    if (next.Input.Mouse is { } mouse) HandleMouse(mouse);
+                    if (next.Input.Mouse is { } mouse) { if (!HandleMouse(mouse)) return 0; }
                     else if (next.Input.Key is { } key && !HandleKey(key)) return 0;
                 }
 

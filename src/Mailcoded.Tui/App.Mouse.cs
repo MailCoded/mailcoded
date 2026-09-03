@@ -14,6 +14,16 @@ internal sealed partial class App
 
     private bool HandleMouse(MouseEvent mouse)
     {
+        // The key bar is clickable in every mode, including the ones that ignore the body: it is
+        // the thing standing in for remembering the bindings.
+        if (mouse.Action == MouseAction.Press
+            && mouse.Button == 0
+            && mouse.Row == Screen.KeyBarRow(_writer))
+        {
+            if (KeyBar.At(_state, _writer.Columns, mouse.Column)?.Press is { } press) return HandleKey(press);
+            return true;
+        }
+
         if (_state.Focus is Pane.Help or Pane.Status or Pane.Outbox or Pane.Confirm or Pane.Compose) return true;
 
         var top = Screen.FirstBodyRow;

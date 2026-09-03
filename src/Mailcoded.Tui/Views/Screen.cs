@@ -47,6 +47,7 @@ internal static class Screen
             Panes(writer, state);
         }
 
+        KeyBar.Draw(writer, state, KeyBarRow(writer));
         StatusBar(writer, state);
 
         if (state.Prompt is not null) writer.EndFrame(writer.Rows - 1, PromptCaret(writer, state));
@@ -64,7 +65,10 @@ internal static class Screen
 
     public static int FirstBodyRow => 1;
 
-    public static int BodyRows(TerminalWriter writer) => Math.Max(1, writer.Rows - 2);
+    /// <summary>Header, body, key bar, status.</summary>
+    public static int BodyRows(TerminalWriter writer) => Math.Max(1, writer.Rows - 3);
+
+    public static int KeyBarRow(TerminalWriter writer) => Math.Max(1, writer.Rows - 2);
 
     private static void Header(TerminalWriter writer, AppState state)
     {
