@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using Mailcoded.Core.Application;
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Auth;
 using Mailcoded.Core.Providers;
 using Mailcoded.Core.Secrets;
 using Mailcoded.Core.Store;
@@ -71,7 +72,7 @@ internal sealed class ProviderPool : IAsyncDisposable
             var provider = slot.Imap;
             if (provider is null)
             {
-                provider = new ImapProvider(clock, options);
+                provider = new ImapProvider(clock, options, AccountTokenSources.For(config, secrets));
                 slot.Imap = provider;
             }
 
@@ -182,7 +183,7 @@ internal sealed class ProviderPool : IAsyncDisposable
             var sender = slot.Smtp;
             if (sender is null)
             {
-                sender = new SmtpSender(clock, options);
+                sender = new SmtpSender(clock, options, AccountTokenSources.For(config, secrets));
                 slot.Smtp = sender;
             }
 

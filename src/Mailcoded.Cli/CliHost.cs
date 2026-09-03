@@ -3,6 +3,7 @@ using Mailcoded.Core.Application;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Threading;
 using Mailcoded.Core.Parsing;
+using Mailcoded.Core.Auth;
 using Mailcoded.Core.Providers;
 using Mailcoded.Core.Secrets;
 using Mailcoded.Core.Store;
@@ -122,7 +123,10 @@ internal sealed class CliHost : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(account);
 
-        var provider = new ImapProvider(Clock, MailTransportOptions.Default);
+        var provider = new ImapProvider(
+            Clock,
+            MailTransportOptions.Default,
+            AccountTokenSources.For(account, Secrets));
         Connections.Observe(account.Id, ConnectionRole.Imap, ConnectionState.Connecting);
 
         try
@@ -152,7 +156,10 @@ internal sealed class CliHost : IAsyncDisposable
                 $"Account {account.Id.Value} has no SMTP configuration; add one before sending.");
         }
 
-        var sender = new SmtpSender(Clock, MailTransportOptions.Default);
+        var sender = new SmtpSender(
+            Clock,
+            MailTransportOptions.Default,
+            AccountTokenSources.For(account, Secrets));
         Connections.Observe(account.Id, ConnectionRole.Smtp, ConnectionState.Connecting);
 
         try

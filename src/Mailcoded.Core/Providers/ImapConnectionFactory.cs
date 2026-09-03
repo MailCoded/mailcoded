@@ -188,7 +188,11 @@ internal static class ImapConnectionFactory
                 throw new ProviderException(
                     FailureCategory.Auth,
                     cfg.Auth == AuthKind.OAuth2
-                        ? "No OAuth2 access token is stored for this account."
+                        ? (tokens is null
+                            ? "This account signs in with Microsoft, but this process was built "
+                              + "without a token source, so it cannot present one."
+                            : "Microsoft would not renew the sign-in for this account. Run "
+                              + "'mailcoded account reauth'.")
                         : "No password is stored for this account.");
             }
 

@@ -1,5 +1,6 @@
 using Mailcoded.Core.Application;
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Auth;
 using Mailcoded.Core.Providers;
 using Mailcoded.Core.Secrets;
 using Mailcoded.Core.Store;
@@ -46,7 +47,10 @@ internal sealed class MailConnections : IAsyncDisposable
                 await existing.DisposeAsync().ConfigureAwait(false);
             }
 
-            var provider = new ImapProvider(_clock);
+            var provider = new ImapProvider(
+                _clock,
+                MailTransportOptions.Default,
+                AccountTokenSources.For(config, _secrets));
             _registry.Observe(accountId, ConnectionRole.Imap, ConnectionState.Connecting);
 
             try
@@ -106,7 +110,10 @@ internal sealed class MailConnections : IAsyncDisposable
                 await existing.DisposeAsync().ConfigureAwait(false);
             }
 
-            var sender = new SmtpSender(_clock);
+            var sender = new SmtpSender(
+                _clock,
+                MailTransportOptions.Default,
+                AccountTokenSources.For(config, _secrets));
             _registry.Observe(accountId, ConnectionRole.Smtp, ConnectionState.Connecting);
 
             try
