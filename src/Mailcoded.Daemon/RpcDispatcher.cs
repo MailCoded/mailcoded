@@ -537,7 +537,7 @@ internal sealed class RpcDispatcher
     private byte[] Health(CancellationToken ct)
     {
         var report = host.Health.CheckHealth(ct);
-        var queued = CountByAccount(host.Send.ListOutbox(OutboxState.Queued, ct));
+        var queued = CountByAccount(host.Send.ListOutbox(OutboxState.Queued, ct, confirmedOnly: true));
         var failed = CountByAccount(host.Send.ListOutbox(OutboxState.Failed, ct));
 
         var accounts = new List<AccountHealthDto>(report.Accounts.Count);

@@ -134,8 +134,11 @@ public sealed class SendService
         policy.AttachStore(store);
     }
 
-    public IReadOnlyList<OutboxRecord> ListOutbox(OutboxState? state = null, CancellationToken ct = default) =>
-        _store.ListOutbox(state, ct);
+    public IReadOnlyList<OutboxRecord> ListOutbox(
+        OutboxState? state = null,
+        CancellationToken ct = default,
+        bool confirmedOnly = false) =>
+        _store.ListOutbox(state, ct, confirmedOnly);
 
     /// <summary>Builds the message, creates the outbox row, and mints the one-time confirm token.</summary>
     public async Task<SendPreview> PreviewAsync(
@@ -283,6 +286,10 @@ public sealed class SendService
             throw new ConfirmRequiredException(
                 "A valid one-time confirm token from send.preview is required before a message is sent.");
         }
+
+        // The token is spent, so a human has agreed: from here the row is real work the retry loop
+        // may pick up if this attempt does not finish.
+        await _store.MarkOutboxConfirmedAsync(outboxId, _clock.UtcNow, ct).ConfigureAwait(false);
 
         await AuditAttemptAsync(caller, record, digest, "allowed", envelope.Recipients.Count, true, null, AuditLog.LevelInfo, ct)
             .ConfigureAwait(false);

@@ -15,6 +15,22 @@ public sealed partial class SqliteStore
 
     private const string SelectOutboxFull = "SELECT " + OutboxColumns + ", raw FROM outbox";
 
+    /// <summary>Records that a human agreed to this send. Written only where a confirm token was
+    /// consumed; until then the row is a draft the retry loop must not see.</summary>
+    public Task MarkOutboxConfirmedAsync(long outboxId, DateTimeOffset whenUtc, CancellationToken ct) =>
+        WriteAsync(context =>
+        {
+            context.Session
+                .Prepare(
+                    "UPDATE outbox SET confirmed_utc = COALESCE(confirmed_utc, $at) WHERE id = $id",
+                    "$at", "$id")
+                .SetInt(0, ToUnixMs(whenUtc))
+                .SetInt(1, outboxId)
+                .Execute();
+
+            return true;
+        }, ct);
+
     /// <summary>The pre-assigned Message-ID is the idempotency key: a second enqueue returns the first row.</summary>
     public Task<long> EnqueueOutboxAsync(OutboxRecord record, CancellationToken ct)
     {
@@ -113,14 +129,24 @@ public sealed partial class SqliteStore
         }, ct);
 
     /// <summary>Listing never loads the raw bytes; fetch those with <see cref="GetOutbox"/>.</summary>
-    public IReadOnlyList<OutboxRecord> ListOutbox(OutboxState? state = null, CancellationToken ct = default) =>
+    /// <summary>With <paramref name="confirmedOnly"/>, excludes rows nobody has agreed to send.
+    /// A queued draft never drains, so counting one as pending shows a number that never falls.</summary>
+    public IReadOnlyList<OutboxRecord> ListOutbox(
+        OutboxState? state = null,
+        CancellationToken ct = default,
+        bool confirmedOnly = false) =>
         Read(session =>
         {
+            var confirmed = confirmedOnly ? " AND confirmed_utc IS NOT NULL" : string.Empty;
+
             var statement = state is { } wanted
                 ? session
-                    .Prepare(SelectOutboxMeta + " WHERE state = $state ORDER BY id", "$state")
+                    .Prepare(SelectOutboxMeta + " WHERE state = $state" + confirmed + " ORDER BY id", "$state")
                     .SetText(0, wanted.ToWireValue())
-                : session.Prepare(SelectOutboxMeta + " ORDER BY id");
+                : session.Prepare(
+                    SelectOutboxMeta
+                    + (confirmedOnly ? " WHERE confirmed_utc IS NOT NULL" : string.Empty)
+                    + " ORDER BY id");
 
             var rows = new List<OutboxRecord>();
             using var reader = statement.ExecuteReader();
@@ -132,7 +158,10 @@ public sealed partial class SqliteStore
             return (IReadOnlyList<OutboxRecord>)rows;
         }, ct);
 
-    /// <summary>Queued or retryable-failed rows whose window has opened, plus the RELIABILITY §14.4 crash window.</summary>
+    /// <summary>Queued or retryable-failed rows whose window has opened, plus the RELIABILITY §14.4
+    /// crash window. Only rows a human confirmed are due: send.preview writes a row before anyone
+    /// has agreed to send it, and an abandoned draft must never become due work (invariant 5). The
+    /// 'sending' arm carries no such filter because a crashed row still needs reconciling.</summary>
     public IReadOnlyList<OutboxRecord> ListDueOutbox(DateTimeOffset nowUtc, CancellationToken ct = default) =>
         Read(session =>
         {
@@ -140,10 +169,11 @@ public sealed partial class SqliteStore
             using var reader = session
                 .Prepare(
                     SelectOutboxMeta + " WHERE state = 'sending' "
-                    + "OR (state = 'queued' AND (next_attempt_utc IS NULL OR next_attempt_utc <= $now)) "
+                    + "OR (confirmed_utc IS NOT NULL AND ("
+                    + "(state = 'queued' AND (next_attempt_utc IS NULL OR next_attempt_utc <= $now)) "
                     + "OR (state = 'failed' AND permanently_failed = 0 AND next_attempt_utc IS NOT NULL "
-                    + "AND next_attempt_utc <= $now AND (max_attempts IS NULL OR attempts < max_attempts)) "
-                    + "ORDER BY id",
+                    + "AND next_attempt_utc <= $now AND (max_attempts IS NULL OR attempts < max_attempts))))"
+                    + " ORDER BY id",
                     "$now")
                 .SetInt(0, ToUnixMs(nowUtc))
                 .ExecuteReader();

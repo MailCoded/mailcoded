@@ -145,6 +145,11 @@ public sealed class OutboxStoreTests
         var permanent = await EnqueueAsync(temp, account, "dead@example.com", raw: "d"u8.ToArray(), ct);
         var exhausted = await EnqueueAsync(temp, account, "spent@example.com", raw: "e"u8.ToArray(), ct);
 
+        // Every row here stands for a send a human already confirmed; an unconfirmed draft is
+        // covered by UnconfirmedDraftTests, which asserts it is never due.
+        foreach (var id in new[] { due, retryable, later, permanent, exhausted })
+            await temp.Store.MarkOutboxConfirmedAsync(id, Created, ct);
+
         await SetAsync(temp, retryable, r => r with
         {
             State = OutboxState.Failed,

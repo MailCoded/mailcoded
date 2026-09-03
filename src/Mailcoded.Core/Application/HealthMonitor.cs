@@ -128,7 +128,7 @@ public sealed class HealthMonitor
             }
         }
 
-        var queued = _store.ListOutbox(OutboxState.Queued, ct).Count;
+        var queued = _store.ListOutbox(OutboxState.Queued, ct, confirmedOnly: true).Count;
         var failed = _store.ListOutbox(OutboxState.Failed, ct).Count;
 
         return new DaemonStats

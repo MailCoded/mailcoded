@@ -389,7 +389,9 @@ Never log `confirmToken`.
 `{ "accountId": 1, "draftId": 17, "confirmToken": "…" }` →
 `{ "messageId": "…", "state": "sent", "outboxId": 17, "smtpResponse": "250 2.0.0 OK" }`
 
-Phase two. `state` ∈ `queued | sending | sent | failed`. Every attempt — allowed or denied —
+Phase two. `state` ∈ `queued | sending | sent | failed`. A row is `queued` from the moment
+`send.preview` builds it, but only a consumed confirm token makes it eligible to be sent: an
+abandoned preview stays queued forever and is never dispatched. Every attempt — allowed or denied —
 writes a `sync_log` row.
 
 - A missing, blank, expired, or already-consumed token → **1003** (never `-32602`).
@@ -427,6 +429,10 @@ committed / total-allocated bytes, gen0/1/2 collection counts, thread and handle
                   "outboxQueued": 0, "outboxFailed": 0 } ],
   "warnings": [] }
 ```
+
+`outboxQueued` counts messages a human confirmed and the daemon has still to send. A `send.preview`
+that was never confirmed is a draft, not pending work, so it is excluded — otherwise the number
+would never fall.
 
 `status` ∈ `ok | degraded | error`. `connection` ∈ `connected | connecting | disconnected | error`.
 `auth` ∈ `ok | auth-required | unknown`. `warnings` are stable slugs, safe to log:
