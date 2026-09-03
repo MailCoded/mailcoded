@@ -2,7 +2,7 @@ using Mailcoded.Core.Application;
 using Mailcoded.Core.Domain.Outbox;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Parsing;
-using Mailcoded.Core.Protocol;
+using Mailcoded.Protocol;
 using Mailcoded.Core.Store;
 using Mailcoded.Core.Tests.Surface;
 using Mailcoded.Daemon;

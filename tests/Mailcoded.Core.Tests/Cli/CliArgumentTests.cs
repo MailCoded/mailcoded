@@ -1,7 +1,7 @@
 using Mailcoded.Cli;
 using Mailcoded.Cli.Commands;
 using Mailcoded.Core.Application;
-using Mailcoded.Core.Protocol;
+using Mailcoded.Protocol;
 using Mailcoded.Core.Providers;
 using Xunit;
 

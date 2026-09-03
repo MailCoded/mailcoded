@@ -1,7 +1,7 @@
 using System.Buffers;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
-using Mailcoded.Core.Protocol;
+using Mailcoded.Protocol;
 
 namespace Mailcoded.Daemon;
 

@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Mailcoded.Core.Domain.Primitives;
-using Mailcoded.Core.Protocol;
+using Mailcoded.Protocol;
 using Mailcoded.Integration.Support;
 using Xunit;
 

@@ -4,7 +4,7 @@ using Mailcoded.Core.Application;
 using Mailcoded.Core.Domain.Outbox;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Tags;
-using Mailcoded.Core.Protocol;
+using Mailcoded.Protocol;
 using Mailcoded.Core.Providers;
 using Mailcoded.Core.Secrets;
 using Mailcoded.Core.Store;
@@ -382,7 +382,7 @@ internal sealed class RpcDispatcher
         var result = await host.Messages.SetTagsAsync(provider, id, delta, Caller, ct).ConfigureAwait(false);
 
         return RpcPayloads.Value(
-            new Mailcoded.Core.Protocol.TagsSetResult { Tags = WireMapper.ToTagNames(result.Tags) },
+            new Mailcoded.Protocol.TagsSetResult { Tags = WireMapper.ToTagNames(result.Tags) },
             ProtocolJsonContext.Default.TagsSetResult);
     }
 
@@ -485,7 +485,7 @@ internal sealed class RpcDispatcher
             .ConfigureAwait(false);
 
         return RpcPayloads.Value(
-            new Mailcoded.Core.Protocol.SendResult
+            new Mailcoded.Protocol.SendResult
             {
                 MessageId = result.MessageId.Value,
                 State = result.State.ToWireValue(),
@@ -677,7 +677,7 @@ internal sealed class RpcDispatcher
 internal sealed class MethodNotFoundException : Exception
 {
     public MethodNotFoundException(string method)
-        : base($"No method named '{AuditText.Sanitize(method, 64)}' exists on protocol version {Mailcoded.Core.Protocol.ProtocolConstants.Version}.")
+        : base($"No method named '{AuditText.Sanitize(method, 64)}' exists on protocol version {Mailcoded.Protocol.ProtocolConstants.Version}.")
     {
     }
 }

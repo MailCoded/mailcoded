@@ -1,4 +1,4 @@
-namespace Mailcoded.Core.Protocol;
+namespace Mailcoded.Protocol;
 
 /// <summary><c>notify.mail.added</c> — new messages landed in a watched folder.</summary>
 public sealed record MailAddedNotification

@@ -1,6 +1,6 @@
 using Mailcoded.Core.Application;
 using Mailcoded.Core.Providers;
-using Mailcoded.Core.Protocol;
+using Mailcoded.Protocol;
 using Mailcoded.Core.Secrets;
 
 namespace Mailcoded.Mcp;

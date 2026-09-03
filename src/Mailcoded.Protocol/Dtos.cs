@@ -1,4 +1,4 @@
-namespace Mailcoded.Core.Protocol;
+namespace Mailcoded.Protocol;
 
 /// <summary>
 /// The message summary every list, thread, search hit, and notification renders.

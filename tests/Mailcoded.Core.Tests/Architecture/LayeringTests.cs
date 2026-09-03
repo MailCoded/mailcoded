@@ -153,24 +153,29 @@ public sealed class LayeringTests
     [Fact]
     public void The_namespaces_the_rules_quote_all_exist()
     {
-        string[] namespaces =
+        string[] inCore =
         [
             ArchitectureAssemblies.DomainNamespace,
             ArchitectureAssemblies.ApplicationNamespace,
-            ArchitectureAssemblies.ProtocolNamespace,
             ArchitectureAssemblies.ProvidersNamespace,
             ArchitectureAssemblies.StoreNamespace,
             ArchitectureAssemblies.ParsingNamespace,
             ArchitectureAssemblies.SecretsNamespace,
         ];
 
-        foreach (var ns in namespaces)
+        foreach (var ns in inCore)
         {
             Assert.True(
                 TypesIn(ArchitectureAssemblies.Core, ns).Any(),
                 $"No type resides in '{ns}'. A renamed namespace turns every rule quoting it into a rule that "
                 + "silently passes over an empty set, so the rename must update this list too.");
         }
+
+        Assert.True(
+            TypesIn(ArchitectureAssemblies.Protocol, ArchitectureAssemblies.ProtocolNamespace).Any(),
+            $"No type resides in '{ArchitectureAssemblies.ProtocolNamespace}'. The wire DTOs are harvested "
+            + "into AgentSurfaceTypes() from this assembly, so an empty set would silently stop the "
+            + "removal-verb rules covering them.");
     }
 
     [Fact]

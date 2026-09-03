@@ -1,7 +1,7 @@
 using System.Reflection;
 using Mailcoded.Cli.Commands;
 using Mailcoded.Core.Application;
-using Mailcoded.Core.Protocol;
+using Mailcoded.Protocol;
 using Mailcoded.Core.Tests.Surface;
 using Mailcoded.Mcp;
 using Xunit;

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Mailcoded.Core.Protocol;
+namespace Mailcoded.Protocol;
 
 /// <summary>
 /// A JSON-RPC 2.0 request. <see cref="JsonRpcRequest.Id"/> is absent on a notification and may be a number or a

@@ -1,4 +1,4 @@
-namespace Mailcoded.Core.Protocol;
+namespace Mailcoded.Protocol;
 
 /// <summary><c>search</c> — FTS5 query with keyset paging. Always pass a limit.</summary>
 public sealed record SearchParams

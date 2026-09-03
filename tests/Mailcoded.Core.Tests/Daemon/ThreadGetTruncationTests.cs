@@ -3,7 +3,7 @@ using System.Text.Json;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Sync;
 using Mailcoded.Core.Domain.Threading;
-using Mailcoded.Core.Protocol;
+using Mailcoded.Protocol;
 using Mailcoded.Core.Tests.Surface;
 using Mailcoded.Daemon;
 using Xunit;

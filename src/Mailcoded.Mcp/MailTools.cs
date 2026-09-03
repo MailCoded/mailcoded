@@ -5,7 +5,7 @@ using Mailcoded.Core.Domain.Outbox;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Tags;
 using Mailcoded.Core.Providers;
-using Mailcoded.Core.Protocol;
+using Mailcoded.Protocol;
 using Mailcoded.Core.Store;
 
 namespace Mailcoded.Mcp;

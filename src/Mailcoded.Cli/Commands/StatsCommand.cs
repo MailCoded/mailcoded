@@ -26,7 +26,7 @@ internal static class StatsCommand
         {
             var writer = output.BeginJson();
             writer.WriteNumber("schema_version_store", stats.Store.SchemaVersion);
-            writer.WriteNumber("protocol_version", Mailcoded.Core.Protocol.ProtocolConstants.Version);
+            writer.WriteNumber("protocol_version", Mailcoded.Protocol.ProtocolConstants.Version);
 
             writer.WriteStartObject("process");
             writer.WriteNumber("uptime_ms", stats.Process.UptimeMs);

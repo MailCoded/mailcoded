@@ -3,7 +3,7 @@ using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Sync;
 using Mailcoded.Core.Domain.Tags;
 using Mailcoded.Core.Parsing;
-using Mailcoded.Core.Protocol;
+using Mailcoded.Protocol;
 using Mailcoded.Core.Providers;
 using Mailcoded.Core.Store;
 using App = Mailcoded.Core.Application;
@@ -43,7 +43,7 @@ internal static class WireMapper
             To = row.To,
             Cc = row.Cc,
             Date = IsoTime.ToWire(row.DateUtc),
-            Flags = FlagNames.From(row.Flags),
+            Flags = FlagWireNames(row.Flags),
             Tags = ToTagNames(tags),
             HasAttachments = row.HasAttachments,
             Size = row.Size,
@@ -64,7 +64,7 @@ internal static class WireMapper
             Subject = hit.Subject,
             From = hit.From,
             Date = IsoTime.ToWire(hit.DateUtc),
-            Flags = FlagNames.From(hit.Flags),
+            Flags = FlagWireNames(hit.Flags),
             Tags = ToTagNames(tags),
             Snippet = hit.Snippet,
         };
@@ -82,7 +82,7 @@ internal static class WireMapper
             Subject = summary.Subject,
             From = summary.From,
             Date = IsoTime.ToWire(summary.DateUtc),
-            Flags = FlagNames.From(summary.Flags),
+            Flags = FlagWireNames(summary.Flags),
             Tags = ToTagNames(TagFlagMap.SystemTagsOf(summary.Flags)),
         };
     }
@@ -146,7 +146,7 @@ internal static class WireMapper
             FolderId = folder.Id.Value,
             AccountId = folder.AccountId.Value,
             Name = folder.Path.Value,
-            HighestModSeq = ModSeqWire.ToWire(folder.HighestModSeq),
+            HighestModSeq = ModSeqWire.ToWire(folder.HighestModSeq.Value),
             UidNext = folder.UidNext is { } next ? (long)next.Value : null,
             Unread = folder.UnreadCount,
             Total = folder.TotalCount,
@@ -410,5 +410,42 @@ internal static class WireMapper
         if (quirks.HasFlag(ServerQuirks.LowConnectionLimit)) names.Add("low-connection-limit");
         if (quirks.HasFlag(ServerQuirks.SelfSignedLocalhost)) names.Add("self-signed-localhost");
         return names;
+    }
+
+    public static IReadOnlyList<string> FlagWireNames(MessageFlags flags)
+    {
+        if (flags == MessageFlags.None) return [];
+
+        var names = new List<string>(6);
+        if (flags.HasFlag(MessageFlags.Unread)) names.Add(FlagNames.Unread);
+        if (flags.HasFlag(MessageFlags.Flagged)) names.Add(FlagNames.Flagged);
+        if (flags.HasFlag(MessageFlags.Answered)) names.Add(FlagNames.Answered);
+        if (flags.HasFlag(MessageFlags.Draft)) names.Add(FlagNames.Draft);
+        if (flags.HasFlag(MessageFlags.Deleted)) names.Add(FlagNames.Deleted);
+        if (flags.HasFlag(MessageFlags.Recent)) names.Add(FlagNames.Recent);
+        return names;
+    }
+
+    /// <summary>Unknown names are ignored: the flag set is server-owned, not client-owned.</summary>
+    public static MessageFlags ParseFlagWireNames(IReadOnlyList<string>? names)
+    {
+        if (names is null || names.Count == 0) return MessageFlags.None;
+
+        var flags = MessageFlags.None;
+        for (var i = 0; i < names.Count; i++)
+        {
+            flags |= names[i] switch
+            {
+                FlagNames.Unread => MessageFlags.Unread,
+                FlagNames.Flagged => MessageFlags.Flagged,
+                FlagNames.Answered => MessageFlags.Answered,
+                FlagNames.Draft => MessageFlags.Draft,
+                FlagNames.Deleted => MessageFlags.Deleted,
+                FlagNames.Recent => MessageFlags.Recent,
+                _ => MessageFlags.None,
+            };
+        }
+
+        return flags;
     }
 }

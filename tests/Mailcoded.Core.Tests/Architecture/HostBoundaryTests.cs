@@ -1,5 +1,5 @@
 using System.Reflection;
-using Mailcoded.Core.Protocol;
+using Mailcoded.Protocol;
 using NetArchTest.Rules;
 using Xunit;
 

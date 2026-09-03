@@ -66,13 +66,17 @@ public sealed class DocumentationTests
     }
 
     [Fact]
-    public void Architecture_folder_listing_includes_protocol()
+    public void Architecture_records_that_the_wire_left_the_hexagon()
     {
         var architecture = Read("docs", "ARCHITECTURE.md");
         var section = architecture[architecture.IndexOf("## 12.1", StringComparison.Ordinal)..];
 
+        // Protocol used to be a Core folder depending on Domain/Primitives. It is now its own
+        // assembly depending on nothing, which is a stronger claim and the reason a third party
+        // can implement docs/rpc.md without taking the engine.
         Assert.Contains("Protocol/", section, StringComparison.Ordinal);
-        Assert.Contains("Domain/Primitives", section, StringComparison.Ordinal);
+        Assert.Contains("src/Mailcoded.Protocol", section, StringComparison.Ordinal);
+        Assert.Contains("BCL alone", section, StringComparison.Ordinal);
     }
 
     [Fact]

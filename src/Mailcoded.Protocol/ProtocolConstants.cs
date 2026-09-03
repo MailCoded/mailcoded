@@ -1,4 +1,4 @@
-namespace Mailcoded.Core.Protocol;
+namespace Mailcoded.Protocol;
 
 /// <summary>Wire-level constants shared by every client of the JSON-RPC surface (SPEC §5.6).</summary>
 public static class ProtocolConstants

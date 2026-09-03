@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Mailcoded.Core.Protocol;
+namespace Mailcoded.Protocol;
 
 /// <summary>
 /// The one serializer context for the RPC surface. Native AOT forbids reflection-based

@@ -1,4 +1,4 @@
-namespace Mailcoded.Core.Protocol;
+namespace Mailcoded.Protocol;
 
 /// <summary>
 /// <c>send.preview</c> — phase one of the two-phase send. Builds the message, stores it in the

@@ -1,4 +1,4 @@
-namespace Mailcoded.Core.Protocol;
+namespace Mailcoded.Protocol;
 
 /// <summary><c>initialize</c> — the first call on every connection.</summary>
 public sealed record InitializeParams

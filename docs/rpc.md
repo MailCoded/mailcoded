@@ -1,6 +1,6 @@
 # RPC — the mailcoded JSON-RPC 2.0 surface
 
-**Status:** normative for protocol version **1**. Generated from `src/Mailcoded.Core/Protocol/`
+**Status:** normative for protocol version **1**. Generated from `src/Mailcoded.Protocol/`
 and `src/Mailcoded.Daemon/`. SPEC §5.6 defines the surface; this file is the reference a client
 author implements against.
 
@@ -498,7 +498,7 @@ one.
 ### 6.1 The complete code table
 
 Codes are a wire contract: never renumbered, never reused. `RpcErrorCode` in
-`src/Mailcoded.Core/Protocol/RpcErrorCode.cs` is the source of truth. **Adding a code means adding
+`src/Mailcoded.Protocol/RpcErrorCode.cs` is the source of truth. **Adding a code means adding
 a row here in the same PR.**
 
 | Code | Name | Meaning | What the client should DO |

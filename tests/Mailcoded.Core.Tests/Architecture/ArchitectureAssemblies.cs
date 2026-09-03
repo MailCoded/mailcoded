@@ -8,7 +8,7 @@ internal static class ArchitectureAssemblies
 {
     public const string DomainNamespace = "Mailcoded.Core.Domain";
     public const string ApplicationNamespace = "Mailcoded.Core.Application";
-    public const string ProtocolNamespace = "Mailcoded.Core.Protocol";
+    public const string ProtocolNamespace = "Mailcoded.Protocol";
     public const string ProvidersNamespace = "Mailcoded.Core.Providers";
     public const string StoreNamespace = "Mailcoded.Core.Store";
     public const string ParsingNamespace = "Mailcoded.Core.Parsing";
@@ -19,6 +19,8 @@ internal static class ArchitectureAssemblies
     public const string McpAssemblyName = "mailcoded-mcp";
 
     public static Assembly Core => typeof(SyncPlanner).Assembly;
+
+    public static Assembly Protocol => typeof(Mailcoded.Protocol.RpcMethods).Assembly;
 
     public static Assembly? Daemon { get; } = TryLoad(DaemonAssemblyName);
 
@@ -48,11 +50,15 @@ internal static class ArchitectureAssemblies
         {
             var ns = type.Namespace;
             if (ns is null) continue;
-            if (ns.StartsWith(ApplicationNamespace, StringComparison.Ordinal)
-                || ns.StartsWith(ProtocolNamespace, StringComparison.Ordinal))
-            {
-                types.Add(type);
-            }
+            if (ns.StartsWith(ApplicationNamespace, StringComparison.Ordinal)) types.Add(type);
+        }
+
+        // Protocol moved to its own assembly; harvesting it by namespace from Core would silently
+        // shrink the set these rules cover.
+        foreach (var type in SafeTypes(Protocol))
+        {
+            var ns = type.Namespace;
+            if (ns is not null && ns.StartsWith(ProtocolNamespace, StringComparison.Ordinal)) types.Add(type);
         }
 
         foreach (var host in ReachableHosts)

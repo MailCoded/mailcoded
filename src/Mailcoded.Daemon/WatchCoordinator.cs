@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using Mailcoded.Core.Application;
 using Mailcoded.Core.Domain.Primitives;
-using Mailcoded.Core.Protocol;
+using Mailcoded.Protocol;
 using Mailcoded.Core.Providers;
 using Mailcoded.Core.Store;
 

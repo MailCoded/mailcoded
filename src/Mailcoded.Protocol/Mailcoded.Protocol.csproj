@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Mailcoded.Protocol</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    Deliberately no PackageReference and no ProjectReference. A client author should be able to
+    take this assembly alone and talk to the daemon; if it ever grows a dependency on the engine,
+    docs/rpc.md stops being implementable by anyone outside this repository.
+  -->
+</Project>

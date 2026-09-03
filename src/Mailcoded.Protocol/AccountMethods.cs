@@ -1,4 +1,4 @@
-namespace Mailcoded.Core.Protocol;
+namespace Mailcoded.Protocol;
 
 /// <summary><c>account.add</c> — registers an account. The credential must already be in the secret store.</summary>
 public sealed record AccountAddParams

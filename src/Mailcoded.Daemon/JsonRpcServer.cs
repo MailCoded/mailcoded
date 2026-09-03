@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using Mailcoded.Core.Application;
-using Mailcoded.Core.Protocol;
+using Mailcoded.Protocol;
 
 namespace Mailcoded.Daemon;
 

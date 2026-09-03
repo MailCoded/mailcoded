@@ -1,6 +1,6 @@
 using System.Text;
 using Mailcoded.Core.Application;
-using Mailcoded.Core.Protocol;
+using Mailcoded.Protocol;
 using Mailcoded.Core.Providers;
 
 namespace Mailcoded.Cli.Commands;

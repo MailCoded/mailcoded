@@ -22,12 +22,19 @@ Mailcoded.Core/
 ├── Providers/              # IMailProvider port + ImapProvider (ALL MailKit confined here)
 ├── Parsing/                # MimeKit confined here: raw blob -> Envelope/BodyText/Attachment DTOs
 ├── Store/                  # SqliteStore adapter (ALL SQL confined here) + migrations
-├── Secrets/                # ISecretStore port + per-OS adapters
-└── Protocol/               # JSON-RPC DTOs + the source-generated JsonSerializerContext
+└── Secrets/                # ISecretStore port + per-OS adapters
 ```
 
-`Protocol/` is wire shape, not an adapter: it depends only on `Domain/Primitives`, holds no I/O,
-and is referenced by the hosts. Nothing in `Domain` or in an adapter may reference it.
+`Protocol/` used to sit here and now lives in its own assembly, `src/Mailcoded.Protocol` — wire
+shape is not part of the hexagon. It depends on the BCL alone and is referenced by the hosts, never
+by `Domain` or an adapter; `Mailcoded.Core` does not reference it at all. Both directions are
+enforced by `ProtocolBoundaryTests`.
+
+The reason it is a separate assembly rather than a folder: `Mailcoded.Core` carries MailKit,
+MimeKit, MSAL and a native SQLite binary, and `docs/rpc.md` promises a third party can write a
+client from the contract. Nobody takes an IMAP stack to obtain a DTO. The `MessageFlags` and
+`ModSeq` projections that used to live in `ProtocolWire` are therefore in the daemon's
+`WireMapper`, which is where Core-to-wire projection belongs anyway.
 
 **Dependency rules (architecture-test enforced):**
 1. `Domain` references no other Core namespace and no NuGet package.

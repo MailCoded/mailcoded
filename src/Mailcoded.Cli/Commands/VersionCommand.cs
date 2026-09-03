@@ -1,5 +1,5 @@
 using System.Runtime.InteropServices;
-using Mailcoded.Core.Protocol;
+using Mailcoded.Protocol;
 
 namespace Mailcoded.Cli.Commands;
 

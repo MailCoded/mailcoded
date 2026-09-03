@@ -132,7 +132,7 @@ internal static class Program
             log,
             "The orphan watchdog failed.");
 
-        log.Info($"mailcoded-daemon {DaemonInfo.Version} ready (protocol {Mailcoded.Core.Protocol.ProtocolConstants.Version}).");
+        log.Info($"mailcoded-daemon {DaemonInfo.Version} ready (protocol {Mailcoded.Protocol.ProtocolConstants.Version}).");
 
         await Task.WhenAny(reading, watching, server.ShutdownRequested).ConfigureAwait(false);
 

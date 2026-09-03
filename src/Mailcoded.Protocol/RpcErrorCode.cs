@@ -1,4 +1,4 @@
-namespace Mailcoded.Core.Protocol;
+namespace Mailcoded.Protocol;
 
 /// <summary>
 /// Stable numeric JSON-RPC error codes (SPEC §5.6). Values are a wire contract: never renumber

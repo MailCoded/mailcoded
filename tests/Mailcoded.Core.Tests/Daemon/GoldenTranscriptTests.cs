@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Mailcoded.Core.Protocol;
+using Mailcoded.Protocol;
 using Xunit;
 
 namespace Mailcoded.Core.Tests.Daemon;
