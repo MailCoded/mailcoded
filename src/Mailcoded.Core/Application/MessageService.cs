@@ -187,6 +187,57 @@ public sealed class MessageService
         };
     }
 
+    /// <summary>
+    /// Builds the reply scaffolding for a message: recipients, Re: subject, quoted body and the
+    /// In-Reply-To/References chain. Returns a <see cref="ReplyContext"/> rather than the parsed
+    /// message so no caller can reach <c>BodyHtml</c> through this path — agents get plaintext only.
+    /// </summary>
+    public async Task<ReplyContext> BuildReplyAsync(
+        IMailProvider? provider,
+        LocalMessageId id,
+        bool replyAll,
+        EmailAddress? self,
+        CallerContext caller,
+        CancellationToken ct)
+    {
+        var envelope = Require(id, ct);
+
+        if (!envelope.BodyFetched && provider is not null)
+            envelope = await FetchBodyAsync(provider, envelope, caller, ct).ConfigureAwait(false);
+
+        var raw = ReadRaw(envelope, ct);
+        if (raw is null)
+        {
+            throw new StoreException(
+                FailureCategory.NotFound,
+                $"The body of message {id.Value} is not cached, so a reply cannot quote it. Sync first.");
+        }
+
+        var parsed = _parser.Parse(raw, envelope.DateUtc, ct);
+        return ReplyBuilder.Create(parsed, self, replyAll);
+    }
+
+    /// <summary>
+    /// Attachment metadata only — names, types and sizes, never content and never HTML. Safe for
+    /// the agent surface, which is why it does not go through the Html/Raw body formats.
+    /// </summary>
+    public async Task<IReadOnlyList<ParsedAttachment>> ListAttachmentsAsync(
+        IMailProvider? provider,
+        LocalMessageId id,
+        CallerContext caller,
+        CancellationToken ct)
+    {
+        var envelope = Require(id, ct);
+
+        if (!envelope.BodyFetched && provider is not null)
+            envelope = await FetchBodyAsync(provider, envelope, caller, ct).ConfigureAwait(false);
+
+        var raw = ReadRaw(envelope, ct);
+        if (raw is null) return [];
+
+        return _parser.Parse(raw, envelope.DateUtc, ct).Attachments;
+    }
+
     public async Task<AttachmentContent> GetAttachmentAsync(
         IMailProvider? provider,
         LocalMessageId id,

@@ -44,6 +44,10 @@ produced 16 confirmed defects, all since fixed with regression tests. The store 
 | **HTML text loss** | a message whose body contains `<3`, `<5000`, `<10%` | the payload after each now reaches `body_text` — `wire`, `999-888`, `CFO` and `IMPORTANT` are all searchable |
 | Script exclusion | fixture 011 (HTML-only with `<script>` and `javascript:`) | `body_text` carries none of it; the only `alert` match in the corpus is fixture 035's deliberately **undecoded** UTF-7 text |
 | Clean clone | `git clone` then build and test | builds and passes — nothing required is missing from git |
+| Account admin verbs | `account list`, `account test` against a store with no reachable server | list reports folders/messages/unread/last-sync; test separates a network failure from a dead credential and exits with the matching code |
+| `attachments` | fixture 014 (PDF) and 015 (path-traversal filename) | listed with type and size; `--save` wrote the file, and `../../../../etc/cron.d/pwn` was sanitized to `pwn` |
+| `reply` | replying to fixture 001 | correct `Re:` subject, recipient from the original, and **In-Reply-To and References both pointing at the original Message-ID** with the body quoted |
+| `move` gating | `--yes` without the unlock, then with it | denied before any folder name is revealed; with `MAILCODED_ALLOW_MOVE=1` it proceeds to resolution |
 | **`setup` wizard** | driven through a pty against a local IMAP server | resolved settings, took a non-echoed password, verified with a real login, saved the account, synced 3 messages; the credential does not appear anywhere in `store.db` |
 | `setup` failure path | same, with an unreachable host | reported the host:port that failed with actionable hints and saved **nothing** — no account, no stored credential |
 | `setup` guidance | `me@gmail.com` and `me@outlook.com` | Gmail showed the app-password requirement and link *before* prompting; Outlook stopped with the basic-auth explanation instead of failing at login |

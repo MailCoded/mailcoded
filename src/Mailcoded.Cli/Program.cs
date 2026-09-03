@@ -72,10 +72,10 @@ internal static class Program
                 return ExitCodes.Ok;
             }
 
-            if (sub is not ("add" or "forget"))
+            if (sub is not ("add" or "forget" or "list" or "test" or "reauth"))
             {
                 throw new CliUsageException(
-                    $"'account {sub}' does not exist. The subcommands are 'account add' and 'account forget'.");
+                    $"'account {sub}' does not exist. Subcommands: list, add, test, reauth, forget.");
             }
 
             verb = "account " + sub;

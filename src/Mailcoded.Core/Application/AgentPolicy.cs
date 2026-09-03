@@ -108,7 +108,11 @@ public sealed class AgentPolicy
     /// <summary>Agents receive plaintext bodies only, which kills the markdown and image exfil vectors.</summary>
     public bool AllowsHtmlBody(CallerKind caller) => !IsAgent(caller);
 
-    public bool AllowsMove(CallerKind caller) => !IsAgent(caller);
+    /// <summary>
+    /// Moving is off for agent callers unless explicitly unlocked. Not in the §13.6 posture
+    /// matrix, so it stays closed by default rather than being assumed benign.
+    /// </summary>
+    public bool AllowsMove(CallerKind caller) => !IsAgent(caller) || Options.MoveEnabled;
 
     public void RequireCapability(AgentCapability capability, CallerContext caller)
     {

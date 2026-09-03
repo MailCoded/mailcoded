@@ -19,19 +19,29 @@ READ AND TRIAGE
   search '<query>'          full-text + metadata search over the local store
   read <messageId>          one message as PLAINTEXT (never HTML)
   thread <messageId|key>    every message in one conversation
+  attachments <messageId>   list attachments, or --save <index> one to disk
   tag <messageId> +a -b     add and remove local Tags; pushes server Flags
+  move <messageId>          move to another folder (--folder); needs confirmation
+  archive <messageId>       shortcut for moving to the Archive folder
   folders                   folders of an account with unread/total counts
   stats                     process, store and per-folder counters
   health                    per-account connection, auth and outbox state
 
 COMPOSE AND SEND (send is OFF by default)
   draft                     build a message and queue it as a draft
+  reply <messageId>         draft a reply, quoted and correctly threaded
   send-preview <draftId>    show what would be sent and mint a one-time token
   send-draft <draftId>      send, consuming --confirm-token
+  outbox                    what is queued, sending, sent or stuck
 
-STORE ADMINISTRATION
+ACCOUNT ADMINISTRATION
+  account list              every account, with folder and message counts
+  account test              prove settings and credential still work
+  account reauth            replace the credential or sign in again
   account add               register an account non-interactively, for scripts
   account forget            remove an account and its cached mail from this machine
+
+STORE ADMINISTRATION
   sync                      pull new mail for an account or one folder
   import-eml <dir>          load .eml files from a directory into the store
   query --sql '<select>'    read-only, row-capped SQL (off unless MAILCODED_ENABLE_SQL=1)

@@ -9,6 +9,13 @@ public sealed record AgentPolicyOptions
     public const string ApprovedRecipientsEnvVar = "MAILCODED_APPROVED_RECIPIENTS";
     public const string EnableSqlEnvVar = "MAILCODED_ENABLE_SQL";
 
+    /// <summary>
+    /// Unlocks moving mail between folders on the agent surface. Off by default: AGENT-INTERFACE
+    /// §13.6's posture matrix covers read, tag, draft and send but never move, and a capability
+    /// nobody granted should not be assumed.
+    /// </summary>
+    public const string AllowMoveEnvVar = "MAILCODED_ALLOW_MOVE";
+
     public const int DefaultMaxSendsPerHour = 5;
     public const int DefaultSqlRowCap = 200;
     public const int MaxSqlRowCap = 1000;
@@ -20,6 +27,9 @@ public sealed record AgentPolicyOptions
     public IReadOnlyList<string> ApprovedRecipients { get; init; } = [];
 
     public bool RawSqlEnabled { get; init; }
+
+    /// <summary>Whether an agent-surface caller may move mail between folders. Default false.</summary>
+    public bool MoveEnabled { get; init; }
 
     public int MaxSendsPerHour { get; init; } = DefaultMaxSendsPerHour;
 
@@ -35,6 +45,7 @@ public sealed record AgentPolicyOptions
         {
             SendEnabled = IsTruthy(Read(SendEnvVar)),
             RawSqlEnabled = IsTruthy(Read(EnableSqlEnvVar)),
+            MoveEnabled = IsTruthy(Read(AllowMoveEnvVar)),
             ApprovedRecipients = ParseRecipientPatterns(Read(ApprovedRecipientsEnvVar)),
         };
     }
@@ -80,5 +91,6 @@ public sealed record AgentPolicyOptions
     internal string Describe() =>
         "send=" + (SendEnabled ? "on" : "off")
         + " allowlist=" + ApprovedRecipients.Count.ToString(CultureInfo.InvariantCulture)
-        + " sql=" + (RawSqlEnabled ? "on" : "off");
+        + " sql=" + (RawSqlEnabled ? "on" : "off")
+        + " move=" + (MoveEnabled ? "on" : "off");
 }

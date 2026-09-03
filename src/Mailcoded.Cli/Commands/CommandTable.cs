@@ -78,6 +78,30 @@ internal static class CommandTable
                 ["password-stdin", "no-password"]),
             AccountAddCommand.RunAsync),
 
+        new CliCommandDefinition("account list", new VerbSpec([], []), AccountListCommand.RunAsync),
+
+        new CliCommandDefinition("account test",
+            new VerbSpec(["account"], ["no-smtp"]),
+            AccountTestCommand.RunAsync),
+
+        new CliCommandDefinition("account reauth",
+            new VerbSpec(["account", "client-id", "tenant"], []),
+            AccountReauthCommand.RunAsync),
+
+        new CliCommandDefinition("attachments",
+            new VerbSpec(["save", "out"], ["no-fetch", "overwrite"]),
+            AttachmentsCommand.RunAsync),
+
+        new CliCommandDefinition("reply",
+            new VerbSpec(["body", "body-file"], ["all", "no-quote", "no-fetch"]),
+            ReplyCommand.RunAsync),
+
+        new CliCommandDefinition("outbox", new VerbSpec(["state"], []), OutboxCommand.RunAsync),
+
+        new CliCommandDefinition("move", new VerbSpec(["folder"], ["yes"]), MoveCommand.RunAsync),
+
+        new CliCommandDefinition("archive", new VerbSpec([], ["yes"]), MoveCommand.RunArchiveAsync),
+
         new CliCommandDefinition("account forget",
             new VerbSpec(["account"], ["yes"]),
             AccountForgetCommand.RunAsync),
