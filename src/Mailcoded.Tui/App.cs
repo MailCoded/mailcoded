@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Threading.Channels;
 using Mailcoded.Protocol;
@@ -12,6 +13,7 @@ internal enum EventKind
 {
     Key,
     Notification,
+    Completed,
     Tick,
 }
 
@@ -24,14 +26,21 @@ internal sealed partial class App
     private readonly MailcodedClient _client;
     private readonly TerminalWriter _writer;
     private readonly AppState _state = new();
+    private readonly ConcurrentQueue<Action> _applies = new();
     private readonly Channel<AppEvent> _events =
         Channel.CreateBounded<AppEvent>(new BoundedChannelOptions(512) { FullMode = BoundedChannelFullMode.DropOldest });
+
+    private CancellationToken _lifetime;
+    private Task _work = Task.CompletedTask;
+    private CancellationTokenSource? _workCancellation;
 
     private App(MailcodedClient client, TerminalWriter writer)
     {
         _client = client;
         _writer = writer;
     }
+
+    private bool Busy => !_work.IsCompleted;
 
     public static async Task<int> RunAsync(MailcodedClient client, TerminalWriter writer, CancellationToken ct)
     {
@@ -42,6 +51,7 @@ internal sealed partial class App
     private async Task<int> LoopAsync(CancellationToken ct)
     {
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        _lifetime = lifetime.Token;
 
         var keys = KeyReader.Start();
         var pumps = Task.WhenAll(
@@ -57,6 +67,7 @@ internal sealed partial class App
             while (!lifetime.Token.IsCancellationRequested)
             {
                 var next = await _events.Reader.ReadAsync(lifetime.Token).ConfigureAwait(false);
+                while (_applies.TryDequeue(out var apply)) apply();
 
                 if (_client.FaultReason is { } fault)
                 {
@@ -66,10 +77,9 @@ internal sealed partial class App
                     return 1;
                 }
 
-                if (next.Kind == EventKind.Key && !await HandleKeyAsync(next.Key, lifetime.Token).ConfigureAwait(false))
-                    return 0;
+                if (next.Kind == EventKind.Key && !HandleKey(next.Key)) return 0;
 
-                if (next.Kind == EventKind.Tick && !_writer.Measure() && _state.Status.Length == 0) continue;
+                if (next.Kind == EventKind.Tick && !_writer.Measure() && !Busy) continue;
 
                 Draw();
             }
@@ -85,6 +95,70 @@ internal sealed partial class App
             await lifetime.CancelAsync().ConfigureAwait(false);
             await Task.WhenAny(pumps, Task.Delay(500, CancellationToken.None)).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>An RPC can take the daemon's whole timeout, so none is awaited on the loop:
+    /// a tags.set waiting 30s on a dead server must not take the quit key with it.</summary>
+    private void Start(string label, Func<CancellationToken, Task<Action>> work)
+    {
+        if (Busy)
+        {
+            _state.Complain($"Still {_state.BusyLabel}. Press esc to give up on it.");
+            return;
+        }
+
+        _state.BusyLabel = label;
+        _state.Say(label);
+        _work = Run(label, work, exclusive: true);
+    }
+
+    private void Detach(string label, Func<CancellationToken, Task<Action>> work) =>
+        Run(label, work, exclusive: false);
+
+    private Task Run(string label, Func<CancellationToken, Task<Action>> work, bool exclusive)
+    {
+        var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime);
+        if (exclusive) _workCancellation = cancellation;
+
+        return Task.Run(
+            async () =>
+            {
+                Action apply;
+
+                try
+                {
+                    apply = await work(cancellation.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    apply = () => _state.Say($"Gave up on {label}.");
+                }
+                catch (RpcException ex)
+                {
+                    var message = Explain(ex);
+                    apply = () => _state.Complain(message);
+                }
+                catch (Exception ex)
+                {
+                    var message = ex.Message;
+                    apply = () => _state.Complain($"{label}: {message}");
+                }
+                finally
+                {
+                    cancellation.Dispose();
+                }
+
+                _applies.Enqueue(apply);
+                _events.Writer.TryWrite(new AppEvent(EventKind.Completed, default));
+            },
+            CancellationToken.None);
+    }
+
+    private void Cancel()
+    {
+        if (!Busy) return;
+        _workCancellation?.Cancel();
+        _state.Say("Giving up...");
     }
 
     /// <summary>A half-written frame leaves the cursor mid-screen, so a render fault degrades to
@@ -114,145 +188,131 @@ internal sealed partial class App
             return;
         }
 
-        await LoadFoldersAsync(account.Id, ct).ConfigureAwait(false);
-        await LoadMessagesAsync(reset: true, ct).ConfigureAwait(false);
-        await SubscribeAsync(account.Id, ct).ConfigureAwait(false);
-    }
-
-    private async Task LoadFoldersAsync(long accountId, CancellationToken ct)
-    {
-        var folders = await _client.ListFoldersAsync(accountId, ct).ConfigureAwait(false);
+        var folders = await _client.ListFoldersAsync(account.Id, ct).ConfigureAwait(false);
         _state.Folders = folders.Folders;
 
         var inbox = _state.Folders.ToList().FindIndex(f => f.Role is "inbox");
         _state.FolderIndex = inbox >= 0 ? inbox : 0;
+
+        LoadMessages(reset: true);
+        Subscribe(account.Id);
     }
 
-    private async Task SubscribeAsync(long accountId, CancellationToken ct)
+    /// <summary>watch.subscribe opens an IMAP connection, so it never holds up the first frame.</summary>
+    private void Subscribe(long accountId)
     {
         if (!_client.Supports(RpcMethods.WatchSubscribe)) return;
 
-        try
+        Detach("watching", async token =>
         {
             await _client.CallAsync(
                 RpcMethods.WatchSubscribe,
                 Json.Serialize(
                     new WatchSubscribeParams { AccountId = accountId },
                     ProtocolJsonContext.Default.WatchSubscribeParams),
-                ct).ConfigureAwait(false);
-        }
-        catch (RpcException ex)
-        {
-            _state.Complain($"Live updates are off: {ex.Message}");
-        }
+                token).ConfigureAwait(false);
+
+            return static () => { };
+        });
     }
 
-    private async Task LoadMessagesAsync(bool reset, CancellationToken ct)
+    private void LoadMessages(bool reset)
     {
         if (_state.Folder is not { } folder) return;
 
-        _state.Busy = true;
-        Draw();
+        var query = _state.Query;
+        var cursor = reset ? null : _state.NextCursor;
 
-        try
+        Start(reset ? "loading" : "loading more", async token =>
         {
             var result = await _client.SearchAsync(
                 new SearchParams
                 {
-                    Query = _state.Query ?? string.Empty,
+                    Query = query ?? string.Empty,
                     AccountId = folder.AccountId,
-                    FolderId = _state.Query is null ? folder.Id : null,
+                    FolderId = query is null ? folder.Id : null,
                     Limit = PageSize,
-                    Cursor = reset ? null : _state.NextCursor,
-                    Order = _state.Query is null ? SearchOrders.Date : null,
+                    Cursor = cursor,
+                    Order = query is null ? SearchOrders.Date : null,
                     IncludeSnippet = false,
                 },
-                ct).ConfigureAwait(false);
+                token).ConfigureAwait(false);
 
-            if (reset)
+            return () =>
             {
-                _state.Messages.Clear();
-                _state.MessageIndex = 0;
-            }
+                if (reset)
+                {
+                    _state.Messages.Clear();
+                    _state.MessageIndex = 0;
+                }
 
-            _state.Messages.AddRange(result.Hits);
-            _state.NextCursor = result.NextCursor;
-            _state.Truncated = result.Truncated;
+                _state.Messages.AddRange(result.Hits);
+                _state.NextCursor = result.NextCursor;
+                _state.Truncated = result.Truncated;
 
-            if (_state.MessageIndex >= _state.Messages.Count)
-                _state.MessageIndex = Math.Max(0, _state.Messages.Count - 1);
+                if (_state.MessageIndex >= _state.Messages.Count)
+                    _state.MessageIndex = Math.Max(0, _state.Messages.Count - 1);
 
-            _state.Say(Summary(result));
-        }
-        catch (RpcException ex)
-        {
-            _state.Complain(Explain(ex));
-        }
-        finally
-        {
-            _state.Busy = false;
-        }
+                _state.Say(Summary(result, query, folder.Name));
+            };
+        });
     }
 
-    private string Summary(SearchResult result)
+    private string Summary(SearchResult result, string? query, string folderName)
     {
-        var scope = _state.Query is { Length: > 0 } query ? $"'{query}'" : _state.Folder?.Name ?? "folder";
+        var scope = query is { Length: > 0 } text ? $"'{text}'" : folderName;
         var more = result.NextCursor is not null ? "  n for more" : string.Empty;
 
         return result.Truncated
-            ? $"{_state.Messages.Count} in {scope} — matches were dropped that no cursor reaches"
+            ? $"{_state.Messages.Count} in {scope} - matches were dropped that no cursor reaches"
             : $"{_state.Messages.Count} in {scope}{more}";
     }
 
-    private async Task OpenSelectedAsync(CancellationToken ct)
+    private void OpenSelected()
     {
         if (_state.Selected is not { } envelope) return;
 
-        _state.Busy = true;
-        Draw();
+        Start("opening", async token =>
+        {
+            var message = await _client
+                .GetMessageAsync(envelope.Id, fetchIfMissing: true, token)
+                .ConfigureAwait(false);
 
-        try
-        {
-            _state.Open = await _client.GetMessageAsync(envelope.Id, fetchIfMissing: true, ct).ConfigureAwait(false);
-            _state.Focus = Pane.Reader;
-            _state.BodyScroll = 0;
-            _state.BodyLines = null;
-            _state.Say(string.Empty);
-        }
-        catch (RpcException ex)
-        {
-            _state.Complain(Explain(ex));
-        }
-        finally
-        {
-            _state.Busy = false;
-        }
+            return () =>
+            {
+                _state.Open = message;
+                _state.Focus = Pane.Reader;
+                _state.BodyScroll = 0;
+                _state.BodyLines = null;
+                _state.Say(string.Empty);
+
+                if (envelope.Flags.Contains(FlagNames.Unread, StringComparer.Ordinal))
+                    ApplyTags(envelope.Id, [], [FlagNames.Unread], "marking read");
+            };
+        });
     }
 
-    private async Task ResyncAsync(CancellationToken ct)
+    private void Resync()
     {
         if (_state.Folder is not { } folder || !_client.Supports(RpcMethods.Sync)) return;
 
-        _state.Say($"Syncing {folder.Name}...");
-        Draw();
-
-        try
+        Start($"syncing {folder.Name}", async token =>
         {
             var raw = await _client.CallAsync(
                 RpcMethods.Sync,
                 Json.Serialize(
                     new SyncParams { AccountId = folder.AccountId, FolderId = folder.Id },
                     ProtocolJsonContext.Default.SyncParams),
-                ct).ConfigureAwait(false);
+                token).ConfigureAwait(false);
 
             var result = raw.Deserialize(ProtocolJsonContext.Default.SyncResult) ?? new SyncResult();
-            await LoadMessagesAsync(reset: true, ct).ConfigureAwait(false);
-            _state.Say($"+{result.Added} ~{result.Updated} -{result.Expunged} in {result.DurationMs} ms");
-        }
-        catch (RpcException ex)
-        {
-            _state.Complain(Explain(ex));
-        }
+
+            return () =>
+            {
+                _state.Say($"+{result.Added} ~{result.Updated} -{result.Expunged} in {result.DurationMs} ms");
+                LoadMessages(reset: true);
+            };
+        });
     }
 
     private static string Explain(RpcException ex) => ex.Code switch
@@ -315,21 +375,25 @@ internal sealed partial class App
         switch (method.GetString())
         {
             case RpcNotifications.MailAdded when document.RootElement.TryGetProperty("params", out var added):
-                var mail = added.Deserialize(ProtocolJsonContext.Default.MailAddedNotification);
-                if (mail is not null && mail.FolderId == _state.Folder?.Id)
-                    _state.Say($"{mail.Count} new in {mail.FolderName} — r to refresh");
+                if (added.Deserialize(ProtocolJsonContext.Default.MailAddedNotification) is { } mail)
+                    _applies.Enqueue(() => Announce(mail));
                 break;
 
             case RpcNotifications.FolderUpdated when document.RootElement.TryGetProperty("params", out var updated):
-                var folder = updated.Deserialize(ProtocolJsonContext.Default.FolderUpdatedNotification);
-                if (folder is not null) Replace(folder.Folder);
+                if (updated.Deserialize(ProtocolJsonContext.Default.FolderUpdatedNotification) is { } folder)
+                    _applies.Enqueue(() => Replace(folder.Folder));
                 break;
 
             case RpcNotifications.SyncError when document.RootElement.TryGetProperty("params", out var failed):
-                var error = failed.Deserialize(ProtocolJsonContext.Default.SyncErrorNotification);
-                if (error is not null) _state.Complain($"sync: {error.Message}");
+                if (failed.Deserialize(ProtocolJsonContext.Default.SyncErrorNotification) is { } error)
+                    _applies.Enqueue(() => _state.Complain($"sync: {error.Message}"));
                 break;
         }
+    }
+
+    private void Announce(MailAddedNotification mail)
+    {
+        if (mail.FolderId == _state.Folder?.Id) _state.Say($"{mail.Count} new in {mail.FolderName} - r to refresh");
     }
 
     private void Replace(FolderDto folder)

@@ -1,3 +1,4 @@
+using Mailcoded.Protocol;
 using Mailcoded.Tui.Views;
 
 namespace Mailcoded.Tui;
@@ -5,15 +6,17 @@ namespace Mailcoded.Tui;
 internal sealed partial class App
 {
     /// <summary>Returns false to leave the loop.</summary>
-    /// <remarks>Printable commands dispatch on KeyChar: a terminal that has no terminfo entry for
-    /// '?' reports ConsoleKey.None, so keying off ConsoleKey loses the binding.</remarks>
-    private async Task<bool> HandleKeyAsync(ConsoleKeyInfo key, CancellationToken ct)
+    /// <remarks>Printable commands dispatch on KeyChar: a terminal with no terminfo entry for '?'
+    /// reports ConsoleKey.None, so keying off ConsoleKey loses the binding.</remarks>
+    private bool HandleKey(ConsoleKeyInfo key)
     {
         if (_state.Prompt is not null)
         {
-            if (HandlePrompt(key)) await SubmitAsync(ct).ConfigureAwait(false);
+            if (ReadPrompt(key)) Submit();
             return true;
         }
+
+        if (_state.ChoosingDestination) return ChooseDestination(key);
 
         if (key.Modifiers.HasFlag(ConsoleModifiers.Control))
         {
@@ -21,8 +24,8 @@ internal sealed partial class App
             {
                 case ConsoleKey.C: return false;
                 case ConsoleKey.L: _writer.Measure(); _state.BodyLines = null; return true;
-                case ConsoleKey.D: Move(Screen.BodyRows(_writer) / 2); return true;
-                case ConsoleKey.U: Move(-Screen.BodyRows(_writer) / 2); return true;
+                case ConsoleKey.D: Scroll(Screen.BodyRows(_writer) / 2); return true;
+                case ConsoleKey.U: Scroll(-Screen.BodyRows(_writer) / 2); return true;
             }
         }
 
@@ -34,15 +37,15 @@ internal sealed partial class App
 
         switch (key.Key)
         {
-            case ConsoleKey.Escape: await BackAsync(ct).ConfigureAwait(false); return true;
-            case ConsoleKey.Enter: await ActivateAsync(ct).ConfigureAwait(false); return true;
+            case ConsoleKey.Escape: Escape(); return true;
+            case ConsoleKey.Enter: Activate(); return true;
             case ConsoleKey.Tab: Swap(); return true;
-            case ConsoleKey.DownArrow: Move(1); return true;
-            case ConsoleKey.UpArrow: Move(-1); return true;
+            case ConsoleKey.DownArrow: Scroll(1); return true;
+            case ConsoleKey.UpArrow: Scroll(-1); return true;
             case ConsoleKey.LeftArrow when _state.Open is null: _state.Focus = Pane.Folders; return true;
             case ConsoleKey.RightArrow when _state.Open is null: _state.Focus = Pane.Messages; return true;
-            case ConsoleKey.PageDown: Move(Screen.BodyRows(_writer) - 1); return true;
-            case ConsoleKey.PageUp: Move(-(Screen.BodyRows(_writer) - 1)); return true;
+            case ConsoleKey.PageDown: Scroll(Screen.BodyRows(_writer) - 1); return true;
+            case ConsoleKey.PageUp: Scroll(-(Screen.BodyRows(_writer) - 1)); return true;
             case ConsoleKey.Home: Jump(toEnd: false); return true;
             case ConsoleKey.End: Jump(toEnd: true); return true;
         }
@@ -54,29 +57,32 @@ internal sealed partial class App
                 CloseReader();
                 return true;
 
-            case '?':
-                _state.Focus = Pane.Help;
-                return true;
+            case '?': _state.Focus = Pane.Help; return true;
+            case '/': Ask("search: "); return true;
+            case 't': Ask("tags: "); return true;
 
-            case '/':
-                _state.Prompt = "search: ";
-                _state.PromptInput = string.Empty;
-                return true;
-
-            case 'j': Move(1); return true;
-            case 'k': Move(-1); return true;
-            case ' ': Move(Screen.BodyRows(_writer) - 1); return true;
+            case 'j': Scroll(1); return true;
+            case 'k': Scroll(-1); return true;
+            case ' ': Scroll(Screen.BodyRows(_writer) - 1); return true;
             case 'h' when _state.Open is null: _state.Focus = Pane.Folders; return true;
             case 'l' when _state.Open is null: _state.Focus = Pane.Messages; return true;
             case 'g': Jump(toEnd: false); return true;
             case 'G': Jump(toEnd: true); return true;
 
             case 'n' when _state.Open is null && _state.NextCursor is not null:
-                await LoadMessagesAsync(reset: false, ct).ConfigureAwait(false);
+                LoadMessages(reset: false);
                 return true;
 
-            case 'r' when _state.Open is null:
-                await ResyncAsync(ct).ConfigureAwait(false);
+            case 'r' when _state.Open is null: Resync(); return true;
+            case 'u': ToggleTag(FlagNames.Unread); return true;
+            case 'f': ToggleTag(FlagNames.Flagged); return true;
+            case 'a': Archive(); return true;
+
+            case 'm':
+                if (Current() is null) return true;
+                _state.ChoosingDestination = true;
+                _state.Focus = Pane.Folders;
+                _state.Say("move where? enter to confirm, esc to cancel");
                 return true;
 
             default:
@@ -84,18 +90,22 @@ internal sealed partial class App
         }
     }
 
-    private async Task BackAsync(CancellationToken ct)
+    private void Ask(string prompt)
     {
-        if (_state.Open is not null)
-        {
-            CloseReader();
-            return;
-        }
+        _state.Prompt = prompt;
+        _state.PromptInput = string.Empty;
+    }
+
+    /// <summary>Escape undoes the innermost thing first: a running call, then the reader, then a search.</summary>
+    private void Escape()
+    {
+        if (Busy) { Cancel(); return; }
+        if (_state.Open is not null) { CloseReader(); return; }
 
         if (_state.Query is not null)
         {
             _state.Query = null;
-            await LoadMessagesAsync(reset: true, ct).ConfigureAwait(false);
+            LoadMessages(reset: true);
         }
     }
 
@@ -109,7 +119,7 @@ internal sealed partial class App
 
     private void Swap() => _state.Focus = _state.Focus == Pane.Folders ? Pane.Messages : Pane.Folders;
 
-    private async Task ActivateAsync(CancellationToken ct)
+    private void Activate()
     {
         if (_state.Open is not null) return;
 
@@ -117,15 +127,15 @@ internal sealed partial class App
         {
             _state.Query = null;
             _state.Focus = Pane.Messages;
-            await LoadMessagesAsync(reset: true, ct).ConfigureAwait(false);
+            LoadMessages(reset: true);
             return;
         }
 
-        await OpenSelectedAsync(ct).ConfigureAwait(false);
+        OpenSelected();
     }
 
     /// <summary>Returns true when the line was submitted.</summary>
-    private bool HandlePrompt(ConsoleKeyInfo key)
+    private bool ReadPrompt(ConsoleKeyInfo key)
     {
         switch (key.Key)
         {
@@ -148,18 +158,60 @@ internal sealed partial class App
         }
     }
 
-    private async Task SubmitAsync(CancellationToken ct)
+    private void Submit()
     {
-        var query = _state.PromptInput.Trim();
+        var line = _state.PromptInput.Trim();
+        var wasTags = _state.Prompt is "tags: ";
+
         _state.Prompt = null;
         _state.PromptInput = string.Empty;
 
-        _state.Query = query.Length == 0 ? null : query;
+        if (wasTags)
+        {
+            PromptedTags(line);
+            return;
+        }
+
+        _state.Query = line.Length == 0 ? null : line;
         _state.Focus = Pane.Messages;
-        await LoadMessagesAsync(reset: true, ct).ConfigureAwait(false);
+        LoadMessages(reset: true);
     }
 
-    private void Move(int delta)
+    private bool ChooseDestination(ConsoleKeyInfo key)
+    {
+        switch (key.Key)
+        {
+            case ConsoleKey.Escape:
+                _state.ChoosingDestination = false;
+                _state.Focus = _state.Open is null ? Pane.Messages : Pane.Reader;
+                _state.Say(string.Empty);
+                return true;
+
+            case ConsoleKey.Enter:
+                _state.ChoosingDestination = false;
+                if (_state.Folder is { } destination) Move(destination);
+                _state.Focus = Pane.Messages;
+                return true;
+
+            case ConsoleKey.DownArrow: StepFolder(1); return true;
+            case ConsoleKey.UpArrow: StepFolder(-1); return true;
+        }
+
+        switch (key.KeyChar)
+        {
+            case 'j': StepFolder(1); return true;
+            case 'k': StepFolder(-1); return true;
+            default: return true;
+        }
+    }
+
+    private void StepFolder(int delta)
+    {
+        if (_state.Folders.Count == 0) return;
+        _state.FolderIndex = Math.Clamp(_state.FolderIndex + delta, 0, _state.Folders.Count - 1);
+    }
+
+    private void Scroll(int delta)
     {
         if (_state.Open is not null)
         {
@@ -169,8 +221,7 @@ internal sealed partial class App
 
         if (_state.Focus == Pane.Folders)
         {
-            if (_state.Folders.Count == 0) return;
-            _state.FolderIndex = Math.Clamp(_state.FolderIndex + delta, 0, _state.Folders.Count - 1);
+            StepFolder(delta);
             return;
         }
 

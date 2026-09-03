@@ -6,7 +6,10 @@ public sealed record DaemonLaunch(string FileName, IReadOnlyList<string> Argumen
 public static class DaemonLocator
 {
     public const string PathEnvVar = "MAILCODED_DAEMON";
-    public const string AssemblyName = "Mailcoded.Daemon";
+    /// <summary>The project directory; the produced assembly is named differently on purpose.</summary>
+    public const string ProjectName = "Mailcoded.Daemon";
+
+    public const string AssemblyName = "mailcoded-daemon";
 
     public static DaemonLaunch? TryLocate(out string reason)
     {
@@ -32,7 +35,7 @@ public static class DaemonLocator
             return null;
         }
 
-        var binRoot = Path.Combine(root, "src", AssemblyName, "bin");
+        var binRoot = Path.Combine(root, "src", ProjectName, "bin");
         if (!Directory.Exists(binRoot))
         {
             reason = $"The daemon was not found: '{binRoot}' does not exist. Build the solution first.";

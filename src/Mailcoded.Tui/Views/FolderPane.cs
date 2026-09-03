@@ -34,7 +34,8 @@ internal static class FolderPane
 
             var style = selected
                 ? (focused ? TextStyle.Inverse : TextStyle.Bold)
-                : (folder.Unread > 0 ? TextStyle.Normal : TextStyle.Dim);
+                : (state.ChoosingDestination ? TextStyle.Accent
+                    : folder.Unread > 0 ? TextStyle.Normal : TextStyle.Dim);
 
             writer.At(row, 0, line0, style);
         }

@@ -49,7 +49,9 @@ internal sealed class AppState
 
     public string PromptInput { get; set; } = string.Empty;
 
-    public bool Busy { get; set; }
+    public string BusyLabel { get; set; } = string.Empty;
+
+    public bool ChoosingDestination { get; set; }
 
     public AccountDto? Account => Accounts.Count > 0 ? Accounts[0] : null;
 

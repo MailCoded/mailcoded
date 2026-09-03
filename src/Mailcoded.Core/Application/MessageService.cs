@@ -338,6 +338,22 @@ public sealed class MessageService
     /// or unreachable server, and invariant 9 already says the server wins on Flags at the next
     /// sync, so a failed push loses nothing a later sync would not have overwritten anyway.
     /// </summary>
+    /// <summary>Whether invariant 9 obliges this delta to reach the server before it can be
+    /// accepted. That invariant is about system FLAGS; on custom Tags local wins, so a keyword-only
+    /// delta must not be blocked behind an offline mail server.</summary>
+    public bool RequiresServerPush(LocalMessageId id, TagDelta delta, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(delta);
+
+        var envelope = Require(id, ct);
+        if (envelope.Uid is null) return false;
+
+        var state = _store.LoadFolderState(envelope.FolderId, includeKnownUids: false, ct);
+        var projected = TagFlagMap.Project(delta, state?.ServerAcceptsCustomKeywords ?? true);
+
+        return projected.Add != MessageFlags.None || projected.Remove != MessageFlags.None;
+    }
+
     public async Task<TagsSetResult> SetTagsAsync(
         IMailProvider? provider,
         LocalMessageId id,

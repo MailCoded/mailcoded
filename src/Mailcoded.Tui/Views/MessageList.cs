@@ -27,7 +27,7 @@ internal static class MessageList
             if (index >= state.Messages.Count)
             {
                 var filler = index == 0
-                    ? TerminalText.Cell(state.Busy ? "loading..." : "nothing here", width)
+                    ? TerminalText.Cell(state.BusyLabel.Length > 0 ? "working" : "nothing here", width)
                     : SafeSpan.Empty;
 
                 writer.At(row, left, TerminalText.Pad(filler, width), TextStyle.Dim);

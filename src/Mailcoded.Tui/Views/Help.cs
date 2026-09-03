@@ -16,10 +16,16 @@ internal static class Help
         "  r             resync folder   ctrl-l        redraw",
         "  ?             this help",
         "",
+        "  u             toggle unread   f             toggle flagged",
+        "  t             edit tags       a             archive",
+        "  m             move to folder",
+        "",
+        "  Opening a message marks it read. There is no delete key, in this",
+        "  client or in the protocol: mail leaves only by send, and moves only",
+        "  by message.move.",
+        "",
         "  This client asks for plaintext only. It never requests format:html,",
         "  because a terminal has no sandbox and no content security policy.",
-        "",
-        "  There is no delete key, in this client or in the protocol.",
     ];
 
     public static void Draw(TerminalWriter writer, AppState state)
@@ -40,11 +46,13 @@ internal static class Help
         }
     }
 
-    private static TextStyle Style(int line) => line switch
-    {
-        0 => TextStyle.Bold,
-        >= 10 and <= 11 => TextStyle.Warn,
-        13 => TextStyle.Warn,
-        _ => TextStyle.Normal,
-    };
+    private static TextStyle Style(int line) =>
+        line == 0 ? TextStyle.Bold
+        : Lines[line].StartsWith("  Opening", StringComparison.Ordinal)
+            || Lines[line].StartsWith("  client or", StringComparison.Ordinal)
+            || Lines[line].StartsWith("  by message", StringComparison.Ordinal)
+            || Lines[line].StartsWith("  This client", StringComparison.Ordinal)
+            || Lines[line].StartsWith("  because", StringComparison.Ordinal)
+                ? TextStyle.Warn
+                : TextStyle.Normal;
 }

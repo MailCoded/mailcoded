@@ -376,9 +376,20 @@ internal sealed class RpcDispatcher
             Remove = WireMapper.RequireTags(request.Remove, "remove"),
         };
 
-        // The server flag projection has to reach the server, or the next sync silently reverts it
-        // (invariant 9: server wins on flags). So a connect failure fails the call.
-        var provider = await host.Providers.GetProviderAsync(envelope.AccountId, ct).ConfigureAwait(false);
+        // A flag projection has to reach the server or the next sync silently reverts it
+        // (invariant 9), so there a connect failure fails the call. On custom tags local wins, so
+        // the keyword mirror is best effort: still attempted, but never fatal.
+        var mustReach = host.Messages.RequiresServerPush(id, delta, ct);
+        IMailProvider? provider = null;
+
+        try
+        {
+            provider = await host.Providers.GetProviderAsync(envelope.AccountId, ct).ConfigureAwait(false);
+        }
+        catch (ProviderException) when (!mustReach)
+        {
+        }
+
         var result = await host.Messages.SetTagsAsync(provider, id, delta, Caller, ct).ConfigureAwait(false);
 
         return RpcPayloads.Value(

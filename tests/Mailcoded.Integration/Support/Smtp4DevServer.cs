@@ -52,7 +52,8 @@ public sealed class Smtp4DevServer : IAsyncDisposable
         await container.StartAsync(ct).ConfigureAwait(false);
 
         var server = new Smtp4DevServer(container, new HttpClient { Timeout = TimeSpan.FromSeconds(20) });
-        await PortProbe.WaitForOpenAsync(server.Host, server.Port, TimeSpan.FromSeconds(60), ct).ConfigureAwait(false);
+        await PortProbe.WaitForGreetingAsync(server.Host, server.Port, "220", TimeSpan.FromSeconds(120), ct)
+            .ConfigureAwait(false);
         await PortProbe.WaitForOpenAsync(server.Host, server.ApiPort, TimeSpan.FromSeconds(60), ct).ConfigureAwait(false);
         return server;
     }

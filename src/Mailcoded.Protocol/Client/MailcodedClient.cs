@@ -139,6 +139,33 @@ public sealed class MailcodedClient : IAsyncDisposable
             ?? throw new RpcException(-32603, "message.get returned an unreadable result.", null, null, false);
     }
 
+    public async Task<TagsSetResult> SetTagsAsync(
+        long messageId,
+        IReadOnlyList<string> add,
+        IReadOnlyList<string> remove,
+        CancellationToken ct)
+    {
+        var result = await CallAsync(
+            RpcMethods.TagsSet,
+            Serialize(
+                new TagsSetParams { MessageId = messageId, Add = add ?? [], Remove = remove ?? [] },
+                ProtocolJsonContext.Default.TagsSetParams),
+            ct).ConfigureAwait(false);
+
+        return result.Deserialize(ProtocolJsonContext.Default.TagsSetResult) ?? new TagsSetResult();
+    }
+
+    /// <summary>Granted to an rpc caller without MAILCODED_ALLOW_MOVE; there is no delete counterpart.</summary>
+    public async Task MoveAsync(long messageId, long toFolderId, CancellationToken ct)
+    {
+        await CallAsync(
+            RpcMethods.MessageMove,
+            Serialize(
+                new MessageMoveParams { MessageId = messageId, ToFolderId = toFolderId },
+                ProtocolJsonContext.Default.MessageMoveParams),
+            ct).ConfigureAwait(false);
+    }
+
     private static ReadOnlyMemory<byte> Serialize<T>(T value, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> info)
     {
         var buffer = new ArrayBufferWriter<byte>();

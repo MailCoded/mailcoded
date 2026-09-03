@@ -48,7 +48,8 @@ public sealed class DovecotServer : IAsyncDisposable
         await container.StartAsync(ct).ConfigureAwait(false);
 
         var server = new DovecotServer(container, credentials);
-        await PortProbe.WaitForOpenAsync(server.Host, server.Port, TimeSpan.FromSeconds(60), ct).ConfigureAwait(false);
+        await PortProbe.WaitForGreetingAsync(server.Host, server.Port, "* OK", TimeSpan.FromSeconds(60), ct)
+            .ConfigureAwait(false);
         return server;
     }
 
