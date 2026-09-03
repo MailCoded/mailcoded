@@ -1,3 +1,4 @@
+using Mailcoded.Core.Domain.Outbox;
 using System.Globalization;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Sync;
@@ -182,6 +183,32 @@ internal static class WireMapper
             BlobDirectorySizeBytes = DaemonInfo.Measured(stats.Store.BlobDirectorySizeBytes),
             TableCounts = stats.Store.TableCounts,
             Folders = folders,
+        };
+    }
+
+    public static OutboxState? ToOutboxState(string? wire) =>
+        string.IsNullOrWhiteSpace(wire) ? null : OutboxStateExtensions.FromWireValue(wire);
+
+    public static OutboxEntryDto ToDto(OutboxRecord row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+
+        var to = new List<string>();
+        foreach (var address in row.Envelope?.To ?? []) to.Add(address.Value);
+
+        return new OutboxEntryDto
+        {
+            Id = row.Id,
+            AccountId = row.AccountId.Value,
+            State = row.State.ToWireValue(),
+            MessageId = row.MessageId.Value,
+            To = to,
+            Attempts = row.Attempts,
+            PermanentlyFailed = row.PermanentlyFailed,
+            SmtpResponse = row.SmtpResponse,
+            CreatedUtc = IsoTime.ToWire(row.CreatedUtc),
+            NextAttemptUtc = row.NextAttemptUtc is { } next ? IsoTime.ToWire(next) : null,
+            Confirmed = row.ConfirmedUtc is not null,
         };
     }
 

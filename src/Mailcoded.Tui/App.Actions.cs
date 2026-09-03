@@ -87,6 +87,35 @@ internal sealed partial class App
         return path + ".new";
     }
 
+    private void TestAccount()
+    {
+        if (_state.Account is not { } account) return;
+
+        Start($"testing {account.Email}", async token =>
+        {
+            var result = await _client.TestAccountAsync(account.Id, token).ConfigureAwait(false);
+
+            return () => _state.Say(
+                $"imap {result.Imap} ({result.Folders} folders), smtp {result.Smtp}"
+                + (result.SmtpDetail is { Length: > 0 } why ? $" - {why}" : string.Empty));
+        });
+    }
+
+    private void ShowOutbox()
+    {
+        Start("reading the outbox", async token =>
+        {
+            var outbox = await _client.ListOutboxAsync(null, token).ConfigureAwait(false);
+
+            return () =>
+            {
+                _state.Outbox = outbox.Entries;
+                _state.Focus = Pane.Outbox;
+                _state.Say(string.Empty);
+            };
+        });
+    }
+
     private void ShowStatus()
     {
         Start("reading status", async token =>

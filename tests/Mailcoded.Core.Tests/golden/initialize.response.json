@@ -24,6 +24,8 @@
         "watch.subscribe",
         "stats",
         "health",
+        "account.test",
+        "outbox.list",
         "shutdown"
       ],
       "notifications": [

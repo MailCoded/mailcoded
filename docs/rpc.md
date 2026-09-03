@@ -448,6 +448,21 @@ Answers first, then drains in-flight handlers and exits.
 
 ---
 
+### `account.test`
+
+`{ "accountId": 1 }` → `{ "imap": "ok", "smtp": "auth", "folders": 8, "smtpDetail": "..." }`
+
+Each leg is `ok | auth | network | unsupported`. Nothing is sent and nothing is written: it exists to
+tell a stored credential that still works from one that does not. `unsupported` on `smtp` means the
+account has no SMTP configuration. Details are short and redacted, never a credential.
+
+### `outbox.list`
+
+`{ "accountId": 1?, "state": "queued"?, "limit": 200? }` → `{ "entries": [ OutboxEntryDto ] }`
+
+No raw bytes and no body. `confirmed` is false until a confirm token was consumed; such a row is a
+draft the retry loop will never dispatch, however long it sits in `queued`.
+
 ## 5. Notifications
 
 Server → client, no `id`, no response. They arrive only after `watch.subscribe`.

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Mailcoded.Core.Application;
+using Mailcoded.Core.Auth;
 using Mailcoded.Core.Domain.Outbox;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Tags;
@@ -25,7 +26,7 @@ internal sealed class RpcDispatcher
         RpcMethods.FolderList, RpcMethods.Sync, RpcMethods.Search, RpcMethods.ThreadGet,
         RpcMethods.MessageGet, RpcMethods.AttachmentGet, RpcMethods.TagsSet, RpcMethods.MessageMove,
         RpcMethods.SendPreview, RpcMethods.Send, RpcMethods.WatchSubscribe, RpcMethods.Stats,
-        RpcMethods.Health, RpcMethods.Shutdown,
+        RpcMethods.Health, RpcMethods.AccountTest, RpcMethods.OutboxList, RpcMethods.Shutdown,
     ];
 
     /// <summary>Before initialize the caller is the most restricted kind, never the permissive 'rpc' one:
@@ -86,6 +87,8 @@ internal sealed class RpcDispatcher
             RpcMethods.WatchSubscribe => await WatchSubscribeAsync(parameters, ct).ConfigureAwait(false),
             RpcMethods.Stats => Stats(ct),
             RpcMethods.Health => Health(ct),
+            RpcMethods.AccountTest => await AccountTestAsync(parameters, ct).ConfigureAwait(false),
+            RpcMethods.OutboxList => OutboxList(parameters, ct),
             RpcMethods.Shutdown => Shutdown(),
             _ => throw new MethodNotFoundException(method),
         };
@@ -140,6 +143,101 @@ internal sealed class RpcDispatcher
         log.Info($"Stored a credential under {SecretRedactor.SafeRef(request.Ref)} in {host.Secrets.BackendName}.");
 
         return RpcPayloads.Value(SecretSetResult.Instance, ProtocolJsonContext.Default.SecretSetResult);
+    }
+
+    /// <summary>Connects both legs and reports each. Nothing is sent and nothing is written; the
+    /// point is to tell a stored credential that still works from one that does not.</summary>
+    private async Task<byte[]> AccountTestAsync(JsonElement? parameters, CancellationToken ct)
+    {
+        var request = Require(parameters, ProtocolJsonContext.Default.AccountTestParams, RpcMethods.AccountTest);
+        var accountId = RequireAccount(request.AccountId, ct);
+
+        var folders = 0;
+        string imap;
+        string? imapDetail = null;
+
+        try
+        {
+            var provider = await host.Providers.GetProviderAsync(accountId, ct, retryAuthNow: true)
+                .ConfigureAwait(false);
+
+            folders = (await provider.ListFoldersAsync(ct).ConfigureAwait(false)).Count;
+            imap = "ok";
+        }
+        catch (ReauthorizationRequiredException ex)
+        {
+            imap = "auth";
+            imapDetail = ex.Message;
+        }
+        catch (ProviderException ex)
+        {
+            imap = ex.Category == FailureCategory.Auth ? "auth" : "network";
+            imapDetail = ex.Message;
+        }
+
+        var config = host.Store.GetAccount(accountId, ct);
+        string smtp;
+        string? smtpDetail = null;
+
+        if (config?.Smtp is null)
+        {
+            smtp = "unsupported";
+            smtpDetail = "No SMTP configuration for this account.";
+        }
+        else
+        {
+            try
+            {
+                await host.Providers.GetSenderAsync(accountId, ct).ConfigureAwait(false);
+                smtp = "ok";
+            }
+            catch (ReauthorizationRequiredException ex)
+            {
+                smtp = "auth";
+                smtpDetail = ex.Message;
+            }
+            catch (ProviderException ex)
+            {
+                smtp = ex.Category == FailureCategory.Auth ? "auth" : "network";
+                smtpDetail = ex.Message;
+            }
+        }
+
+        return RpcPayloads.Value(
+            new AccountTestResult
+            {
+                Imap = imap,
+                Smtp = smtp,
+                Folders = folders,
+                ImapDetail = imapDetail,
+                SmtpDetail = smtpDetail,
+            },
+            ProtocolJsonContext.Default.AccountTestResult);
+    }
+
+    private byte[] OutboxList(JsonElement? parameters, CancellationToken ct)
+    {
+        var request = parameters is null
+            ? new OutboxListParams()
+            : Require(parameters, ProtocolJsonContext.Default.OutboxListParams, RpcMethods.OutboxList);
+
+        var state = WireMapper.ToOutboxState(request.State);
+        var rows = host.Send.ListOutbox(state, ct);
+        var limit = Math.Clamp(request.Limit ?? 200, 1, 500);
+
+        var entries = new List<OutboxEntryDto>(Math.Min(rows.Count, limit));
+
+        foreach (var row in rows)
+        {
+            if (entries.Count == limit) break;
+            if (request.AccountId is { } wanted && row.AccountId.Value != wanted) continue;
+
+            entries.Add(WireMapper.ToDto(row));
+        }
+
+        return RpcPayloads.Value(
+            new OutboxListResult { Entries = entries },
+            ProtocolJsonContext.Default.OutboxListResult);
     }
 
     private byte[] Shutdown()

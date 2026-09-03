@@ -14,7 +14,7 @@ internal sealed partial class App
 
     private bool HandleMouse(MouseEvent mouse)
     {
-        if (_state.Focus is Pane.Help or Pane.Status or Pane.Confirm or Pane.Compose) return true;
+        if (_state.Focus is Pane.Help or Pane.Status or Pane.Outbox or Pane.Confirm or Pane.Compose) return true;
 
         var top = Screen.FirstBodyRow;
         var rows = Screen.BodyRows(_writer);

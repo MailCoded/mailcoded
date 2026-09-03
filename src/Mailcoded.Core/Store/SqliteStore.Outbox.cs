@@ -9,7 +9,7 @@ public sealed partial class SqliteStore
 {
     private const string OutboxColumns =
         "id, account_id, message_id, state, smtp_response, attempts, next_attempt_utc, created_utc, "
-        + "permanently_failed, enhanced_status, last_attempt_utc, max_attempts, envelope_json";
+        + "permanently_failed, enhanced_status, last_attempt_utc, max_attempts, envelope_json, confirmed_utc";
 
     private const string SelectOutboxMeta = "SELECT " + OutboxColumns + " FROM outbox";
 
@@ -212,7 +212,8 @@ public sealed partial class SqliteStore
             LastAttemptUtc = lastAttempt is { } attempted ? (DateTimeOffset?)FromUnixMs(attempted) : null,
             MaxAttempts = maxAttempts is { } budget ? (int?)budget : null,
             Envelope = OutboxEnvelopeJson.Read(Db.Str(reader, 12)),
-            Raw = includeRaw ? Db.Blob(reader, 13) ?? Array.Empty<byte>() : Array.Empty<byte>(),
+            ConfirmedUtc = Db.IntOrNull(reader, 13) is { } confirmed ? (DateTimeOffset?)FromUnixMs(confirmed) : null,
+            Raw = includeRaw ? Db.Blob(reader, 14) ?? Array.Empty<byte>() : Array.Empty<byte>(),
         };
     }
 

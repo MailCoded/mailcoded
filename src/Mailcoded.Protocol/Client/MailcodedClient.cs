@@ -240,6 +240,27 @@ public sealed class MailcodedClient : IAsyncDisposable
             ?? throw new RpcException(-32603, "health returned an unreadable result.", null, null, false);
     }
 
+    public async Task<AccountTestResult> TestAccountAsync(long accountId, CancellationToken ct)
+    {
+        var result = await CallAsync(
+            RpcMethods.AccountTest,
+            Serialize(new AccountTestParams { AccountId = accountId }, ProtocolJsonContext.Default.AccountTestParams),
+            ct).ConfigureAwait(false);
+
+        return result.Deserialize(ProtocolJsonContext.Default.AccountTestResult)
+            ?? throw new RpcException(-32603, "account.test returned an unreadable result.", null, null, false);
+    }
+
+    public async Task<OutboxListResult> ListOutboxAsync(long? accountId, CancellationToken ct)
+    {
+        var result = await CallAsync(
+            RpcMethods.OutboxList,
+            Serialize(new OutboxListParams { AccountId = accountId }, ProtocolJsonContext.Default.OutboxListParams),
+            ct).ConfigureAwait(false);
+
+        return result.Deserialize(ProtocolJsonContext.Default.OutboxListResult) ?? new OutboxListResult();
+    }
+
     private static ReadOnlyMemory<byte> Serialize<T>(T value, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> info)
     {
         var buffer = new ArrayBufferWriter<byte>();

@@ -29,6 +29,8 @@ public static class RpcMethods
     public const string WatchSubscribe = "watch.subscribe";
     public const string Stats = "stats";
     public const string Health = "health";
+    public const string AccountTest = "account.test";
+    public const string OutboxList = "outbox.list";
     public const string Shutdown = "shutdown";
 }
 

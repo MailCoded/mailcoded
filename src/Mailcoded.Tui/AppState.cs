@@ -12,6 +12,7 @@ public enum Pane
     Compose,
     Confirm,
     Status,
+    Outbox,
 }
 
 internal sealed record StatusReport
@@ -95,6 +96,8 @@ internal sealed class AppState
     public PendingSend? Pending { get; set; }
 
     public StatusReport? Status2 { get; set; }
+
+    public IReadOnlyList<OutboxEntryDto> Outbox { get; set; } = [];
 
     public NavRow? Row => NavIndex >= 0 && NavIndex < Nav.Count ? Nav[NavIndex] : null;
 

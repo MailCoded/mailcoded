@@ -25,6 +25,10 @@ internal static class Screen
         {
             StatusView.Draw(writer, state, report);
         }
+        else if (state.Focus == Pane.Outbox)
+        {
+            OutboxView.Draw(writer, state);
+        }
         else if (state.Focus == Pane.Confirm && state.Pending is { } pending)
         {
             ConfirmSend.Draw(writer, state, pending, now);
@@ -127,7 +131,7 @@ internal static class Screen
         Pane.Reader => "j/k scroll   r reply   R reply-all   q back   ? help",
         Pane.Compose => "tab field   ctrl-s preview   esc discard",
         Pane.Confirm => "Y sends   anything else goes back",
-        Pane.Help or Pane.Status => "any key to close",
+        Pane.Help or Pane.Status or Pane.Outbox => "any key to close",
         Pane.Folders => "j/k move   h/l fold   enter open   c compose   / search   ? help   q quit",
         _ => "j/k move   enter read   p preview   c compose   / search   ? help   q back",
     };

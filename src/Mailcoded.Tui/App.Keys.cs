@@ -33,7 +33,7 @@ internal sealed partial class App
             }
         }
 
-        if (_state.Focus is Pane.Help or Pane.Status)
+        if (_state.Focus is Pane.Help or Pane.Status or Pane.Outbox)
         {
             _state.Status2 = null;
             _state.Focus = _state.Open is null ? Pane.Messages : Pane.Reader;
@@ -99,6 +99,8 @@ internal sealed partial class App
             case 'a': Archive(); return true;
             case 'T': ShowThread(); return true;
             case 'S': ShowStatus(); return true;
+            case 'o': ShowOutbox(); return true;
+            case 'A': TestAccount(); return true;
 
             case 's':
                 _pendingSave = true;
