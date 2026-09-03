@@ -36,12 +36,17 @@ internal static class SetupCommand
 
         Prompt.Heading($"Provider: {preset.DisplayName}");
 
-        if (preset.Unsupported is { } blocked)
+        if (preset.Discouraged is { } warning)
         {
-            Prompt.Say(blocked);
+            Prompt.Say(warning);
             Prompt.Say();
-            Prompt.Say("Setup cannot continue for this provider yet. Track it in ROADMAP.md.");
-            return ExitCodes.Unsupported;
+            if (!Prompt.Confirm("Try anyway with a password or app password?", false))
+            {
+                Prompt.Say("Nothing was saved. OAuth sign-in for this provider is tracked in ROADMAP.md.");
+                return ExitCodes.Unsupported;
+            }
+
+            Prompt.Say();
         }
 
         if (preset.IsGuess) Prompt.Say(preset.Advice ?? string.Empty);

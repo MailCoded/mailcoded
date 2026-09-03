@@ -49,12 +49,16 @@ public sealed class ProviderPresetsTests
     [InlineData("me@hotmail.com")]
     [InlineData("me@live.com")]
     [InlineData("me@msn.com")]
-    public void Microsoft_accounts_are_reported_unsupported_rather_than_failing_at_login(string email)
+    public void Microsoft_accounts_are_warned_about_but_not_blocked(string email)
     {
         var preset = ProviderPresets.ForEmail(email);
 
         Assert.Equal(CredentialStyle.OAuthOnly, preset.Credential);
-        Assert.False(string.IsNullOrWhiteSpace(preset.Unsupported));
+
+        // A warning, not a verdict: the table describes the provider's usual policy, and cannot
+        // know whether this particular account still accepts an app password.
+        Assert.False(string.IsNullOrWhiteSpace(preset.Discouraged));
+        Assert.DoesNotContain("cannot work", preset.Discouraged!, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]

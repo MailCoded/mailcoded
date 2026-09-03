@@ -40,8 +40,12 @@ public sealed record ProviderPreset
     /// <summary>True when this came from a name guess rather than a known provider.</summary>
     public bool IsGuess { get; init; }
 
-    /// <summary>Set when mailcoded cannot serve this provider yet; the reason is user-facing.</summary>
-    public string? Unsupported { get; init; }
+    /// <summary>
+    /// Set when this provider is expected to refuse an ordinary password. User-facing, and a
+    /// warning rather than a verdict: it is a statement about the provider's usual policy, not
+    /// about this specific account, so a client should still let the human try.
+    /// </summary>
+    public string? Discouraged { get; init; }
 }
 
 /// <summary>Domain to <see cref="ProviderPreset"/>. Add a provider here, not in a client.</summary>
@@ -52,8 +56,9 @@ public static class ProviderPresets
         + "(2-Step Verification must be on first).";
 
     private const string MicrosoftAdvice =
-        "Microsoft switched off basic authentication, so a password cannot work here. mailcoded "
-        + "reaches Microsoft mail through the Graph provider, which is planned for v0.2.";
+        "Microsoft has been withdrawing basic authentication for Outlook.com and Microsoft 365, so "
+        + "an ordinary password is likely to be refused. If your account still has app passwords "
+        + "enabled, one may work. OAuth sign-in is a v0.2 item.";
 
     private static readonly Dictionary<string, ProviderPreset> ByDomain = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -222,7 +227,7 @@ public static class ProviderPresets
         SmtpHost = "smtp-mail.outlook.com",
         Credential = CredentialStyle.OAuthOnly,
         Advice = MicrosoftAdvice,
-        Unsupported = MicrosoftAdvice,
+        Discouraged = MicrosoftAdvice,
     };
 
     private static ProviderPreset Yahoo(string name) => new()
