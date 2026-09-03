@@ -72,8 +72,11 @@ internal static class AttachmentsCommand
 
         foreach (var a in attachments)
         {
+            var shown = SafeText.Line(a.FileName, 80);
+            if (shown.Length == 0) shown = "(unnamed)";
+
             output.Line($"{a.Index.ToString(CultureInfo.InvariantCulture)}  "
-                + $"{a.FileName ?? "(unnamed)"}  {a.MimeType}  "
+                + $"{shown}  {a.MimeType}  "
                 + $"{(a.Size / 1024).ToString(CultureInfo.InvariantCulture)} KB{(a.IsInline ? "  inline" : string.Empty)}");
         }
 

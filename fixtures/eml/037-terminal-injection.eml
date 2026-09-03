@@ -1,0 +1,21 @@
+From: =?utf-8?B?UGF54oCLUGFs77u/IFN1cHBvcnQ=?= <billing@example.com>
+To: bob@example.org
+Subject: =?utf-8?B?G1syShtbSENsZWFyZWQgeW91ciBzY3JlZW4=?=
+Date: Fri, 04 Sep 2026 08:00:00 +0000
+Message-ID: <037-terminal-injection@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="b037"
+
+--b037
+Content-Type: text/plain; charset=utf-8
+
+Invisible tag scalars follow:󠀁󠀠󠁿 end.
+
+--b037
+Content-Type: application/octet-stream
+Content-Disposition: attachment; filename="invoice‮fdp.exe"
+Content-Transfer-Encoding: base64
+
+aGVsbG8K
+
+--b037--

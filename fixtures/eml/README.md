@@ -50,6 +50,8 @@ that identifies a person. `example.com`, `example.org`, `example.net` and the re
 | 033 | a non-ASCII (EAI) sender address (edge case 29) |
 | 034 | a base64-encoded body that must still be indexed as text |
 | 035 | a declared UTF-7 body — an established sanitizer-bypass vector |
+| 036 | HTML where `<3` and `<10%` are text, not tags (HTML5 tag-open takes ASCII alpha only) |
+| 037 | terminal injection: `ESC[2J` in an RFC 2047 subject, `U+202E` in an attachment filename, zero-width marks in a display name, and astral tag-block scalars in the body |
 | 036 | HTML text where `<` starts no tag (`<3`, `<5000`, `<10%`) — body text a reader sees |
 
 Edge case 14 (a 100 MB+ attachment) is deliberately **not** a file here. It is exercised

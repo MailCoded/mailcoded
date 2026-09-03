@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace Mailcoded.Core.Parsing;
@@ -101,9 +102,21 @@ public static class PlainText
 
     /// <summary>Zero-width, bidi-override and byte-order marks: invisible spoofing material, never content.</summary>
     internal static bool IsInvisible(char c) =>
-        c is '\u00AD' or '\uFEFF'
-        || (c >= '\u200B' && c <= '\u200F')
-        || (c >= '\u202A' && c <= '\u202E')
-        || (c >= '\u2060' && c <= '\u2064')
-        || (c >= '\u2066' && c <= '\u2069');
+        Rune.TryCreate(c, out var rune) && IsInvisible(rune);
+
+    /// <summary>
+    /// Category-based rather than a range list, so the astral tag block U+E0000-U+E007F is covered.
+    /// A char-typed predicate structurally cannot see it, which is how invisible text smuggles.
+    /// </summary>
+    public static bool IsInvisible(Rune rune) =>
+        rune.Value == 0x00AD || Rune.GetUnicodeCategory(rune) == UnicodeCategory.Format;
+
+    /// <summary>False for every scalar that must never occupy a terminal cell.</summary>
+    public static bool IsRenderable(Rune rune) => Rune.GetUnicodeCategory(rune) switch
+    {
+        UnicodeCategory.Control or UnicodeCategory.Format or UnicodeCategory.Surrogate
+            or UnicodeCategory.PrivateUse or UnicodeCategory.OtherNotAssigned
+            or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator => false,
+        _ => rune.Value != 0x00AD,
+    };
 }

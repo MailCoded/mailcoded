@@ -1,4 +1,5 @@
 using System.Text;
+using Mailcoded.Core.Parsing;
 
 namespace Mailcoded.Cli;
 
@@ -15,21 +16,25 @@ internal static class SafeText
         var builder = new StringBuilder(Math.Min(value.Length, maxLength));
         var gap = false;
 
-        foreach (var rune in value)
+        // Runes, not chars: clipping mid-surrogate emits a lone surrogate, and the astral tag
+        // block is invisible smuggling material a char-typed scan cannot even see.
+        foreach (var rune in value.EnumerateRunes())
         {
-            if (builder.Length >= maxLength) break;
+            if (builder.Length + rune.Utf16SequenceLength > maxLength) break;
 
-            if (char.IsControl(rune) || char.IsWhiteSpace(rune))
+            if (Rune.IsControl(rune) || Rune.IsWhiteSpace(rune) || PlainText.IsInvisible(rune))
             {
                 if (builder.Length > 0) gap = true;
                 continue;
             }
 
+            if (!PlainText.IsRenderable(rune)) continue;
+
             if (gap)
             {
+                if (builder.Length + 1 + rune.Utf16SequenceLength > maxLength) break;
                 builder.Append(' ');
                 gap = false;
-                if (builder.Length >= maxLength) break;
             }
 
             builder.Append(rune);
@@ -45,18 +50,18 @@ internal static class SafeText
 
         var builder = new StringBuilder(Math.Min(value.Length, maxLength));
 
-        foreach (var rune in value)
+        foreach (var rune in value.EnumerateRunes())
         {
-            if (builder.Length >= maxLength) break;
+            if (builder.Length + rune.Utf16SequenceLength > maxLength) break;
 
-            if (rune is '\n' or '\t')
+            if (rune.Value is '\n' or '\t')
             {
                 builder.Append(rune);
                 continue;
             }
 
-            if (rune == '\r') continue;
-            if (char.IsControl(rune)) continue;
+            if (rune.Value == '\r') continue;
+            if (!PlainText.IsRenderable(rune)) continue;
 
             builder.Append(rune);
         }
