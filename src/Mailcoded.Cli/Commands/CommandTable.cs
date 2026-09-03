@@ -78,6 +78,10 @@ internal static class CommandTable
                 ["password-stdin", "no-password"]),
             AccountAddCommand.RunAsync),
 
+        new CliCommandDefinition("account forget",
+            new VerbSpec(["account"], ["yes"]),
+            AccountForgetCommand.RunAsync),
+
         new CliCommandDefinition("import-eml",
             new VerbSpec(["account", "folder", "email"], ["recursive"]),
             ImportEmlCommand.RunAsync),

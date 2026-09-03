@@ -31,6 +31,7 @@ COMPOSE AND SEND (send is OFF by default)
 
 STORE ADMINISTRATION
   account add               register an account non-interactively, for scripts
+  account forget            remove an account and its cached mail from this machine
   sync                      pull new mail for an account or one folder
   import-eml <dir>          load .eml files from a directory into the store
   query --sql '<select>'    read-only, row-capped SQL (off unless MAILCODED_ENABLE_SQL=1)
@@ -353,6 +354,30 @@ OPTIONS
   reads the credential from stdin.
 """;
 
+    private const string AccountForget = """
+mailcoded account forget --account <id|email> [--yes] [--json]
+
+  Removes one account from THIS MACHINE: its folders, its cached messages, its search index
+  entries, its unreferenced blobs, and its stored credential.
+
+  NOTHING IS REMOVED FROM THE MAIL SERVER. This is not a delete command for mail — there is no
+  such command and there will not be one. Re-adding the account re-syncs everything.
+
+  Use it to undo a mistaken 'setup', or to clear an account you no longer read here.
+
+CONFIRMATION
+  It asks before acting. For an unattended run you need BOTH --yes and MAILCODED_ALLOW_FORGET=1,
+  because a flag alone is something an agent could pass; the environment variable is a change a
+  human had to make deliberately.
+
+  This verb is absent from the MCP tool surface entirely.
+
+OPTIONS
+  --account <id|email>  which account (required when the store holds more than one)
+  --yes                 skip the prompt; needs MAILCODED_ALLOW_FORGET=1
+  --json                machine-readable summary of what was removed
+""";
+
     private const string AccountAdd = """
 mailcoded account add --email <addr> --imap-host <host> --password-stdin [--json]
 
@@ -428,6 +453,7 @@ mailcoded version [--json]
         "folders" => Folders,
         "setup" => Setup,
         "sync" => Sync,
+        "account forget" => AccountForget,
         "account" or "account add" => AccountAdd,
         "import-eml" => ImportEml,
         "version" => Version,

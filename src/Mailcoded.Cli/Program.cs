@@ -68,14 +68,17 @@ internal static class Program
 
             if (sub is "-h" or "--help")
             {
-                output.WriteHelp(HelpText.For("account add"));
+                output.WriteHelp(HelpText.For("account"));
                 return ExitCodes.Ok;
             }
 
-            if (sub != "add")
-                throw new CliUsageException($"'account {sub}' does not exist; the only subcommand is 'account add'.");
+            if (sub is not ("add" or "forget"))
+            {
+                throw new CliUsageException(
+                    $"'account {sub}' does not exist. The subcommands are 'account add' and 'account forget'.");
+            }
 
-            verb = "account add";
+            verb = "account " + sub;
         }
 
         output.Configure(verb, output.Json);

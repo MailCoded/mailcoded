@@ -123,4 +123,60 @@ public sealed partial class SqliteStore
         var provider = ProviderKindExtensions.FromWireValue(reader.GetString(3));
         return AccountConfigJson.Read(reader.GetString(4), id, email, displayName, provider);
     }
+
+    /// <summary>
+    /// Removes an account and everything derived from it. Foreign keys cascade folders, messages,
+    /// tags and body_text, but the FTS indexes are contentless — nothing cascades into them — so
+    /// their rows are deleted explicitly first, or every future search would return phantom hits
+    /// pointing at rows that no longer exist. Blobs left unreferenced afterwards are swept too.
+    /// </summary>
+    public Task<ForgottenAccount> ForgetAccountAsync(AccountId accountId, CancellationToken ct) =>
+        WriteAsync(context =>
+        {
+            var folders = new List<long>();
+            using (var reader = context.Session
+                .Prepare("SELECT id FROM folders WHERE account_id = $account", "$account")
+                .SetInt(0, accountId.Value)
+                .ExecuteReader())
+            {
+                while (reader.Read()) folders.Add(reader.GetInt64(0));
+            }
+
+            foreach (var folder in folders)
+            {
+                ct.ThrowIfCancellationRequested();
+                RemoveFolderFtsRows(context.Session, folder);
+            }
+
+            var messages = context.Session
+                .Prepare("SELECT count(*) FROM messages WHERE account_id = $account", "$account")
+                .SetInt(0, accountId.Value)
+                .ExecuteInt64();
+
+            var removed = context.Session
+                .Prepare("DELETE FROM accounts WHERE id = $account", "$account")
+                .SetInt(0, accountId.Value)
+                .Execute();
+
+            var blobs = context.Session.Exec(
+                "DELETE FROM blobs WHERE id NOT IN (SELECT blob_id FROM messages WHERE blob_id IS NOT NULL)");
+
+            return new ForgottenAccount
+            {
+                Existed = removed > 0,
+                Folders = folders.Count,
+                Messages = (int)messages,
+                Blobs = blobs,
+            };
+        }, ct);
+}
+
+/// <summary>What <see cref="SqliteStore.ForgetAccountAsync"/> removed.</summary>
+public sealed record ForgottenAccount
+{
+    public bool Existed { get; init; }
+    public int Folders { get; init; }
+    public int Messages { get; init; }
+    public int Blobs { get; init; }
+
 }
