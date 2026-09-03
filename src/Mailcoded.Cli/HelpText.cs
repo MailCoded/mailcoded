@@ -331,14 +331,22 @@ PROVIDERS
   Many providers reject your ordinary account password over IMAP and require an app password
   instead — setup says so, with the link, before asking you to type anything.
 
-  Microsoft accounts (outlook.com, hotmail.com, live.com, Microsoft 365) cannot work yet:
-  Microsoft switched off basic authentication, and the Graph provider is a v0.2 item. setup
-  says this and stops rather than failing at the login.
+  Microsoft accounts (outlook.com, hotmail.com, live.com, Microsoft 365) sign in with OAuth:
+  setup shows a short code, you enter it at the Microsoft page it prints, and the grant is kept
+  in the keyring. mailcoded refreshes the access token itself afterwards. A password or app
+  password is still offered, because some accounts still accept one.
+
+  mailcoded does not yet have an OAuth client registration of its own, so it reuses a public one.
+  The consent screen will name a different application and Microsoft may revoke it. To use your
+  own, register a public-client app with device code flow enabled and pass --client-id, or set
+  MAILCODED_OAUTH_CLIENT_ID.
 
 OPTIONS
   --email <addr>       skip the first question
   --imap-host <host>   override the detected host (same for --imap-port, --smtp-host, --smtp-port)
   --display-name <n>   a label for this account
+  --client-id <guid>   your own OAuth client id, instead of the borrowed default
+  --tenant <name>      common (default), consumers, organizations, or a tenant guid
   --json               also print the result as JSON; prompts go to stderr, so stdout stays clean
 
   For scripts, use 'mailcoded account add' instead — it takes every setting as an option and
