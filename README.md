@@ -104,8 +104,30 @@ Search understands bare words and phrases plus `from:`, `to:`, `cc:`, `subject:`
 negation. Diacritics fold, and CJK is indexed with a trigram route (with a `LIKE` fallback for one-
 and two-character terms).
 
-Add a real account — the password is read from stdin and goes straight to the OS keyring or the
-encrypted-file vault, never into the database, config, or a log line:
+Add a real account:
+
+```bash
+mailcoded setup
+```
+
+That is interactive and does the work for you: it resolves your provider's IMAP and SMTP settings
+from your address, tells you up front if that provider needs an **app password** rather than your
+account password (Gmail, Yahoo, iCloud, Fastmail, QQ and others do, and will simply reject the
+wrong one), proves the settings work with a real login, and only then saves anything. A failed
+attempt leaves no account and no stored credential behind.
+
+Settings are built in for Gmail, Outlook.com, Yahoo, iCloud, Fastmail, AOL, Zoho, GMX, WEB.DE,
+Yandex, Mail.ru, QQ, Foxmail, NetEase and Proton Bridge; any other domain is guessed as
+`imap.<domain>` / `smtp.<domain>` and you can correct it when asked. Microsoft accounts stop with
+an explanation rather than a confusing login failure — Microsoft disabled basic authentication, so
+they need the Graph provider planned for v0.2.
+
+The password is typed at a prompt, never echoed, and never a command-line argument, so it cannot
+reach your shell history. It goes to the OS keyring (or the encrypted-file vault) — never to the
+database, the config, or a log line.
+
+For scripts and CI, the non-interactive form takes every setting as an option and reads the
+credential from stdin:
 
 ```bash
 printf '%s' "$IMAP_PASSWORD" | mailcoded account add --json \

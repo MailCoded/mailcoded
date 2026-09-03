@@ -43,7 +43,11 @@ produced 16 confirmed defects, all since fixed with regression tests. The store 
 | **Agent send cap** | seven `draft`/`send-preview`/`send-draft` triples, each in a **separate CLI process** | five transmitted, the sixth and seventh refused `1005 rate_limited`; the SMTP sink saw exactly five deliveries and `send_budget` held five rows |
 | **HTML text loss** | a message whose body contains `<3`, `<5000`, `<10%` | the payload after each now reaches `body_text` — `wire`, `999-888`, `CFO` and `IMPORTANT` are all searchable |
 | Script exclusion | fixture 011 (HTML-only with `<script>` and `javascript:`) | `body_text` carries none of it; the only `alert` match in the corpus is fixture 035's deliberately **undecoded** UTF-7 text |
-| Clean clone | `git clone` then build and test | builds and passes 941/941 — nothing required is missing from git |
+| Clean clone | `git clone` then build and test | builds and passes — nothing required is missing from git |
+| **`setup` wizard** | driven through a pty against a local IMAP server | resolved settings, took a non-echoed password, verified with a real login, saved the account, synced 3 messages; the credential does not appear anywhere in `store.db` |
+| `setup` failure path | same, with an unreachable host | reported the host:port that failed with actionable hints and saved **nothing** — no account, no stored credential |
+| `setup` guidance | `me@gmail.com` and `me@outlook.com` | Gmail showed the app-password requirement and link *before* prompting; Outlook stopped with the basic-auth explanation instead of failing at login |
+| `setup` in a script | piped stdin | refuses with a pointer to `account add --password-stdin`, rather than hanging on a prompt |
 | **Install** | `scripts/install.sh` into `~/.local`, then the commands used from PATH with no `--db` | all three commands resolve; `mailcoded import-eml` + `search` work against the default store at `~/.local/share/mailcoded` |
 | Install guard | planted a `store.db` where the payload goes, then reinstalled and uninstalled | both refused and the file survived — `$PREFIX/share/mailcoded` **is** the Linux store path, so the payload lives in `libexec` instead |
 | Symlink resolution | AOT binary symlinked into a directory with no `libe_sqlite3.so` | works (resolves via `/proc/self/exe`); a bare copy without the library fails, which is why the installer symlinks rather than copies |

@@ -50,6 +50,10 @@ mailcoded send-preview <draft_id> --json    # show this to the human; it mints t
 mailcoded send-draft <draft_id> --confirm-token <token> --json
 ```
 
+If no account exists yet, that is a human task: tell them to run `mailcoded setup`, which is
+interactive and asks for a password. Do not attempt it yourself — it refuses to run without a
+terminal, and you must never handle the user's mail credential.
+
 `mailcoded help` prints every verb; `mailcoded help <verb>` prints one verb in full.
 Run it when unsure rather than guessing a flag.
 

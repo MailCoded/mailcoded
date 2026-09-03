@@ -12,6 +12,9 @@ mailcoded — local-first email, one shot per invocation.
 USAGE
   mailcoded <verb> [arguments] [--json]
 
+FIRST RUN
+  setup                     add a mail account, interactively. Start here.
+
 READ AND TRIAGE
   search '<query>'          full-text + metadata search over the local store
   read <messageId>          one message as PLAINTEXT (never HTML)
@@ -27,7 +30,7 @@ COMPOSE AND SEND (send is OFF by default)
   send-draft <draftId>      send, consuming --confirm-token
 
 STORE ADMINISTRATION
-  account add               register an account; the password is read from stdin
+  account add               register an account non-interactively, for scripts
   sync                      pull new mail for an account or one folder
   import-eml <dir>          load .eml files from a directory into the store
   query --sql '<select>'    read-only, row-capped SQL (off unless MAILCODED_ENABLE_SQL=1)
@@ -301,6 +304,47 @@ mailcoded sync [--account <id>] [--folder <id>] [--json]
   syncs. Sync is idempotent: re-running it after an interruption replays safely.
 """;
 
+    private const string Setup = """
+mailcoded setup [--email <addr>] [--json]
+
+  Adds a mail account, interactively. Run this first.
+
+  It works out your provider's IMAP and SMTP settings from your address, tells you what kind
+  of credential that provider actually accepts, and proves the settings work with a real login
+  before anything is written down. A failed attempt leaves no account and no stored credential.
+
+  The password is typed at a prompt and never echoed. It is never a command-line argument, so
+  it cannot land in your shell history, and it goes to the OS keyring — never to the database,
+  the config, or a log line.
+
+WHAT IT ASKS
+  1. Your email address.
+  2. Whether the detected IMAP/SMTP settings look right (edit them if not).
+  3. Your password or app password.
+  4. Whether to sync now.
+
+PROVIDERS
+  Settings are built in for Gmail, Outlook.com, Yahoo, iCloud, Fastmail, AOL, Zoho, GMX, WEB.DE,
+  Yandex, Mail.ru, QQ, Foxmail, NetEase (163/126) and Proton Bridge. Anything else is guessed as
+  imap.<your-domain> and smtp.<your-domain>, which you can correct when it asks.
+
+  Many providers reject your ordinary account password over IMAP and require an app password
+  instead — setup says so, with the link, before asking you to type anything.
+
+  Microsoft accounts (outlook.com, hotmail.com, live.com, Microsoft 365) cannot work yet:
+  Microsoft switched off basic authentication, and the Graph provider is a v0.2 item. setup
+  says this and stops rather than failing at the login.
+
+OPTIONS
+  --email <addr>       skip the first question
+  --imap-host <host>   override the detected host (same for --imap-port, --smtp-host, --smtp-port)
+  --display-name <n>   a label for this account
+  --json               also print the result as JSON; prompts go to stderr, so stdout stays clean
+
+  For scripts, use 'mailcoded account add' instead — it takes every setting as an option and
+  reads the credential from stdin.
+""";
+
     private const string AccountAdd = """
 mailcoded account add --email <addr> --imap-host <host> --password-stdin [--json]
 
@@ -374,6 +418,7 @@ mailcoded version [--json]
         "stats" => Stats,
         "health" => Health,
         "folders" => Folders,
+        "setup" => Setup,
         "sync" => Sync,
         "account" or "account add" => AccountAdd,
         "import-eml" => ImportEml,
