@@ -49,7 +49,12 @@ internal sealed class ProviderPool : IAsyncDisposable
         this.log = log;
     }
 
-    public async Task<IMailProvider> GetProviderAsync(AccountId accountId, CancellationToken ct)
+    /// <summary>With <paramref name="retryAuthNow"/>, forgets an auth cooldown first: the caller is
+    /// a human asking, and a reauth in another process leaves this one no signal to notice.</summary>
+    public async Task<IMailProvider> GetProviderAsync(
+        AccountId accountId,
+        CancellationToken ct,
+        bool retryAuthNow = false)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
 
@@ -67,6 +72,12 @@ internal sealed class ProviderPool : IAsyncDisposable
 
             // Every IDLE burst lands here, so a dead credential or a dead network would otherwise
             // mean one full TCP+TLS+AUTHENTICATE per signal (RELIABILITY §14.4).
+            if (retryAuthNow && slot.ImapCooldownCategory == FailureCategory.Auth)
+            {
+                slot.ImapCooldownCategory = null;
+                slot.ImapCooldownUntilTicks = 0;
+            }
+
             ThrowIfCoolingDown(accountId, slot);
 
             var provider = slot.Imap;

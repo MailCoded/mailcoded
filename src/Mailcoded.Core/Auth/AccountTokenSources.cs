@@ -10,6 +10,9 @@ public static class AccountTokenSources
     /// <summary>Null for a password account, which needs none. No device-code callback: a refresh
     /// is silent, and a grant that cannot be refreshed must say so rather than prompt where
     /// nobody is watching.</summary>
+    /// <remarks>Options come from the environment, because AccountConfig does not persist the
+    /// client id a --client-id sign-in used. Such an account needs MAILCODED_OAUTH_CLIENT_ID set
+    /// wherever it runs, or its cached grant will not be found.</remarks>
     public static IAccessTokenSource? For(AccountConfig account, ISecretStore secrets)
     {
         ArgumentNullException.ThrowIfNull(account);

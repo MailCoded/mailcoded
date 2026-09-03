@@ -52,10 +52,10 @@ internal static class TagCommand
             {
                 provider = await host.ConnectProviderAsync(account, ct).ConfigureAwait(false);
             }
-            catch (ProviderException ex) when (ex.Category is not FailureCategory.Auth)
+            catch (ProviderException ex)
             {
-                // A Tag is local state. Losing the local write because the server is unreachable
-                // would defeat the point of a local-first store.
+                // A Tag is local state, and a dead credential is as unreachable as a dead network.
+                // The daemon and the MCP surface both keep the local write; this one used to not.
                 deferReason = ex.Category.ToString().ToLowerInvariant();
             }
         }

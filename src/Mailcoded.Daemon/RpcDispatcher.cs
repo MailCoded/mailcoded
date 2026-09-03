@@ -207,7 +207,9 @@ internal sealed class RpcDispatcher
         var request = Require(parameters, ProtocolJsonContext.Default.SyncParams, RpcMethods.Sync);
         var accountId = RequireAccount(request.AccountId, ct);
 
-        var provider = await host.Providers.GetProviderAsync(accountId, ct).ConfigureAwait(false);
+        var provider = await host.Providers
+            .GetProviderAsync(accountId, ct, retryAuthNow: true)
+            .ConfigureAwait(false);
 
         SyncReport report;
         if (request.FolderId is { } folderId)
