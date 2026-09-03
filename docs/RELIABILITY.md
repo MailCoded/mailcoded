@@ -106,7 +106,7 @@ Every row needs a fixture and a table-driven test against the pure planner.
 | 28 | SMTP 451 / 421 / 5xx | response code | backoff retry / reconnect / permanent-fail surface |
 | 29 | SMTPUTF8 absent but recipient is EAI | capability check | fail with a clear error; never silently mangle |
 | 30 | Captive portal / DNS hijack → TLS failure | cert mismatch on known host | network backoff; do NOT count as auth failure |
-| 31 | IPv6 advertised but broken | connect stalls | connect timeout + retry |
+| 31 | IPv6 advertised but broken | connect stalls | happy-eyeballs race (`DualStackConnector`), then timeout |
 | 32 | 500k+ message account initial sync | high UIDNEXT | newest-first windowed backfill, resumable per-folder cursor |
 | 33 | Disk full (SQLITE_FULL) | error code | pause sync, surface notification, never corrupt |
 | 34 | User copies DB while running | n/a | document `VACUUM INTO`; provide a `backup` RPC |

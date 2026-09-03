@@ -178,6 +178,7 @@ public sealed class MicrosoftOAuth : IAccessTokenSource
             .Create(_options.ClientId)
             .WithAuthority(_options.Authority)
             .WithClientName("mailcoded")
+            .WithHttpClientFactory(DualStackHttp.Factory)
             .Build();
 
         var cacheRef = OAuthOptions.CacheRefFor(secretRef);

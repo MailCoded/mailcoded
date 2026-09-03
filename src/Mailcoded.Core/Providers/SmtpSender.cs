@@ -86,7 +86,12 @@ public sealed class SmtpSender : IMailSender
 
                 try
                 {
+                    var socket = await DualStackConnector
+                        .ConnectAsync(smtp.Host, smtp.Port, TimeSpan.FromMilliseconds(options.ConnectTimeoutMs), connectCts.Token)
+                        .ConfigureAwait(false);
+
                     await next.ConnectAsync(
+                        socket,
                         smtp.Host,
                         smtp.Port,
                         ImapCapabilityMap.ToSocketOptions(smtp.Security),

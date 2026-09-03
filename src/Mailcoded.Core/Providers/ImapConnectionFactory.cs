@@ -133,7 +133,12 @@ internal static class ImapConnectionFactory
 
         try
         {
+            var socket = await DualStackConnector
+                .ConnectAsync(cfg.Imap.Host, cfg.Imap.Port, TimeSpan.FromMilliseconds(options.ConnectTimeoutMs), connectCts.Token)
+                .ConfigureAwait(false);
+
             await client.ConnectAsync(
+                socket,
                 cfg.Imap.Host,
                 cfg.Imap.Port,
                 ImapCapabilityMap.ToSocketOptions(cfg.Imap.Security),
@@ -147,6 +152,11 @@ internal static class ImapConnectionFactory
         }
         catch (OperationCanceledException)
         {
+            throw;
+        }
+        catch (ProviderException)
+        {
+            // The connector already classified this; re-mapping it would call a refusal a protocol error.
             throw;
         }
         catch (Exception ex)
