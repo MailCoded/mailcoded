@@ -24,6 +24,8 @@ internal static class Program
 
         var store = Value(args, "--store");
 
+        if (args.Contains("--check")) return await CheckAsync(store).ConfigureAwait(false);
+
         if (!WindowsConsole.TryEnableVirtualTerminal())
         {
             Console.Error.WriteLine("This console cannot render ANSI. Try Windows Terminal.");
@@ -72,6 +74,34 @@ internal static class Program
         }
     }
 
+    /// <summary>Headless: spawn, initialize, report, exit. Proves the wire without a terminal,
+    /// which is what a CI smoke test and a confused user both need.</summary>
+    private static async Task<int> CheckAsync(string? store)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+        try
+        {
+            await using var client = await MailcodedClient
+                .ConnectAsync(DaemonLaunch.Discover(store), "mailcoded-tui", Version, deadline.Token)
+                .ConfigureAwait(false);
+
+            var accounts = await client.ListAccountsAsync(deadline.Token).ConfigureAwait(false);
+
+            Console.Out.WriteLine($"daemon      {client.DaemonVersion}");
+            Console.Out.WriteLine($"methods     {client.Capabilities.Methods.Count}");
+            Console.Out.WriteLine($"maxSearch   {client.Capabilities.MaxSearchLimit}");
+            Console.Out.WriteLine($"accounts    {accounts.Accounts.Count}");
+            Console.Out.WriteLine("ok");
+            return 0;
+        }
+        catch (Exception ex) when (ex is DaemonDisconnectedException or RpcException or OperationCanceledException)
+        {
+            Console.Error.WriteLine("check failed: " + ex.Message);
+            return 3;
+        }
+    }
+
     private static string? Value(string[] args, string name)
     {
         for (var i = 0; i < args.Length - 1; i++)
@@ -85,6 +115,7 @@ internal static class Program
         mailcoded-tui — a terminal client for the mailcoded daemon
 
           mailcoded-tui [--store <path>]
+          mailcoded-tui --check [--store <path>]     connect, report, exit
 
         It spawns mailcoded-daemon and speaks Content-Length JSON-RPC over stdio,
         exactly as a third-party client would. Set MAILCODED_DAEMON to choose the

@@ -646,3 +646,44 @@ engine, and do not assume the MCP surface will reject an oversized body — it w
 - [ ] Never log `confirmToken`, and never mint-and-consume one without a human in between.
 - [ ] Handle `1000` by asking the user, `1001`/`1005` with backoff, and `1002` by refreshing.
 - [ ] Do not look for a delete method. There isn't one.
+
+## 9. A worked example
+
+`src/Mailcoded.Tui` is this document, executed. It is a terminal client that spawns
+`mailcoded-daemon` and speaks the framing above, and it is the only shipped client that does —
+`mailcoded` (CLI) and `mailcoded-mcp` run in process against the engine.
+
+It references `Mailcoded.Protocol` and nothing else: not the engine, not MailKit, not SQLite. An
+architecture test enforces that, and the size difference is the evidence — 5.6 MB against the CLI's
+15.3 MB, both Native AOT on linux-x64. Whatever a third-party client needs is therefore in
+`Mailcoded.Protocol`, because the TUI compiles without anything else.
+
+The reusable half lives in `src/Mailcoded.Protocol/Client/`:
+
+| File | What it solves |
+|---|---|
+| `FrameCodec.cs` | `Content-Length` framing on bytes, with the 32 MiB and 8 KiB caps |
+| `DaemonConnection.cs` | spawn, `id` correlation, notification fan-out, the fatal latch |
+| `DaemonLaunch.cs` | finding `mailcoded-daemon`: `MAILCODED_DAEMON`, then a sibling, then PATH |
+| `MailcodedClient.cs` | `initialize` with a version check, capability gating, typed calls |
+| `RpcException.cs` | the numeric codes of §6, with `IsTransient` and `IsGate` |
+
+`mailcoded-tui --check` performs the whole handshake headlessly and prints what it negotiated, which
+is both a diagnostic and the CI smoke test:
+
+```
+$ mailcoded-tui --check
+daemon      0.1.0
+methods     18
+maxSearch   200
+accounts    1
+ok
+```
+
+Two things the TUI does that this document asks of every client, and that are easy to get wrong:
+
+- **It never requests `format: "html"`.** An `rpc` caller is entitled to `bodyHtml`, and the daemon
+  will hand over raw attacker-controlled markup. A terminal has no sandbox and no CSP, so the client
+  asks for `text` and nothing else.
+- **It holds `confirmToken` in a private field on the app object.** Its view models have no member
+  that can carry one, so no screen can render it and no status line can leak it.

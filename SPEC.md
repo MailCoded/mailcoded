@@ -58,7 +58,7 @@ Backend first (M0–M2); the extension consumes released daemon binaries from M3
 ### 3.2 In scope — v0.2
 - **GraphProvider**: MSAL.NET device-code flow, delta queries, `Mail.Read`/`Mail.Send`. Flagship differentiator.
 - Gmail OAuth2, multi-account.
-- **Localhost HTTP/WS + Unix-socket/named-pipe listener** (`mailcoded --listen`) with full auth hardening — the keystone that unlocks every other client. See `PRODUCT-FAMILY.md`.
+- **Localhost HTTP/WS + Unix-socket/named-pipe listener** (`mailcoded --listen`) with full auth hardening — the keystone that unlocks every other client. See the family table in `ROADMAP.md`.
 - Maildir export/import (POSIX `:`, Windows `!`), optional notmuch interop on POSIX.
 
 ### 3.3 Explicitly out of scope (v0.x)

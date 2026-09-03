@@ -33,3 +33,14 @@ grep -q '"protocolVersion"' "$out" || fail "no initialize response"
 grep -q '"id":2' "$out" || fail "no shutdown response"
 
 echo "stdio smoke test passed"
+
+# The TUI is the only shipped client that speaks the wire; --check proves it does so in AOT.
+tui="$dir/mailcoded-tui"
+[ -x "$tui" ] || tui="$dir/mailcoded-tui.exe"
+
+if [ -x "$tui" ]; then
+  MAILCODED_DAEMON="$daemon" "$tui" --check --store "$work/client.db" > "$work/check" 2>&1 \
+    || { echo "client check failed"; cat "$work/check"; exit 1; }
+  grep -q '^ok$' "$work/check" || { echo "client check did not report ok"; cat "$work/check"; exit 1; }
+  echo "client check passed"
+fi

@@ -63,6 +63,18 @@ jobs:
           -c Release -r ${{ matrix.rid }} -p:PublishAot=true
           -o artifacts/${{ matrix.rid }}
 
+      - name: Publish MCP adapter
+        run: >
+          dotnet publish src/Mailcoded.Mcp/Mailcoded.Mcp.csproj
+          -c Release -r ${{ matrix.rid }} -p:PublishAot=true
+          -o artifacts/${{ matrix.rid }}
+
+      - name: Publish TUI
+        run: >
+          dotnet publish src/Mailcoded.Tui/Mailcoded.Tui.csproj
+          -c Release -r ${{ matrix.rid }} -p:PublishAot=true
+          -o artifacts/${{ matrix.rid }}
+
       # M0 acceptance: the AOT binary must complete an initialize/shutdown exchange over stdio.
       - name: Stdio smoke test
         shell: bash

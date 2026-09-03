@@ -8,7 +8,8 @@ This roadmap signals direction, not dates. Order and scope change based on real 
 | Product | What it is | Status |
 |---|---|---|
 | **mailcoded** | Local email backend daemon (the engine) | 🟡 In progress |
-| **mailcoded** (CLI) | Thin CLI over the daemon; the agent surface | 🟡 In progress |
+| **mailcoded** (CLI) | In-process CLI over the engine; the agent surface | 🟡 In progress |
+| `mailcoded-tui` | Reference client over JSON-RPC; not a supported product | 🟡 In progress |
 | **mailcoded for VS Code** | Read, search, and triage mail in your editor | 🟡 In progress |
 | MCP adapter | `mailcoded --mcp` for agent hosts without a shell | ⚪ Planned (M5) |
 | Microsoft Graph provider | Work mail after the EWS shutdown | ⚪ Planned (v0.2) |

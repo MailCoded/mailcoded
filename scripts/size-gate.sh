@@ -7,7 +7,10 @@ warn=$((12 * 1024 * 1024))
 fail=$((20 * 1024 * 1024))
 status=0
 
-for f in "$dir"/mailcoded-daemon "$dir"/mailcoded-daemon.exe "$dir"/mailcoded "$dir"/mailcoded.exe; do
+for f in "$dir"/mailcoded-daemon "$dir"/mailcoded-daemon.exe \
+         "$dir"/mailcoded "$dir"/mailcoded.exe \
+         "$dir"/mailcoded-mcp "$dir"/mailcoded-mcp.exe \
+         "$dir"/mailcoded-tui "$dir"/mailcoded-tui.exe; do
   [ -f "$f" ] || continue
   size=$(wc -c < "$f")
   mb=$(awk "BEGIN{printf \"%.1f\", $size/1048576}")
