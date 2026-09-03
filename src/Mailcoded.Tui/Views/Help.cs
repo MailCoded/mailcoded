@@ -27,6 +27,8 @@ internal static class Help
         "  u             toggle unread   f             toggle flagged",
         "  t             edit tags       a             archive",
         "  m             move to folder  p             preview pane on/off",
+        "  T             this thread     s + digit     save an attachment",
+        "  S             daemon and account status",
         "",
         "  c             compose         r / R         reply / reply-all",
         "  tab           next field      ctrl-s        preview the send",

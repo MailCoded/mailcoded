@@ -11,6 +11,13 @@ public enum Pane
     Help,
     Compose,
     Confirm,
+    Status,
+}
+
+internal sealed record StatusReport
+{
+    public required StatsDto Stats { get; init; }
+    public required HealthDto Health { get; init; }
 }
 
 /// <summary>What a confirmation screen may show. The one-time token is deliberately absent:
@@ -86,6 +93,8 @@ internal sealed class AppState
     public DraftBuffer? Draft { get; set; }
 
     public PendingSend? Pending { get; set; }
+
+    public StatusReport? Status2 { get; set; }
 
     public NavRow? Row => NavIndex >= 0 && NavIndex < Nav.Count ? Nav[NavIndex] : null;
 

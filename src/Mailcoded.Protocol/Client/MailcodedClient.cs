@@ -198,6 +198,48 @@ public sealed class MailcodedClient : IAsyncDisposable
             ?? throw new RpcException(-32603, "send returned an unreadable result.", null, null, false);
     }
 
+    public async Task<ThreadGetResult> GetThreadAsync(string threadKey, int limit, CancellationToken ct)
+    {
+        var result = await CallAsync(
+            RpcMethods.ThreadGet,
+            Serialize(
+                new ThreadGetParams { ThreadKey = threadKey, Limit = limit },
+                ProtocolJsonContext.Default.ThreadGetParams),
+            ct).ConfigureAwait(false);
+
+        return result.Deserialize(ProtocolJsonContext.Default.ThreadGetResult) ?? new ThreadGetResult();
+    }
+
+    /// <summary>Base64 on the wire; the caller decodes and decides where, if anywhere, it lands.</summary>
+    public async Task<AttachmentGetResult> GetAttachmentAsync(long messageId, int index, CancellationToken ct)
+    {
+        var result = await CallAsync(
+            RpcMethods.AttachmentGet,
+            Serialize(
+                new AttachmentGetParams { MessageId = messageId, Index = index },
+                ProtocolJsonContext.Default.AttachmentGetParams),
+            ct).ConfigureAwait(false);
+
+        return result.Deserialize(ProtocolJsonContext.Default.AttachmentGetResult)
+            ?? throw new RpcException(-32603, "attachment.get returned an unreadable result.", null, null, false);
+    }
+
+    public async Task<StatsDto> GetStatsAsync(CancellationToken ct)
+    {
+        var result = await CallAsync(RpcMethods.Stats, default, ct).ConfigureAwait(false);
+
+        return result.Deserialize(ProtocolJsonContext.Default.StatsResult)?.Stats
+            ?? throw new RpcException(-32603, "stats returned an unreadable result.", null, null, false);
+    }
+
+    public async Task<HealthDto> GetHealthAsync(CancellationToken ct)
+    {
+        var result = await CallAsync(RpcMethods.Health, default, ct).ConfigureAwait(false);
+
+        return result.Deserialize(ProtocolJsonContext.Default.HealthResult)?.Health
+            ?? throw new RpcException(-32603, "health returned an unreadable result.", null, null, false);
+    }
+
     private static ReadOnlyMemory<byte> Serialize<T>(T value, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> info)
     {
         var buffer = new ArrayBufferWriter<byte>();

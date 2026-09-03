@@ -173,7 +173,7 @@ public sealed class HealthMonitor
                 ImapState = imapState,
                 SmtpState = smtp?.State ?? ConnectionState.Disconnected,
                 AuthRequired = authRequired,
-                LastDetail = imap?.Detail ?? watch?.Detail ?? smtp?.Detail,
+                LastDetail = Failure(imap) ?? Failure(watch) ?? Failure(smtp),
                 LastChangeUtc = Latest(imap?.UpdatedUtc, watch?.UpdatedUtc, smtp?.UpdatedUtc),
                 FolderCount = folders.Count,
                 UnreadCount = unread,
@@ -268,6 +268,11 @@ public sealed class HealthMonitor
         if (a == ConnectionState.Connecting || b == ConnectionState.Connecting) return ConnectionState.Connecting;
         return ConnectionState.Disconnected;
     }
+
+    /// <summary>Detail on a healthy connection is informational - the watched folder's name - and
+    /// the wire calls this field lastError, so only a failure may fill it.</summary>
+    private static string? Failure(ConnectionStatus? status) =>
+        status?.State == ConnectionState.Error ? status.Detail : null;
 
     private static DateTimeOffset? Latest(DateTimeOffset? a, DateTimeOffset? b, DateTimeOffset? c)
     {

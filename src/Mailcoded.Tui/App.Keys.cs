@@ -5,6 +5,8 @@ namespace Mailcoded.Tui;
 
 internal sealed partial class App
 {
+    private bool _pendingSave;
+
     /// <summary>Returns false to leave the loop.</summary>
     /// <remarks>Printable commands dispatch on KeyChar: a terminal with no terminfo entry for '?'
     /// reports ConsoleKey.None, so keying off ConsoleKey loses the binding.</remarks>
@@ -31,9 +33,18 @@ internal sealed partial class App
             }
         }
 
-        if (_state.Focus == Pane.Help)
+        if (_state.Focus is Pane.Help or Pane.Status)
         {
+            _state.Status2 = null;
             _state.Focus = _state.Open is null ? Pane.Messages : Pane.Reader;
+            return true;
+        }
+
+        if (_pendingSave)
+        {
+            _pendingSave = false;
+            if (char.IsDigit(key.KeyChar)) SaveAttachment(key.KeyChar - '0');
+            else _state.Say("Cancelled.");
             return true;
         }
 
@@ -86,6 +97,13 @@ internal sealed partial class App
             case 'u': ToggleTag(FlagNames.Unread); return true;
             case 'f': ToggleTag(FlagNames.Flagged); return true;
             case 'a': Archive(); return true;
+            case 'T': ShowThread(); return true;
+            case 'S': ShowStatus(); return true;
+
+            case 's':
+                _pendingSave = true;
+                _state.Say("save which attachment? press its number");
+                return true;
 
             case 'p':
                 _state.ShowPreview = !_state.ShowPreview;
