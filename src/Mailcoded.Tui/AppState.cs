@@ -81,6 +81,8 @@ internal sealed class AppState
 
     public bool PreviewBusy { get; set; }
 
+    public string? PreviewError { get; set; }
+
     public DraftBuffer? Draft { get; set; }
 
     public PendingSend? Pending { get; set; }

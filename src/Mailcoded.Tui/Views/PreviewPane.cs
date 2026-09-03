@@ -40,18 +40,23 @@ internal static class PreviewPane
         int width,
         int rows)
     {
+        if (state.PreviewError is { } failed)
+        {
+            yield return (TerminalText.Cell(" " + failed, width), TextStyle.Danger);
+            yield break;
+        }
+
         if (state.Preview is not { } preview || preview.Envelope.Id != envelope.Id)
         {
             yield return (
-                TerminalText.Chrome(state.PreviewBusy ? " reading..." : " ", width),
+                TerminalText.Chrome(state.PreviewBusy ? " fetching..." : " ", width),
                 TextStyle.Dim);
             yield break;
         }
 
-        if (!preview.BodyFetched)
+        if (!preview.BodyFetched && preview.BodyText is not { Length: > 0 })
         {
-            // The preview never fetches: a cursor sweeping a folder must not pull bodies over IMAP.
-            yield return (TerminalText.Chrome(" not downloaded yet - enter to fetch it", width), TextStyle.Warn);
+            yield return (TerminalText.Chrome(" this message has no plaintext part", width), TextStyle.Dim);
             yield break;
         }
 

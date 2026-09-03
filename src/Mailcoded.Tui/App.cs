@@ -157,8 +157,12 @@ internal sealed partial class App
             CancellationToken.None);
     }
 
-    /// <summary>The preview follows the cursor, so it runs off the exclusive slot: it must never
-    /// make a keypress wait, and it never fetches - sweeping a folder must not pull bodies over IMAP.</summary>
+    /// <summary>Settle time before the cursor's message is fetched. Scrolling through a folder
+    /// passes over rows without asking the server for any of them.</summary>
+    public static readonly TimeSpan PreviewDelay = TimeSpan.FromMilliseconds(350);
+
+    /// <summary>The preview follows the cursor, so it runs off the exclusive slot and cancels when
+    /// the cursor moves on: it must never make a keypress wait behind a read.</summary>
     private void SyncPreview()
     {
         if (!_state.ShowPreview) return;
@@ -175,6 +179,7 @@ internal sealed partial class App
 
         _previewWanted = envelope.Id;
         _state.PreviewLines = null;
+        _state.PreviewError = null;
         _state.PreviewBusy = true;
 
         _previewCancellation?.Cancel();
@@ -189,14 +194,20 @@ internal sealed partial class App
             {
                 try
                 {
-                    var message = await _client.GetMessageAsync(wanted, fetchIfMissing: false, token)
+                    await Task.Delay(PreviewDelay, token).ConfigureAwait(false);
+
+                    var message = await _client.GetMessageAsync(wanted, fetchIfMissing: true, token)
                         .ConfigureAwait(false);
 
                     _applies.Enqueue(() => ShowPreview(wanted, message));
                 }
-                catch (Exception ex) when (ex is OperationCanceledException or RpcException or DaemonDisconnectedException)
+                catch (OperationCanceledException)
                 {
-                    _applies.Enqueue(() => { if (_previewWanted == wanted) _state.PreviewBusy = false; });
+                }
+                catch (Exception ex) when (ex is RpcException or DaemonDisconnectedException)
+                {
+                    var why = ex is RpcException rpc ? Explain(rpc) : ex.Message;
+                    _applies.Enqueue(() => FailPreview(wanted, why));
                 }
 
                 _events.Writer.TryWrite(new AppEvent(EventKind.Completed, default));
@@ -211,6 +222,15 @@ internal sealed partial class App
         _state.Preview = message;
         _state.PreviewLines = null;
         _state.PreviewBusy = false;
+        _state.PreviewError = null;
+    }
+
+    private void FailPreview(long messageId, string why)
+    {
+        if (_previewWanted != messageId) return;
+
+        _state.PreviewBusy = false;
+        _state.PreviewError = why;
     }
 
     private void Cancel()
