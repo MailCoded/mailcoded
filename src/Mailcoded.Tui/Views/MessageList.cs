@@ -7,10 +7,10 @@ internal static class MessageList
 {
     private const int DateWidth = 6;
 
-    public static void Draw(TerminalWriter writer, AppState state, int left)
+    public static void Draw(TerminalWriter writer, AppState state, int left, int width)
     {
         var rows = Screen.BodyRows(writer);
-        var width = Math.Max(1, writer.Columns - left);
+        width = Math.Max(1, width);
         var focused = state.Focus == Pane.Messages;
 
         state.MessageScroll = FolderPane.Scroll(state.MessageIndex, rows, state.Messages.Count);

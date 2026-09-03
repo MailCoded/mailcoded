@@ -32,6 +32,8 @@ internal sealed partial class App
         Channel.CreateBounded<AppEvent>(new BoundedChannelOptions(512) { FullMode = BoundedChannelFullMode.DropOldest });
 
     private CancellationToken _lifetime;
+    private CancellationTokenSource? _previewCancellation;
+    private long _previewWanted;
     private Task _work = Task.CompletedTask;
     private CancellationTokenSource? _workCancellation;
 
@@ -155,6 +157,62 @@ internal sealed partial class App
             CancellationToken.None);
     }
 
+    /// <summary>The preview follows the cursor, so it runs off the exclusive slot: it must never
+    /// make a keypress wait, and it never fetches - sweeping a folder must not pull bodies over IMAP.</summary>
+    private void SyncPreview()
+    {
+        if (!_state.ShowPreview) return;
+
+        if (_state.Selected is not { } envelope)
+        {
+            _state.Preview = null;
+            _state.PreviewLines = null;
+            _previewWanted = 0;
+            return;
+        }
+
+        if (_previewWanted == envelope.Id) return;
+
+        _previewWanted = envelope.Id;
+        _state.PreviewLines = null;
+        _state.PreviewBusy = true;
+
+        _previewCancellation?.Cancel();
+        _previewCancellation?.Dispose();
+        _previewCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime);
+
+        var token = _previewCancellation.Token;
+        var wanted = envelope.Id;
+
+        _ = Task.Run(
+            async () =>
+            {
+                try
+                {
+                    var message = await _client.GetMessageAsync(wanted, fetchIfMissing: false, token)
+                        .ConfigureAwait(false);
+
+                    _applies.Enqueue(() => ShowPreview(wanted, message));
+                }
+                catch (Exception ex) when (ex is OperationCanceledException or RpcException or DaemonDisconnectedException)
+                {
+                    _applies.Enqueue(() => { if (_previewWanted == wanted) _state.PreviewBusy = false; });
+                }
+
+                _events.Writer.TryWrite(new AppEvent(EventKind.Completed, default));
+            },
+            CancellationToken.None);
+    }
+
+    private void ShowPreview(long messageId, MessageGetResult message)
+    {
+        if (_previewWanted != messageId) return;
+
+        _state.Preview = message;
+        _state.PreviewLines = null;
+        _state.PreviewBusy = false;
+    }
+
     private void Cancel()
     {
         if (!Busy) return;
@@ -168,6 +226,8 @@ internal sealed partial class App
     {
         try
         {
+            SyncPreview();
+            RewrapPreview();
             Screen.Draw(_writer, _state);
         }
         catch (ArgumentException ex)
@@ -176,6 +236,20 @@ internal sealed partial class App
             _writer.Row(0, TerminalText.Cell("render fault: " + ex.Message, _writer.Columns), TextStyle.Danger);
             _writer.EndFrame();
         }
+    }
+
+    /// <summary>Wrapping is cached per width, the same as the full reader's.</summary>
+    private void RewrapPreview()
+    {
+        if (_state.Preview is not { BodyText: { Length: > 0 } text }) return;
+
+        var layout = Views.Layout.For(_writer.Columns, _state.ShowPreview);
+        if (!layout.HasPreview) return;
+
+        if (_state.PreviewLines is not null && _state.PreviewWidth == layout.PreviewWidth) return;
+
+        _state.PreviewWidth = layout.PreviewWidth;
+        _state.PreviewLines = TerminalText.Wrap(text, Math.Max(1, layout.PreviewWidth - 1), 400);
     }
 
     private async Task StartAsync(CancellationToken ct)

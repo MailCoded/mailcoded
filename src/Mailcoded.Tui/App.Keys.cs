@@ -87,6 +87,12 @@ internal sealed partial class App
             case 'f': ToggleTag(FlagNames.Flagged); return true;
             case 'a': Archive(); return true;
 
+            case 'p':
+                _state.ShowPreview = !_state.ShowPreview;
+                _state.PreviewLines = null;
+                _state.Say(_state.ShowPreview ? "preview on" : "preview off");
+                return true;
+
             case 'm':
                 if (Current() is null) return true;
                 _state.ChoosingDestination = true;

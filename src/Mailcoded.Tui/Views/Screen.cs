@@ -52,7 +52,7 @@ internal static class Screen
     }
 
     public static int FolderWidth(TerminalWriter writer) =>
-        Math.Max(MinFolderWidth, Math.Min(34, writer.Columns / 3));
+        Layout.For(writer.Columns, wantPreview: false).FolderWidth;
 
     public static int FirstBodyRow => 1;
 
@@ -78,13 +78,24 @@ internal static class Screen
 
     private static void Panes(TerminalWriter writer, AppState state)
     {
-        var split = FolderWidth(writer);
-        FolderPane.Draw(writer, state, split);
-        MessageList.Draw(writer, state, split + 1);
+        var layout = Layout.For(writer.Columns, state.ShowPreview);
 
+        FolderPane.Draw(writer, state, layout.FolderWidth);
+        MessageList.Draw(writer, state, layout.ListLeft, layout.ListWidth);
+
+        Rule(writer, layout.FolderWidth);
+
+        if (!layout.HasPreview) return;
+
+        Rule(writer, layout.PreviewLeft - 1);
+        PreviewPane.Draw(writer, state, layout.PreviewLeft, layout.PreviewWidth);
+    }
+
+    private static void Rule(TerminalWriter writer, int column)
+    {
         var rule = SafeSpan.Chrome("|");
         for (var row = FirstBodyRow; row < FirstBodyRow + BodyRows(writer); row++)
-            writer.At(row, split, rule, TextStyle.Dim);
+            writer.At(row, column, rule, TextStyle.Dim);
     }
 
     private static void StatusBar(TerminalWriter writer, AppState state)
@@ -114,7 +125,7 @@ internal static class Screen
         Pane.Confirm => "Y sends   anything else goes back",
         Pane.Help => "any key to close",
         Pane.Folders => "j/k move   h/l fold   enter open   c compose   / search   ? help   q quit",
-        _ => "j/k move   enter read   c compose   n more   / search   ? help   q back",
+        _ => "j/k move   enter read   p preview   c compose   / search   ? help   q back",
     };
 
     public static SafeSpan Flags(EnvelopeDto envelope)

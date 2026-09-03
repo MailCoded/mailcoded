@@ -71,6 +71,16 @@ internal sealed class AppState
 
     public bool ChoosingDestination { get; set; }
 
+    public bool ShowPreview { get; set; } = true;
+
+    public MessageGetResult? Preview { get; set; }
+
+    public IReadOnlyList<SafeSpan>? PreviewLines { get; set; }
+
+    public int PreviewWidth { get; set; }
+
+    public bool PreviewBusy { get; set; }
+
     public DraftBuffer? Draft { get; set; }
 
     public PendingSend? Pending { get; set; }
