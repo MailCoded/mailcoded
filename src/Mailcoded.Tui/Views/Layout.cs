@@ -16,6 +16,15 @@ internal readonly record struct Layout
 
     public bool HasPreview => PreviewWidth > 0;
 
+    /// <summary>Which pane a column belongs to. The rule columns count as the pane on their left,
+    /// so a click that lands one cell off still does what it looks like it should.</summary>
+    public Pane PaneAt(int column)
+    {
+        if (column < FolderWidth) return Pane.Folders;
+        if (HasPreview && column >= PreviewLeft) return Pane.Reader;
+        return column >= ListLeft ? Pane.Messages : Pane.Folders;
+    }
+
     public static Layout For(int columns, bool wantPreview)
     {
         var folders = Math.Max(Screen.MinFolderWidth, Math.Min(30, columns / 5));

@@ -17,7 +17,7 @@ internal enum EventKind
     Tick,
 }
 
-internal readonly record struct AppEvent(EventKind Kind, ConsoleKeyInfo Key);
+internal readonly record struct AppEvent(EventKind Kind, InputEvent Input);
 
 internal sealed partial class App
 {
@@ -31,6 +31,7 @@ internal sealed partial class App
     private readonly Channel<AppEvent> _events =
         Channel.CreateBounded<AppEvent>(new BoundedChannelOptions(512) { FullMode = BoundedChannelFullMode.DropOldest });
 
+    private bool _rawInput;
     private CancellationToken _lifetime;
     private CancellationTokenSource? _previewCancellation;
     private long _previewWanted;
@@ -45,9 +46,13 @@ internal sealed partial class App
 
     private bool Busy => !_work.IsCompleted;
 
-    public static async Task<int> RunAsync(MailcodedClient client, TerminalWriter writer, CancellationToken ct)
+    public static async Task<int> RunAsync(
+        MailcodedClient client,
+        TerminalWriter writer,
+        bool rawInput,
+        CancellationToken ct)
     {
-        var app = new App(client, writer);
+        var app = new App(client, writer) { _rawInput = rawInput };
         return await app.LoopAsync(ct).ConfigureAwait(false);
     }
 
@@ -56,7 +61,7 @@ internal sealed partial class App
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct);
         _lifetime = lifetime.Token;
 
-        var keys = KeyReader.Start();
+        var keys = InputReader.Start(_rawInput);
         var pumps = Task.WhenAll(
             PumpKeysAsync(keys, lifetime.Token),
             PumpNotificationsAsync(lifetime.Token),
@@ -80,7 +85,11 @@ internal sealed partial class App
                     return 1;
                 }
 
-                if (next.Kind == EventKind.Key && !HandleKey(next.Key)) return 0;
+                if (next.Kind == EventKind.Key)
+                {
+                    if (next.Input.Mouse is { } mouse) HandleMouse(mouse);
+                    else if (next.Input.Key is { } key && !HandleKey(key)) return 0;
+                }
 
                 if (next.Kind == EventKind.Tick && !_writer.Measure() && !Busy) continue;
 
@@ -446,7 +455,7 @@ internal sealed partial class App
         _ => ex.Message,
     };
 
-    private async Task PumpKeysAsync(ChannelReader<ConsoleKeyInfo> keys, CancellationToken ct)
+    private async Task PumpKeysAsync(ChannelReader<InputEvent> keys, CancellationToken ct)
     {
         try
         {

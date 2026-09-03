@@ -3,7 +3,7 @@ using Mailcoded.Tui.Render;
 
 namespace Mailcoded.Tui;
 
-internal enum Pane
+public enum Pane
 {
     Folders,
     Messages,

@@ -1,3 +1,4 @@
+using Mailcoded.Tui;
 using Mailcoded.Tui.Views;
 using Xunit;
 
@@ -60,6 +61,37 @@ public sealed class LayoutTests
                 layout.PreviewLeft + layout.PreviewWidth <= columns,
                 $"the preview runs to {layout.PreviewLeft + layout.PreviewWidth} of {columns}");
         }
+    }
+
+    [Fact]
+    public void A_column_maps_to_the_pane_drawn_there()
+    {
+        var layout = Layout.For(140, wantPreview: true);
+
+        Assert.Equal(Pane.Folders, layout.PaneAt(0));
+        Assert.Equal(Pane.Folders, layout.PaneAt(layout.FolderWidth - 1));
+        Assert.Equal(Pane.Messages, layout.PaneAt(layout.ListLeft));
+        Assert.Equal(Pane.Messages, layout.PaneAt(layout.ListLeft + layout.ListWidth - 1));
+        Assert.Equal(Pane.Reader, layout.PaneAt(layout.PreviewLeft));
+        Assert.Equal(Pane.Reader, layout.PaneAt(layout.PreviewLeft + layout.PreviewWidth - 1));
+    }
+
+    /// <summary>A click on a rule column should do what it looks like, not nothing.</summary>
+    [Fact]
+    public void A_rule_column_belongs_to_the_pane_on_its_left()
+    {
+        var layout = Layout.For(140, wantPreview: true);
+
+        Assert.Equal(Pane.Folders, layout.PaneAt(layout.FolderWidth));
+        Assert.Equal(Pane.Messages, layout.PaneAt(layout.PreviewLeft - 1));
+    }
+
+    [Fact]
+    public void With_no_preview_the_far_right_is_still_the_list()
+    {
+        var layout = Layout.For(80, wantPreview: true);
+
+        Assert.Equal(Pane.Messages, layout.PaneAt(79));
     }
 
     [Fact]

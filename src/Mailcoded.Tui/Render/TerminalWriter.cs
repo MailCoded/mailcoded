@@ -13,6 +13,7 @@ public sealed class TerminalWriter
 
     private TextStyle _style = TextStyle.Normal;
     private bool _fullScreen;
+    private bool _mouse;
 
     public TerminalWriter(TextWriter output)
     {
@@ -49,13 +50,20 @@ public sealed class TerminalWriter
         return changed;
     }
 
-    public void EnterFullScreen()
+    public void EnterFullScreen(bool mouse = false)
     {
         if (_fullScreen) return;
         _fullScreen = true;
+        _mouse = mouse;
+
         _output.Write(Csi + "?1049h");
         _output.Write(Csi + "?7l");
         _output.Write(Csi + "?25l");
+
+        // 1000 reports press and release, 1006 encodes them in decimal so a wide terminal is not
+        // capped at column 223. Drag reporting is deliberately not enabled.
+        if (mouse) _output.Write(Csi + "?1000h" + Csi + "?1006h");
+
         _output.Flush();
     }
 
@@ -63,6 +71,9 @@ public sealed class TerminalWriter
     {
         if (!_fullScreen) return;
         _fullScreen = false;
+
+        if (_mouse) _output.Write(Csi + "?1006l" + Csi + "?1000l");
+
         _output.Write(Csi + "0m");
         _output.Write(Csi + "?25h");
         _output.Write(Csi + "?7h");

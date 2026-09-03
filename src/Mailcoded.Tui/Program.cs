@@ -39,16 +39,22 @@ internal static class Program
             shutdown.Cancel();
         };
 
-        var writer = new TerminalWriter(Console.Out);
+        // Not Console.Out: .NET's console initialisation reapplies its own terminal attributes,
+        // which undoes raw mode and takes the mouse with it.
+        var stdout = new StreamWriter(Console.OpenStandardOutput(), Console.OutputEncoding) { AutoFlush = false };
+        var writer = new TerminalWriter(stdout);
         MailcodedClient? client = null;
+        RawMode? raw = null;
 
         try
         {
             client = await MailcodedClient.ConnectAsync(
                 DaemonLaunch.Discover(store), "mailcoded-tui", Version, shutdown.Token).ConfigureAwait(false);
 
-            writer.EnterFullScreen();
-            return await App.RunAsync(client, writer, shutdown.Token).ConfigureAwait(false);
+            raw = RawMode.Enter();
+
+            writer.EnterFullScreen(mouse: raw.IsRaw);
+            return await App.RunAsync(client, writer, raw.IsRaw, shutdown.Token).ConfigureAwait(false);
         }
         catch (DaemonDisconnectedException ex)
         {
@@ -69,7 +75,11 @@ internal static class Program
         }
         finally
         {
+            // Mouse reporting and the alt screen go first: restoring termios before them would
+            // leave a shell echoing raw mouse reports at whoever moves the pointer next.
             writer.LeaveFullScreen();
+            raw?.Dispose();
+
             if (client is not null) await client.DisposeAsync().ConfigureAwait(false);
         }
     }
