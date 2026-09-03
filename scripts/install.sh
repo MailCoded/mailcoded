@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installs mailcoded, mailcoded-daemon and mailcoded-mcp onto PATH.
+# Installs mailcoded, mailcoded-daemon, mailcoded-mcp and mailcoded-tui onto PATH.
 #
 # The payload goes to $PREFIX/libexec/mailcoded and only symlinks land in $PREFIX/bin.
 # NOT $PREFIX/share/mailcoded: on Linux that is $XDG_DATA_HOME/mailcoded, which is the mail
@@ -16,7 +16,7 @@ LIBEXEC="$PREFIX/libexec/mailcoded"
 BINDIR="$PREFIX/bin"
 RID=""
 AOT=1
-BINARIES=(mailcoded mailcoded-daemon mailcoded-mcp)
+BINARIES=(mailcoded mailcoded-daemon mailcoded-mcp mailcoded-tui)
 
 usage() {
   cat <<USAGE
@@ -76,7 +76,7 @@ echo "== installing mailcoded ($RID) into $PREFIX"
 restore
 
 if [ "$AOT" -eq 1 ]; then
-  for proj in Mailcoded.Cli Mailcoded.Daemon; do
+  for proj in Mailcoded.Cli Mailcoded.Daemon Mailcoded.Tui; do
     echo "== publishing $proj (Native AOT)"
     dotnet publish "src/$proj/$proj.csproj" -c Release -r "$RID" -p:PublishAot=true \
       --no-restore -o "$staging" >/dev/null
@@ -88,9 +88,11 @@ if [ "$AOT" -eq 1 ]; then
   dotnet publish src/Mailcoded.Mcp/Mailcoded.Mcp.csproj -c Release \
     --self-contained false --no-restore -o "$staging" >/dev/null
 else
-  for proj in Mailcoded.Cli Mailcoded.Daemon Mailcoded.Mcp; do
+  # PublishAot implies PublishTrimmed, and trimming a framework-dependent app is an SDK error
+  # (NETSDK1102). Turning AOT off here is what --no-aot means.
+  for proj in Mailcoded.Cli Mailcoded.Daemon Mailcoded.Mcp Mailcoded.Tui; do
     echo "== publishing $proj (framework-dependent)"
-    dotnet publish "src/$proj/$proj.csproj" -c Release --self-contained false \
+    dotnet publish "src/$proj/$proj.csproj" -c Release --self-contained false -p:PublishAot=false \
       --no-restore -o "$staging" >/dev/null
   done
 fi

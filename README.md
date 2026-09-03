@@ -97,7 +97,14 @@ mailcoded --db /tmp/mail.db read 4213 --plaintext
 # 4. Where things stand.
 mailcoded --db /tmp/mail.db stats --json
 mailcoded --db /tmp/mail.db health --json
+
+# 5. Or browse it in a full-screen terminal client. Press ? for the keys.
+mailcoded --db /tmp/mail.db tui
 ```
+
+`mailcoded tui` starts `mailcoded-tui`, which spawns `mailcoded-daemon` and talks to it over
+JSON-RPC rather than opening the store itself. It is the worked example behind `docs/rpc.md`: it
+compiles against `Mailcoded.Protocol` alone, which is why it is 5.6 MB where the CLI is 15.3 MB.
 
 Search understands bare words and phrases plus `from:`, `to:`, `cc:`, `subject:`, `tag:`,
 `folder:`, `is:unread|flagged|draft|replied`, `has:attachment`, `before:`/`after:`, and `-`

@@ -27,6 +27,9 @@ READ AND TRIAGE
   stats                     process, store and per-folder counters
   health                    per-account connection, auth and outbox state
 
+INTERACTIVE
+  tui                       full-screen terminal client (needs mailcoded-tui)
+
 COMPOSE AND SEND (send is OFF by default)
   draft                     build a message and queue it as a draft
   reply <messageId>         draft a reply, quoted and correctly threaded
@@ -447,6 +450,26 @@ mailcoded version [--json]
   schema version. Opens nothing.
 """;
 
+    private const string Tui = """
+        mailcoded tui [--data-dir <path> | --db <path>]
+
+          Runs mailcoded-tui, a full-screen terminal client. Unlike every other verb it does not
+          work in this process: it starts mailcoded-daemon and talks to it over JSON-RPC, exactly
+          as a third-party client would. That is deliberate, and it is what proves docs/rpc.md is
+          enough to write a client from.
+
+        REQUIREMENTS
+          mailcoded-tui and mailcoded-daemon must sit beside this binary or on PATH. A terminal is
+          required; with stdin or stdout redirected the verb refuses rather than hanging.
+
+        KEYS
+          Press ? inside it. j/k move, enter opens, / searches, c composes, q goes back.
+
+        EXAMPLE
+          mailcoded tui
+          mailcoded tui --data-dir ~/mail-test
+        """;
+
     public static string For(string? verb) => verb switch
     {
         null or "" => Overview,
@@ -460,6 +483,7 @@ mailcoded version [--json]
         "query" => Query,
         "stats" => Stats,
         "health" => Health,
+        "tui" => Tui,
         "folders" => Folders,
         "setup" => Setup,
         "sync" => Sync,

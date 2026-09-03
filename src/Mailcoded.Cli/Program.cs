@@ -57,6 +57,7 @@ internal static class Program
         var verb = tokens[0];
         tokens.RemoveAt(0);
         if (verb is "--version" or "-v") verb = "version";
+        if (verb is "--tui") verb = "tui";
 
         if (verb == "account")
         {
@@ -85,6 +86,10 @@ internal static class Program
         tokens.AddRange(hoisted);
 
         if (verb == "version") return VersionCommand.Run(output);
+
+        // Before CliHost opens the store: the TUI spawns a daemon that opens the same file, and
+        // this process has no reason to be holding it while an interactive client runs.
+        if (verb == "tui") return TuiCommand.Run(tokens, output);
 
         var command = CommandTable.Find(verb)
             ?? throw new CliUsageException(

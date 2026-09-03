@@ -674,7 +674,9 @@ The reusable half lives in `src/Mailcoded.Protocol/Client/`:
 | `MailcodedClient.cs` | `initialize` with a version check, capability gating, typed calls |
 | `RpcException.cs` | the numeric codes of §6, with `IsTransient` and `IsGate` |
 
-`mailcoded-tui --check` performs the whole handshake headlessly and prints what it negotiated, which
+`mailcoded tui` is a launcher on the CLI that execs this binary; it does not link it, because the
+CLI references the engine and the TUI must not. `mailcoded-tui --check` performs the whole handshake
+headlessly and prints what it negotiated, which
 is both a diagnostic and the CI smoke test:
 
 ```

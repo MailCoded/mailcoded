@@ -121,10 +121,11 @@ internal static class CommandTable
 
     public static string Names()
     {
-        var names = new List<string>(Commands.Length + 2);
+        var names = new List<string>(Commands.Length + 3);
         foreach (var command in Commands) names.Add(command.Name);
         names.Add("version");
         names.Add("help");
+        names.Add("tui");
         names.Sort(StringComparer.Ordinal);
         return string.Join(", ", names);
     }
