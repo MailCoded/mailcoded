@@ -32,10 +32,26 @@ internal static class InputReader
             // way, which puts echo and canonical mode back and swallows every escape sequence.
             using var stdin = OpenTerminal();
 
+            var quiet = 0;
+
             while (true)
             {
                 var read = stdin.Read(buffer, 0, buffer.Length);
-                if (read <= 0) break;
+
+                if (read == 0)
+                {
+                    // VTIME expiry, not end of stream: the terminal simply had nothing to say.
+                    if (++quiet > 6000) return;
+
+                    foreach (var next in decoder.Flush())
+                        if (!channel.Writer.TryWrite(next)) return;
+
+                    continue;
+                }
+
+                if (read < 0) break;
+
+                quiet = 0;
 
                 foreach (var next in decoder.Feed(buffer.AsSpan(0, read)))
                     if (!channel.Writer.TryWrite(next)) return;

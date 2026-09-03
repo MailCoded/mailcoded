@@ -35,6 +35,27 @@ public sealed class InputDecoder
         return events;
     }
 
+    /// <summary>Called when the terminal went quiet. Escape is ambiguous - it is both a key and the
+    /// prefix of every cursor sequence - so a lone one is only a keypress once nothing follows it.</summary>
+    public IReadOnlyList<InputEvent> Flush()
+    {
+        var events = new List<InputEvent>();
+
+        if (_pending.Count == 0 || _pending[0] != 0x1b) return events;
+
+        events.Add(InputEvent.FromKey(Key(ConsoleKey.Escape, '\u001b')));
+        _pending.RemoveAt(0);
+
+        while (_pending.Count > 0)
+        {
+            var consumed = Decode(events);
+            if (consumed == 0) break;
+            _pending.RemoveRange(0, consumed);
+        }
+
+        return events;
+    }
+
     private int Decode(List<InputEvent> events)
     {
         var first = _pending[0];

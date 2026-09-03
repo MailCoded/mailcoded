@@ -5,6 +5,8 @@ namespace Mailcoded.Tui;
 
 internal sealed partial class App
 {
+    private const string DiscardPrompt = "discard the draft? y/n: ";
+
     private bool _pendingSave;
 
     /// <summary>Returns false to leave the loop.</summary>
@@ -143,7 +145,7 @@ internal sealed partial class App
             switch (key.Key)
             {
                 case ConsoleKey.S: PreviewSend(); return true;
-                case ConsoleKey.C: Ask("discard the draft? type yes: "); return true;
+                case ConsoleKey.C: Ask(DiscardPrompt); return true;
             }
 
             return true;
@@ -151,7 +153,7 @@ internal sealed partial class App
 
         switch (key.Key)
         {
-            case ConsoleKey.Escape: Ask("discard the draft? type yes: "); return true;
+            case ConsoleKey.Escape: Ask(DiscardPrompt); return true;
             case ConsoleKey.Tab:
                 draft.NextField(key.Modifiers.HasFlag(ConsoleModifiers.Shift) ? -1 : 1);
                 return true;
@@ -253,9 +255,10 @@ internal sealed partial class App
         _state.Prompt = null;
         _state.PromptInput = string.Empty;
 
-        if (prompt is "discard the draft? type yes: ")
+        if (prompt == DiscardPrompt)
         {
-            if (string.Equals(line, "yes", StringComparison.OrdinalIgnoreCase)) Discard();
+            if (line is ['y' or 'Y', ..]) Discard();
+            else _state.Say("Kept.");
             return;
         }
 
