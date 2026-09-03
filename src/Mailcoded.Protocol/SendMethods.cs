@@ -23,6 +23,10 @@ public sealed record SendPreviewResult
 
     /// <summary>ISO 8601 UTC after which the token is rejected with error 1003.</summary>
     public string? ConfirmTokenExpiresUtc { get; init; }
+
+    /// <summary>Redacted so a logged result cannot hand the token to whoever reads the log.</summary>
+    public override string ToString() =>
+        $"SendPreviewResult {{ DraftId = {DraftId}, ConfirmToken = [redacted], Expires = {ConfirmTokenExpiresUtc} }}";
 }
 
 /// <summary>

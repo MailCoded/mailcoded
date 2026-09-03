@@ -9,6 +9,18 @@ internal enum Pane
     Messages,
     Reader,
     Help,
+    Compose,
+    Confirm,
+}
+
+/// <summary>What a confirmation screen may show. The one-time token is deliberately absent:
+/// it lives on App alone, so no view can render or log it.</summary>
+internal sealed record PendingSend
+{
+    public required long AccountId { get; init; }
+    public required long DraftId { get; init; }
+    public required SendPreviewDto Preview { get; init; }
+    public DateTimeOffset? ExpiresUtc { get; init; }
 }
 
 internal sealed class AppState
@@ -52,6 +64,10 @@ internal sealed class AppState
     public string BusyLabel { get; set; } = string.Empty;
 
     public bool ChoosingDestination { get; set; }
+
+    public DraftBuffer? Draft { get; set; }
+
+    public PendingSend? Pending { get; set; }
 
     public AccountDto? Account => Accounts.Count > 0 ? Accounts[0] : null;
 

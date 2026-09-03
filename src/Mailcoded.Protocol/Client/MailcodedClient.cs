@@ -166,6 +166,38 @@ public sealed class MailcodedClient : IAsyncDisposable
             ct).ConfigureAwait(false);
     }
 
+    /// <summary>Phase one. The result carries a one-time token: hold it in memory, never log it,
+    /// and never mint one without a human between the two calls.</summary>
+    public async Task<SendPreviewResult> PreviewSendAsync(long accountId, DraftDto draft, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+
+        var result = await CallAsync(
+            RpcMethods.SendPreview,
+            Serialize(
+                new SendPreviewParams { AccountId = accountId, Draft = draft },
+                ProtocolJsonContext.Default.SendPreviewParams),
+            ct).ConfigureAwait(false);
+
+        return result.Deserialize(ProtocolJsonContext.Default.SendPreviewResult)
+            ?? throw new RpcException(-32603, "send.preview returned an unreadable result.", null, null, false);
+    }
+
+    public async Task<SendResult> SendAsync(long accountId, long draftId, string confirmToken, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(confirmToken);
+
+        var result = await CallAsync(
+            RpcMethods.Send,
+            Serialize(
+                new SendParams { AccountId = accountId, DraftId = draftId, ConfirmToken = confirmToken },
+                ProtocolJsonContext.Default.SendParams),
+            ct).ConfigureAwait(false);
+
+        return result.Deserialize(ProtocolJsonContext.Default.SendResult)
+            ?? throw new RpcException(-32603, "send returned an unreadable result.", null, null, false);
+    }
+
     private static ReadOnlyMemory<byte> Serialize<T>(T value, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> info)
     {
         var buffer = new ArrayBufferWriter<byte>();

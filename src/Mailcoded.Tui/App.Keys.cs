@@ -17,6 +17,8 @@ internal sealed partial class App
         }
 
         if (_state.ChoosingDestination) return ChooseDestination(key);
+        if (_state.Focus == Pane.Confirm) return Confirm(key);
+        if (_state.Focus == Pane.Compose) return Edit(key);
 
         if (key.Modifiers.HasFlag(ConsoleModifiers.Control))
         {
@@ -74,6 +76,9 @@ internal sealed partial class App
                 return true;
 
             case 'r' when _state.Open is null: Resync(); return true;
+            case 'c' when _state.Open is null: ComposeNew(); return true;
+            case 'r' when _state.Open is not null: ComposeReply(all: false); return true;
+            case 'R' when _state.Open is not null: ComposeReply(all: true); return true;
             case 'u': ToggleTag(FlagNames.Unread); return true;
             case 'f': ToggleTag(FlagNames.Flagged); return true;
             case 'a': Archive(); return true;
@@ -88,6 +93,55 @@ internal sealed partial class App
             default:
                 return true;
         }
+    }
+
+    /// <summary>Y and only Y sends. Enter is the compose-buffer key, so it must never confirm.</summary>
+    private bool Confirm(ConsoleKeyInfo key)
+    {
+        if (key.KeyChar == ConfirmSend.ConfirmKey) ConfirmedSend();
+        else CancelConfirmation();
+
+        return true;
+    }
+
+    private bool Edit(ConsoleKeyInfo key)
+    {
+        if (_state.Draft is not { } draft) { _state.Focus = Pane.Messages; return true; }
+
+        if (key.Modifiers.HasFlag(ConsoleModifiers.Control))
+        {
+            switch (key.Key)
+            {
+                case ConsoleKey.S: PreviewSend(); return true;
+                case ConsoleKey.C: Ask("discard the draft? type yes: "); return true;
+            }
+
+            return true;
+        }
+
+        switch (key.Key)
+        {
+            case ConsoleKey.Escape: Ask("discard the draft? type yes: "); return true;
+            case ConsoleKey.Tab:
+                draft.NextField(key.Modifiers.HasFlag(ConsoleModifiers.Shift) ? -1 : 1);
+                return true;
+
+            case ConsoleKey.Enter:
+                if (draft.Field == DraftField.Body) draft.NewLine();
+                else draft.NextField(1);
+                return true;
+
+            case ConsoleKey.Backspace: draft.Backspace(); return true;
+            case ConsoleKey.LeftArrow: draft.MoveCaret(-1, 0); return true;
+            case ConsoleKey.RightArrow: draft.MoveCaret(1, 0); return true;
+            case ConsoleKey.UpArrow: draft.MoveCaret(0, -1); return true;
+            case ConsoleKey.DownArrow: draft.MoveCaret(0, 1); return true;
+            case ConsoleKey.Home: draft.MoveCaret(-int.MaxValue / 2, 0); return true;
+            case ConsoleKey.End: draft.MoveCaret(int.MaxValue / 2, 0); return true;
+        }
+
+        if (!char.IsControl(key.KeyChar)) draft.Insert(key.KeyChar);
+        return true;
     }
 
     private void Ask(string prompt)
@@ -161,12 +215,18 @@ internal sealed partial class App
     private void Submit()
     {
         var line = _state.PromptInput.Trim();
-        var wasTags = _state.Prompt is "tags: ";
+        var prompt = _state.Prompt;
 
         _state.Prompt = null;
         _state.PromptInput = string.Empty;
 
-        if (wasTags)
+        if (prompt is "discard the draft? type yes: ")
+        {
+            if (string.Equals(line, "yes", StringComparison.OrdinalIgnoreCase)) Discard();
+            return;
+        }
+
+        if (prompt is "tags: ")
         {
             PromptedTags(line);
             return;

@@ -7,18 +7,48 @@ internal static class Screen
 {
     public const int MinFolderWidth = 16;
 
-    public static void Draw(TerminalWriter writer, AppState state)
+    public static void Draw(TerminalWriter writer, AppState state) => Draw(writer, state, DateTimeOffset.UtcNow);
+
+    public static void Draw(TerminalWriter writer, AppState state, DateTimeOffset now)
     {
         writer.BeginFrame();
 
         Header(writer, state);
 
-        if (state.Focus == Pane.Help) Help.Draw(writer, state);
-        else if (state.Open is { } open) Reader.Draw(writer, state, open);
-        else Panes(writer, state);
+        var caret = (Row: -1, Column: 0);
+
+        if (state.Focus == Pane.Help)
+        {
+            Help.Draw(writer, state);
+        }
+        else if (state.Focus == Pane.Confirm && state.Pending is { } pending)
+        {
+            ConfirmSend.Draw(writer, state, pending, now);
+        }
+        else if (state.Focus == Pane.Compose && state.Draft is { } draft)
+        {
+            Composer.Draw(writer, state, draft);
+            caret = Composer.Caret(writer, draft);
+        }
+        else if (state.Open is { } open)
+        {
+            Reader.Draw(writer, state, open);
+        }
+        else
+        {
+            Panes(writer, state);
+        }
 
         StatusBar(writer, state);
-        writer.EndFrame();
+
+        if (state.Prompt is not null) writer.EndFrame(writer.Rows - 1, PromptCaret(writer, state));
+        else writer.EndFrame(caret.Row, caret.Column);
+    }
+
+    private static int PromptCaret(TerminalWriter writer, AppState state)
+    {
+        var typed = (state.Prompt ?? string.Empty) + state.PromptInput;
+        return Math.Min(writer.Columns - 1, TerminalText.Cell(typed, writer.Columns).Columns);
     }
 
     public static int FolderWidth(TerminalWriter writer) =>
@@ -72,10 +102,12 @@ internal static class Screen
 
     internal static string Hint(AppState state) => state.Focus switch
     {
-        Pane.Reader => "j/k scroll   q back   ? help",
+        Pane.Reader => "j/k scroll   r reply   R reply-all   q back   ? help",
+        Pane.Compose => "tab field   ctrl-s preview   esc discard",
+        Pane.Confirm => "Y sends   anything else goes back",
         Pane.Help => "any key to close",
-        Pane.Folders => "j/k move   enter open   / search   ? help   q quit",
-        _ => "j/k move   enter read   n more   / search   ? help   q back",
+        Pane.Folders => "j/k move   enter open   c compose   / search   ? help   q quit",
+        _ => "j/k move   enter read   c compose   n more   / search   ? help   q back",
     };
 
     public static SafeSpan Flags(EnvelopeDto envelope)
