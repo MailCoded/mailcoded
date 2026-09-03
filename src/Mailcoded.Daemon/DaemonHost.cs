@@ -65,6 +65,9 @@ internal sealed class DaemonHost : IAsyncDisposable
     /// <summary>False when another live daemon owns this store: this instance opens no IDLE connection.</summary>
     public bool IsPrimaryInstance { get; }
 
+    /// <summary>PID of the daemon that holds the watch, when this one is a secondary.</summary>
+    public int StoreOwnerPid { get; set; }
+
     /// <summary>
     /// Opens the store, which registers the CodePages provider, runs migrations, and asserts FTS5.
     /// A missing FTS5 surfaces as a <see cref="StoreException"/> the caller turns into an exit code.
@@ -100,6 +103,7 @@ internal sealed class DaemonHost : IAsyncDisposable
             Clock,
             Log,
             watchEnabled: IsPrimaryInstance,
+            ownerPid: StoreOwnerPid,
             maxWatchedFolders: Transport.MaxWatchedFolders);
     }
 

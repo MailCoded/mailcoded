@@ -65,6 +65,7 @@ internal static class Program
             var dataDirectory = options.StorePath is null ? DataDirectoryFromEnvironment() : null;
             instance = SingleInstanceLock.Acquire(ResolveDataDirectory(options.StorePath, dataDirectory), log);
             host = DaemonHost.Create(options.StorePath, dataDirectory, log, instance.IsPrimary);
+            host.StoreOwnerPid = instance.OwnerPid;
         }
         catch (StoreException ex) when (ex.Category == FailureCategory.Unsupported)
         {

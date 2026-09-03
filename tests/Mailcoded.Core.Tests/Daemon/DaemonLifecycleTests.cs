@@ -173,6 +173,7 @@ public sealed class DaemonLifecycleTests
                 watched.Clock,
                 log,
                 watchEnabled: true,
+                ownerPid: 0,
                 maxWatchedFolders: 5);
 
             return new WatchRig(watched, empty, pool, channel, coordinator, account);

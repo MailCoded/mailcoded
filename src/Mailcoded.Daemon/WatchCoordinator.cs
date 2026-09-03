@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Collections.Concurrent;
 using Mailcoded.Core.Application;
 using Mailcoded.Core.Domain.Primitives;
@@ -29,6 +30,7 @@ internal sealed class WatchCoordinator : IAsyncDisposable
     private readonly IClock clock;
     private readonly StderrLog log;
     private readonly bool watchEnabled;
+    private readonly int ownerPid;
     private readonly int maxWatchedFolders;
 
     private readonly ConcurrentDictionary<(long Account, long Folder), Watch> watches = new();
@@ -45,6 +47,7 @@ internal sealed class WatchCoordinator : IAsyncDisposable
         IClock clock,
         StderrLog log,
         bool watchEnabled,
+        int ownerPid,
         int maxWatchedFolders)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -63,6 +66,7 @@ internal sealed class WatchCoordinator : IAsyncDisposable
         this.clock = clock;
         this.log = log;
         this.watchEnabled = watchEnabled;
+        this.ownerPid = ownerPid;
         this.maxWatchedFolders = Math.Max(1, maxWatchedFolders);
     }
 
@@ -101,7 +105,7 @@ internal sealed class WatchCoordinator : IAsyncDisposable
                     (int)RpcErrorCode.Unsupported,
                     "unsupported",
                     false,
-                    "Another daemon instance owns this store, so this connection will not receive watch notifications."));
+                    Owned()));
             return Task.CompletedTask;
         }
 
@@ -276,6 +280,16 @@ internal sealed class WatchCoordinator : IAsyncDisposable
             log.Exception($"Watch-driven sync of folder {folderId.Value} failed.", ex);
             PublishError(accountId, folderId, RpcErrorMapper.Classify(ex));
         }
+    }
+
+    private string Owned()
+    {
+        var who = ownerPid > 0
+            ? $" (pid {ownerPid.ToString(CultureInfo.InvariantCulture)})"
+            : string.Empty;
+
+        return $"Another mailcoded{who} already holds this store's live connection, so this one gets no "
+            + "watch notifications. Everything else works; re-read a folder to see new mail.";
     }
 
     private void PublishError(AccountId accountId, FolderId? folderId, SyncErrorInfo info)

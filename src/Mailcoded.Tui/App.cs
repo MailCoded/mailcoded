@@ -27,6 +27,7 @@ internal sealed partial class App
     private readonly TerminalWriter _writer;
     private readonly AppState _state = new();
     private readonly ConcurrentQueue<Action> _applies = new();
+    private readonly HashSet<string> _notices = new(StringComparer.Ordinal);
     private readonly Channel<AppEvent> _events =
         Channel.CreateBounded<AppEvent>(new BoundedChannelOptions(512) { FullMode = BoundedChannelFullMode.DropOldest });
 
@@ -414,9 +415,24 @@ internal sealed partial class App
 
             case RpcNotifications.SyncError when document.RootElement.TryGetProperty("params", out var failed):
                 if (failed.Deserialize(ProtocolJsonContext.Default.SyncErrorNotification) is { } error)
-                    _applies.Enqueue(() => _state.Complain($"sync: {error.Message}"));
+                    _applies.Enqueue(() => Report(error));
                 break;
         }
+    }
+
+    /// <summary>A capability the daemon does not have here is not a failure, and saying it once per
+    /// account in red buries whatever the user was actually reading.</summary>
+    private void Report(SyncErrorNotification error)
+    {
+        if (error.Code == (int)RpcErrorCode.Unsupported && !error.RequiresUserAction)
+        {
+            if (!_notices.Add(error.Message)) return;
+
+            _state.Say("Live updates belong to another mailcoded window; press r to refresh here.");
+            return;
+        }
+
+        _state.Complain($"sync: {error.Message}");
     }
 
     private void Announce(MailAddedNotification mail) =>
