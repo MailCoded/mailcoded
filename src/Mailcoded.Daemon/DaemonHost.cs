@@ -69,7 +69,7 @@ internal sealed class DaemonHost : IAsyncDisposable
     /// Opens the store, which registers the CodePages provider, runs migrations, and asserts FTS5.
     /// A missing FTS5 surfaces as a <see cref="StoreException"/> the caller turns into an exit code.
     /// </summary>
-    public static DaemonHost Create(string? storePath, StderrLog log, bool isPrimary)
+    public static DaemonHost Create(string? storePath, string? dataDirectory, StderrLog log, bool isPrimary)
     {
         ArgumentNullException.ThrowIfNull(log);
 
@@ -77,7 +77,8 @@ internal sealed class DaemonHost : IAsyncDisposable
         MimeCharsets.EnsureRegistered();
 
         var clock = SystemClock.Instance;
-        var store = new SqliteStore(new SqliteStoreOptions { DatabasePath = storePath }, clock);
+        var store = new SqliteStore(
+            new SqliteStoreOptions { DatabasePath = storePath, DataDirectory = dataDirectory }, clock);
         log.Info($"Store schema {store.SchemaVersion} at {store.DatabasePath}.");
 
         var secrets = SecretStoreFactory.Create(store.DataDirectory);

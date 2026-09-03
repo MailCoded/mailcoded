@@ -64,7 +64,7 @@ public sealed class ThreadGetTruncationTests
         {
             var workspace = new SurfaceWorkspace("thread-truncation");
             var log = new StderrLog(TextWriter.Null, DaemonLogLevel.Off, timestamps: false);
-            var host = DaemonHost.Create(workspace.DatabasePath, log, isPrimary: true);
+            var host = DaemonHost.Create(workspace.DatabasePath, null, log, isPrimary: true);
 
             try
             {

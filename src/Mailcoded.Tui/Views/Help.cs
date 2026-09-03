@@ -1,0 +1,50 @@
+using Mailcoded.Tui.Render;
+
+namespace Mailcoded.Tui.Views;
+
+internal static class Help
+{
+    internal static readonly string[] Lines =
+    [
+        "  mailcoded-tui - a reference client over JSON-RPC",
+        "",
+        "  j / down      next            k / up        previous",
+        "  g / G         first / last    n             next page",
+        "  tab           other pane      h / l         left / right pane",
+        "  enter         open            q             back, then quit",
+        "  /             search          esc           clear search",
+        "  r             resync folder   ctrl-l        redraw",
+        "  ?             this help",
+        "",
+        "  This client asks for plaintext only. It never requests format:html,",
+        "  because a terminal has no sandbox and no content security policy.",
+        "",
+        "  There is no delete key, in this client or in the protocol.",
+    ];
+
+    public static void Draw(TerminalWriter writer, AppState state)
+    {
+        _ = state;
+        var rows = Screen.BodyRows(writer);
+
+        for (var line = 0; line < rows; line++)
+        {
+            var row = Screen.FirstBodyRow + line;
+            if (line >= Lines.Length)
+            {
+                writer.Blank(row);
+                continue;
+            }
+
+            writer.Row(row, TerminalText.Chrome(Lines[line], writer.Columns), Style(line));
+        }
+    }
+
+    private static TextStyle Style(int line) => line switch
+    {
+        0 => TextStyle.Bold,
+        >= 10 and <= 11 => TextStyle.Warn,
+        13 => TextStyle.Warn,
+        _ => TextStyle.Normal,
+    };
+}

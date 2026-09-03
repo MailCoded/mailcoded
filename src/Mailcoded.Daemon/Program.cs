@@ -14,6 +14,8 @@ namespace Mailcoded.Daemon;
 /// </summary>
 internal static class Program
 {
+    private const string DataDirEnvVar = "MAILCODED_DATA_DIR";
+
     private const int ExitOk = 0;
     private const int ExitUsage = 1;
     private const int ExitStartupFailed = 2;
@@ -60,8 +62,9 @@ internal static class Program
 
         try
         {
-            instance = SingleInstanceLock.Acquire(ResolveDataDirectory(options.StorePath), log);
-            host = DaemonHost.Create(options.StorePath, log, instance.IsPrimary);
+            var dataDirectory = options.StorePath is null ? DataDirectoryFromEnvironment() : null;
+            instance = SingleInstanceLock.Acquire(ResolveDataDirectory(options.StorePath, dataDirectory), log);
+            host = DaemonHost.Create(options.StorePath, dataDirectory, log, instance.IsPrimary);
         }
         catch (StoreException ex) when (ex.Category == FailureCategory.Unsupported)
         {
@@ -198,18 +201,26 @@ internal static class Program
     }
 
     /// <summary>The lock file lives beside the store, so the directory has to be known before it opens.</summary>
-    private static string ResolveDataDirectory(string? storePath)
+    /// <summary>The CLI honours MAILCODED_DATA_DIR; a daemon that ignored it would open a
+    /// different store than the CLI that configured the account.</summary>
+    private static string? DataDirectoryFromEnvironment()
+    {
+        var value = Environment.GetEnvironmentVariable(DataDirEnvVar);
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private static string ResolveDataDirectory(string? storePath, string? dataDirectory)
     {
         if (string.IsNullOrWhiteSpace(storePath))
         {
-            var fallback = StorePaths.DefaultDataDirectory();
+            var fallback = dataDirectory ?? StorePaths.DefaultDataDirectory();
             Directory.CreateDirectory(fallback);
             return fallback;
         }
 
         var full = Path.GetFullPath(storePath);
         var directory = Path.GetDirectoryName(full);
-        if (string.IsNullOrEmpty(directory)) directory = StorePaths.DefaultDataDirectory();
+        if (string.IsNullOrEmpty(directory)) directory = dataDirectory ?? StorePaths.DefaultDataDirectory();
 
         Directory.CreateDirectory(directory);
         return directory;

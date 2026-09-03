@@ -82,6 +82,9 @@ public sealed partial class SqliteStore
                         DateUtc = FromUnixMs(lastDate),
                         Flags = (MessageFlags)(int)Db.Int(reader, 5),
                         Snippet = withSnippet ? BuildSnippet(Db.Str(reader, 6) ?? subject, needles) : null,
+                        HasAttachments = Db.Int(reader, 7) != 0,
+                        BodyFetched = Db.Int(reader, 8) != 0,
+                        Size = Db.Int(reader, 9),
                     });
                 }
             }
@@ -204,6 +207,7 @@ public sealed partial class SqliteStore
         var sql = new StringBuilder(512);
         sql.Append("SELECT m.id, m.folder_id, m.subject, m.from_addr, m.date_utc, m.flags");
         sql.Append(withSnippet ? ", substr(COALESCE(b.text, ''), 1, 4000)" : ", NULL");
+        sql.Append(", m.has_attachments, m.body_fetched, m.size");
 
         sql.Append(route switch
         {

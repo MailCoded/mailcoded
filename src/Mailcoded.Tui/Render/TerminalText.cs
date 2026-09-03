@@ -149,6 +149,36 @@ public static class TerminalText
         return new SafeSpan(span.Text[..taken], width);
     }
 
+    /// <summary>Chrome keeps its own spacing: unlike Cell it does not collapse runs, because a
+    /// column layout authored here is not attacker input and its padding is load-bearing.</summary>
+    public static SafeSpan Chrome(string literal, int columns)
+    {
+        ArgumentNullException.ThrowIfNull(literal);
+
+        foreach (var c in literal)
+        {
+            if (c is < ' ' or > '~')
+                throw new ArgumentException($"Chrome takes printable ASCII; U+{(int)c:X4} is not.", nameof(literal));
+        }
+
+        var width = Math.Min(literal.Length, Math.Max(columns, 0));
+        return new SafeSpan(literal[..width], width);
+    }
+
+    public static SafeSpan Concat(params ReadOnlySpan<SafeSpan> parts)
+    {
+        var builder = new StringBuilder();
+        var width = 0;
+
+        foreach (var part in parts)
+        {
+            builder.Append(part.Text);
+            width += part.Columns;
+        }
+
+        return new SafeSpan(builder.ToString(), width);
+    }
+
     public static SafeSpan Pad(SafeSpan span, int columns)
     {
         var clipped = Clip(span, columns);

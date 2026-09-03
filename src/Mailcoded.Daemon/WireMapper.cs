@@ -66,6 +66,9 @@ internal static class WireMapper
             Date = IsoTime.ToWire(hit.DateUtc),
             Flags = FlagWireNames(hit.Flags),
             Tags = ToTagNames(tags),
+            HasAttachments = hit.HasAttachments,
+            BodyFetched = hit.BodyFetched,
+            Size = hit.Size,
             Snippet = hit.Snippet,
         };
     }

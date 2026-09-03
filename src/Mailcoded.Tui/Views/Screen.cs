@@ -1,0 +1,100 @@
+using Mailcoded.Protocol;
+using Mailcoded.Tui.Render;
+
+namespace Mailcoded.Tui.Views;
+
+internal static class Screen
+{
+    public const int MinFolderWidth = 16;
+
+    public static void Draw(TerminalWriter writer, AppState state)
+    {
+        writer.BeginFrame();
+
+        Header(writer, state);
+
+        if (state.Focus == Pane.Help) Help.Draw(writer, state);
+        else if (state.Open is { } open) Reader.Draw(writer, state, open);
+        else Panes(writer, state);
+
+        StatusBar(writer, state);
+        writer.EndFrame();
+    }
+
+    public static int FolderWidth(TerminalWriter writer) =>
+        Math.Max(MinFolderWidth, Math.Min(30, writer.Columns / 3));
+
+    public static int FirstBodyRow => 1;
+
+    public static int BodyRows(TerminalWriter writer) => Math.Max(1, writer.Rows - 2);
+
+    private static void Header(TerminalWriter writer, AppState state)
+    {
+        var account = state.Account;
+        var name = account is null ? "no account" : account.Email;
+        var left = TerminalText.Concat(
+            SafeSpan.Chrome("mailcoded   "),
+            TerminalText.Cell(name, Math.Max(1, writer.Columns - 12)));
+
+        writer.Row(0, TerminalText.Pad(left, writer.Columns), TextStyle.Inverse);
+    }
+
+    private static void Panes(TerminalWriter writer, AppState state)
+    {
+        var split = FolderWidth(writer);
+        FolderPane.Draw(writer, state, split);
+        MessageList.Draw(writer, state, split + 1);
+
+        var rule = SafeSpan.Chrome("|");
+        for (var row = FirstBodyRow; row < FirstBodyRow + BodyRows(writer); row++)
+            writer.At(row, split, rule, TextStyle.Dim);
+    }
+
+    private static void StatusBar(TerminalWriter writer, AppState state)
+    {
+        var row = writer.Rows - 1;
+
+        if (state.Prompt is { } prompt)
+        {
+            var typed = TerminalText.Cell(prompt + state.PromptInput, writer.Columns);
+            writer.Row(row, TerminalText.Pad(typed, writer.Columns), TextStyle.Inverse);
+            return;
+        }
+
+        // Status text embeds folder names and daemon messages, so it takes the untrusted path.
+        var span = state.Status.Length > 0
+            ? TerminalText.Cell(state.Status, writer.Columns)
+            : TerminalText.Chrome(Hint(state), writer.Columns);
+
+        writer.Row(row, TerminalText.Pad(span, writer.Columns),
+            state.StatusIsError ? TextStyle.Danger : TextStyle.Inverse);
+    }
+
+    internal static string Hint(AppState state) => state.Focus switch
+    {
+        Pane.Reader => "j/k scroll   q back   ? help",
+        Pane.Help => "any key to close",
+        Pane.Folders => "j/k move   enter open   / search   ? help   q quit",
+        _ => "j/k move   enter read   n more   / search   ? help   q back",
+    };
+
+    public static SafeSpan Flags(EnvelopeDto envelope)
+    {
+        var unread = envelope.Flags.Contains(FlagNames.Unread, StringComparer.Ordinal) ? "*" : " ";
+        var flagged = envelope.Flags.Contains(FlagNames.Flagged, StringComparer.Ordinal) ? "!" : " ";
+        var attached = envelope.HasAttachments ? "@" : " ";
+
+        return SafeSpan.Chrome(unread + flagged + attached);
+    }
+
+    public static string ShortDate(string iso)
+    {
+        if (!DateTimeOffset.TryParse(iso, null, System.Globalization.DateTimeStyles.RoundtripKind, out var date))
+            return "??? ??";
+
+        var local = date.ToLocalTime();
+        return local.Date == DateTimeOffset.Now.Date
+            ? local.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)
+            : local.ToString("MMM dd", System.Globalization.CultureInfo.InvariantCulture);
+    }
+}

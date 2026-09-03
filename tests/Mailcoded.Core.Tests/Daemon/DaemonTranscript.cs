@@ -45,7 +45,7 @@ internal sealed class DaemonTranscript : IAsyncDisposable
                    (AgentPolicyOptions.EnableSqlEnvVar, null),
                    (AgentPolicyOptions.ApprovedRecipientsEnvVar, null)))
         {
-            host = DaemonHost.Create(workspace.DatabasePath, log, isPrimary: true);
+            host = DaemonHost.Create(workspace.DatabasePath, null, log, isPrimary: true);
         }
 
         try

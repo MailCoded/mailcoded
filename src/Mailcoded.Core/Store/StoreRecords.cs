@@ -241,6 +241,9 @@ public sealed record StoreSearchHit
     public string? From { get; init; }
     public DateTimeOffset DateUtc { get; init; }
     public MessageFlags Flags { get; init; }
+    public bool HasAttachments { get; init; }
+    public bool BodyFetched { get; init; }
+    public long Size { get; init; }
 
     /// <summary>Computed only for the returned page, never across the whole result set.</summary>
     public string? Snippet { get; init; }

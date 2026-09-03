@@ -130,7 +130,9 @@ public sealed class MessageService
         var tags = ReadTagView(envelope, ct);
         var bodyText = _store.GetBodyText(id, ct);
 
-        if (format == MessageBodyFormat.Text)
+        // A plaintext client is still entitled to know what is attached, so the raw read is paid
+        // only when there is something to describe.
+        if (format == MessageBodyFormat.Text && !envelope.HasAttachments)
         {
             return new MessageView
             {

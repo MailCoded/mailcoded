@@ -5,7 +5,7 @@
     "hits": [
       {
         "accountId": 1,
-        "bodyFetched": false,
+        "bodyFetched": true,
         "date": "2024-01-02T03:04:05.000Z",
         "flags": [
           "unread"
@@ -14,7 +14,7 @@
         "from": "Ada <ada@example.test>",
         "hasAttachments": false,
         "id": 1,
-        "size": 0,
+        "size": 1234,
         "subject": "Quarterly invoice",
         "tags": [
           "unread"

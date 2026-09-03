@@ -16,7 +16,7 @@ public readonly struct SafeSpan
     public static SafeSpan Empty { get; } = new(string.Empty, 0);
 
     /// <summary>Literal authored in this repository. Never call this with mail-derived text.</summary>
-    internal static SafeSpan Chrome(string literal) => TerminalText.Cell(literal, literal.Length);
+    internal static SafeSpan Chrome(string literal) => TerminalText.Chrome(literal, literal.Length);
 
     public override string ToString() => Text;
 }
