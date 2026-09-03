@@ -52,7 +52,7 @@ internal static class Screen
     }
 
     public static int FolderWidth(TerminalWriter writer) =>
-        Math.Max(MinFolderWidth, Math.Min(30, writer.Columns / 3));
+        Math.Max(MinFolderWidth, Math.Min(34, writer.Columns / 3));
 
     public static int FirstBodyRow => 1;
 
@@ -62,9 +62,16 @@ internal static class Screen
     {
         var account = state.Account;
         var name = account is null ? "no account" : account.Email;
+        var suffix = state.Accounts.Count > 1
+            ? $"   ({state.Accounts.Count} accounts)"
+            : string.Empty;
+
+        var room = Math.Max(1, writer.Columns - 12 - suffix.Length);
+
         var left = TerminalText.Concat(
             SafeSpan.Chrome("mailcoded   "),
-            TerminalText.Cell(name, Math.Max(1, writer.Columns - 12)));
+            TerminalText.Cell(name, room),
+            SafeSpan.Chrome(suffix));
 
         writer.Row(0, TerminalText.Pad(left, writer.Columns), TextStyle.Inverse);
     }
@@ -106,7 +113,7 @@ internal static class Screen
         Pane.Compose => "tab field   ctrl-s preview   esc discard",
         Pane.Confirm => "Y sends   anything else goes back",
         Pane.Help => "any key to close",
-        Pane.Folders => "j/k move   enter open   c compose   / search   ? help   q quit",
+        Pane.Folders => "j/k move   h/l fold   enter open   c compose   / search   ? help   q quit",
         _ => "j/k move   enter read   c compose   n more   / search   ? help   q back",
     };
 

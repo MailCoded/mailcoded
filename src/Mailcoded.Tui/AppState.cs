@@ -27,9 +27,15 @@ internal sealed class AppState
 {
     public IReadOnlyList<AccountDto> Accounts { get; set; } = [];
 
-    public IReadOnlyList<FolderDto> Folders { get; set; } = [];
+    public Dictionary<long, IReadOnlyList<FolderDto>> FoldersByAccount { get; } = [];
 
-    public int FolderIndex { get; set; }
+    public HashSet<string> Collapsed { get; } = new(StringComparer.Ordinal);
+
+    public IReadOnlyList<NavRow> Nav { get; private set; } = [];
+
+    public int NavIndex { get; set; }
+
+    public int NavScroll { get; set; }
 
     public List<EnvelopeDto> Messages { get; } = [];
 
@@ -69,10 +75,56 @@ internal sealed class AppState
 
     public PendingSend? Pending { get; set; }
 
-    public AccountDto? Account => Accounts.Count > 0 ? Accounts[0] : null;
+    public NavRow? Row => NavIndex >= 0 && NavIndex < Nav.Count ? Nav[NavIndex] : null;
 
-    public FolderDto? Folder =>
-        FolderIndex >= 0 && FolderIndex < Folders.Count ? Folders[FolderIndex] : null;
+    /// <summary>The account the sidebar cursor is inside, not merely the first one configured.</summary>
+    public AccountDto? Account
+    {
+        get
+        {
+            if (Row is { } row)
+                foreach (var account in Accounts)
+                    if (account.Id == row.AccountId) return account;
+
+            return Accounts.Count > 0 ? Accounts[0] : null;
+        }
+    }
+
+    public FolderDto? Folder => Row?.Folder;
+
+    public IReadOnlyList<FolderDto> FoldersOf(long accountId) =>
+        FoldersByAccount.TryGetValue(accountId, out var list) ? list : [];
+
+    /// <summary>Rebuilds the sidebar, keeping the cursor on whatever row it was on.</summary>
+    public void Rebuild()
+    {
+        var wanted = Row?.Key;
+        Nav = Navigation.Build(Accounts, FoldersByAccount, Collapsed);
+
+        if (wanted is not null)
+        {
+            for (var i = 0; i < Nav.Count; i++)
+            {
+                if (!string.Equals(Nav[i].Key, wanted, StringComparison.Ordinal)) continue;
+                NavIndex = i;
+                return;
+            }
+        }
+
+        NavIndex = Math.Clamp(NavIndex, 0, Math.Max(0, Nav.Count - 1));
+    }
+
+    public bool SelectKey(string key)
+    {
+        for (var i = 0; i < Nav.Count; i++)
+        {
+            if (!string.Equals(Nav[i].Key, key, StringComparison.Ordinal)) continue;
+            NavIndex = i;
+            return true;
+        }
+
+        return false;
+    }
 
     public EnvelopeDto? Selected =>
         MessageIndex >= 0 && MessageIndex < Messages.Count ? Messages[MessageIndex] : null;

@@ -8,37 +8,60 @@ internal static class FolderPane
     {
         var rows = Screen.BodyRows(writer);
         var focused = state.Focus == Pane.Folders;
-        var top = Scroll(state.FolderIndex, rows, state.Folders.Count);
+
+        state.NavScroll = Scroll(state.NavIndex, rows, state.Nav.Count);
+
+        // Sized to what is actually on screen: a fixed column steals room from the longest address.
+        var counts = 0;
+        for (var line = 0; line < rows && state.NavScroll + line < state.Nav.Count; line++)
+            counts = Math.Max(counts, Counts(state.Nav[state.NavScroll + line]).Length);
 
         for (var line = 0; line < rows; line++)
         {
             var row = Screen.FirstBodyRow + line;
-            var index = top + line;
+            var index = state.NavScroll + line;
 
-            if (index >= state.Folders.Count)
+            if (index >= state.Nav.Count)
             {
                 writer.At(row, 0, TerminalText.Pad(SafeSpan.Empty, width));
                 continue;
             }
 
-            var folder = state.Folders[index];
-            var selected = index == state.FolderIndex;
+            var nav = state.Nav[index];
+            var selected = index == state.NavIndex;
 
-            var counts = folder.Unread > 0 ? $" {folder.Unread}/{folder.Total}" : $" {folder.Total}";
-            var countSpan = TerminalText.Cell(counts, Math.Max(0, width - 3));
-            var nameRoom = Math.Max(1, width - 1 - countSpan.Columns);
-            var name = TerminalText.Cell(folder.Name, nameRoom);
-
-            var padded = TerminalText.Pad(name, nameRoom);
-            var line0 = TerminalText.Pad(TerminalText.Concat(padded, countSpan), width);
-
-            var style = selected
-                ? (focused ? TextStyle.Inverse : TextStyle.Bold)
-                : (state.ChoosingDestination ? TextStyle.Accent
-                    : folder.Unread > 0 ? TextStyle.Normal : TextStyle.Dim);
-
-            writer.At(row, 0, line0, style);
+            writer.At(row, 0, Line(nav, width, counts), Style(nav, selected, focused, state.ChoosingDestination));
         }
+    }
+
+    private static SafeSpan Line(NavRow nav, int width, int countWidth)
+    {
+        var countSpan = SafeSpan.Chrome(Counts(nav).PadLeft(countWidth));
+        var indent = SafeSpan.Chrome(new string(' ', Math.Min(nav.Depth * 2, Math.Max(0, width - 8))) + Twisty(nav));
+        var room = Math.Max(1, width - indent.Columns - countSpan.Columns - 1);
+
+        return TerminalText.Pad(
+            TerminalText.Concat(indent, TerminalText.Pad(TerminalText.Cell(nav.Label, room), room), countSpan),
+            width);
+    }
+
+    /// <summary>An account row totals its folders; a folder with no unread shows only its size.</summary>
+    private static string Counts(NavRow nav)
+    {
+        if (nav.Kind == NavKind.Folder && nav.Folder is null) return string.Empty;
+        if (nav.Unread > 0) return $"{nav.Unread}/{nav.Total}";
+        return nav.Total > 0 ? nav.Total.ToString(System.Globalization.CultureInfo.InvariantCulture) : string.Empty;
+    }
+
+    private static string Twisty(NavRow nav) =>
+        nav.HasChildren ? (nav.Expanded ? "- " : "+ ") : (nav.Kind == NavKind.Account ? "  " : "  ");
+
+    private static TextStyle Style(NavRow nav, bool selected, bool focused, bool choosing)
+    {
+        if (selected) return focused ? TextStyle.Inverse : TextStyle.Bold;
+        if (nav.Kind == NavKind.Account) return TextStyle.Accent;
+        if (choosing) return TextStyle.Normal;
+        return nav.Unread > 0 ? TextStyle.Normal : TextStyle.Dim;
     }
 
     public static int Scroll(int index, int rows, int count)

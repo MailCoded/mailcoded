@@ -97,6 +97,14 @@ internal sealed partial class App
             return;
         }
 
+        // message.move takes a folder id, not an account: across accounts it would be a copy and a
+        // delete, and there is no delete.
+        if (envelope.AccountId != destination.AccountId)
+        {
+            _state.Complain("A message can only move within its own account.");
+            return;
+        }
+
         Start($"moving to {destination.Name}", async token =>
         {
             await _client.MoveAsync(envelope.Id, destination.Id, token).ConfigureAwait(false);
@@ -116,11 +124,13 @@ internal sealed partial class App
 
     private void Archive()
     {
-        var archive = _state.Folders.FirstOrDefault(f => f.Role is "archive");
+        if (Current() is not { } envelope) return;
+
+        var archive = _state.FoldersOf(envelope.AccountId).FirstOrDefault(f => f.Role is "archive");
 
         if (archive is null)
         {
-            _state.Complain("This account has no archive folder; use m to pick one.");
+            _state.Complain("That account has no archive folder; use m to pick one.");
             return;
         }
 

@@ -188,14 +188,42 @@ internal sealed partial class App
             return;
         }
 
-        var folders = await _client.ListFoldersAsync(account.Id, ct).ConfigureAwait(false);
-        _state.Folders = folders.Folders;
+        foreach (var each in _state.Accounts)
+        {
+            var folders = await _client.ListFoldersAsync(each.Id, ct).ConfigureAwait(false);
+            _state.FoldersByAccount[each.Id] = folders.Folders;
+        }
 
-        var inbox = _state.Folders.ToList().FindIndex(f => f.Role is "inbox");
-        _state.FolderIndex = inbox >= 0 ? inbox : 0;
+        _state.Rebuild();
+        SelectFirstInbox(account.Id);
 
         LoadMessages(reset: true);
-        Subscribe(account.Id);
+
+        foreach (var each in _state.Accounts) Subscribe(each.Id);
+    }
+
+    /// <summary>Opens on the inbox of the account that owns it, the way a mail client should.</summary>
+    private void SelectFirstInbox(long preferredAccountId)
+    {
+        foreach (var candidate in new[] { preferredAccountId, -1L })
+        {
+            for (var i = 0; i < _state.Nav.Count; i++)
+            {
+                var row = _state.Nav[i];
+                if (row.Folder?.Role is not "inbox") continue;
+                if (candidate >= 0 && row.AccountId != candidate) continue;
+
+                _state.NavIndex = i;
+                return;
+            }
+        }
+
+        for (var i = 0; i < _state.Nav.Count; i++)
+        {
+            if (!_state.Nav[i].IsSelectable) continue;
+            _state.NavIndex = i;
+            return;
+        }
     }
 
     /// <summary>watch.subscribe opens an IMAP connection, so it never holds up the first frame.</summary>
@@ -391,18 +419,18 @@ internal sealed partial class App
         }
     }
 
-    private void Announce(MailAddedNotification mail)
-    {
-        if (mail.FolderId == _state.Folder?.Id) _state.Say($"{mail.Count} new in {mail.FolderName} - r to refresh");
-    }
+    private void Announce(MailAddedNotification mail) =>
+        _state.Say($"{mail.Count} new in {mail.FolderName} - r to refresh");
 
     private void Replace(FolderDto folder)
     {
-        var folders = _state.Folders.ToList();
+        var folders = _state.FoldersOf(folder.AccountId).ToList();
         var index = folders.FindIndex(f => f.Id == folder.Id);
 
         if (index < 0) return;
+
         folders[index] = folder;
-        _state.Folders = folders;
+        _state.FoldersByAccount[folder.AccountId] = folders;
+        _state.Rebuild();
     }
 }
