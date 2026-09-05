@@ -58,7 +58,7 @@ public static class ProviderPresets
     private const string MicrosoftAdvice =
         "Microsoft has been withdrawing basic authentication for Outlook.com and Microsoft 365, so "
         + "an ordinary password is likely to be refused. If your account still has app passwords "
-        + "enabled, one may work. OAuth sign-in is a v0.2 item.";
+        + "enabled, one may work. Signing in with Microsoft avoids the problem.";
 
     private static readonly Dictionary<string, ProviderPreset> ByDomain = new(StringComparer.OrdinalIgnoreCase)
     {

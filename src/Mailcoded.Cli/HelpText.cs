@@ -301,7 +301,7 @@ mailcoded stats [--json]
 mailcoded health [--json]
 
   Per-account connection, auth and outbox state, plus the store path and schema version.
-  Exit code stays 0 even when status is degraded; branch on the "ok" field of the payload.
+  Exit code stays 0 even when status is degraded; branch on the "status" field of the payload.
 """;
 
     private const string Folders = """

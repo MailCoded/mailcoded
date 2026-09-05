@@ -42,10 +42,10 @@ scripts/install.sh                    # publishes, then puts the commands on PAT
 
 Requires the .NET 10 SDK. On NixOS/WSL, `nix develop` first.
 
-That installs three commands: **`mailcoded`** (CLI), **`mailcoded-daemon`** (JSON-RPC daemon)
-and **`mailcoded-mcp`** (MCP adapter). Without this step `dotnet build` alone leaves the
-binaries under `src/*/bin/` and nothing is on your PATH, so none of the commands below will
-resolve.
+That installs four commands: **`mailcoded`** (CLI), **`mailcoded-tui`** (terminal client),
+**`mailcoded-daemon`** (JSON-RPC daemon) and **`mailcoded-mcp`** (MCP adapter). Without this step
+`dotnet build` alone leaves the binaries under `src/*/bin/` and nothing is on your PATH, so none of
+the commands below will resolve.
 
 ```bash
 scripts/install.sh                       # Native AOT, into ~/.local
@@ -125,9 +125,9 @@ attempt leaves no account and no stored credential behind.
 
 Settings are built in for Gmail, Outlook.com, Yahoo, iCloud, Fastmail, AOL, Zoho, GMX, WEB.DE,
 Yandex, Mail.ru, QQ, Foxmail, NetEase and Proton Bridge; any other domain is guessed as
-`imap.<domain>` / `smtp.<domain>` and you can correct it when asked. Microsoft accounts stop with
-an explanation rather than a confusing login failure — Microsoft disabled basic authentication, so
-they need the Graph provider planned for v0.2.
+`imap.<domain>` / `smtp.<domain>` and you can correct it when asked. Microsoft accounts are offered
+*Sign in with Microsoft* — a device-code flow — alongside a password, because Microsoft has disabled
+basic authentication for most of them.
 
 The password is typed at a prompt, never echoed, and never a command-line argument, so it cannot
 reach your shell history. It goes to the OS keyring (or the encrypted-file vault) — never to the
@@ -330,7 +330,7 @@ Stated plainly, because these are the things you would otherwise discover on day
 - **No calendar and no contacts.** Not planned.
 - **No PGP and no S/MIME.** Out of scope, and deliberately excluded from the Native AOT path.
 - **IMAP only in v0.1.** Microsoft Graph — the durable path for work mail once EWS is disabled on
-  1 Oct 2026 — is planned for v0.2, along with Gmail OAuth2 and multi-account.
+  1 Oct 2026 — is planned for v0.2, along with Gmail OAuth2.
 - **The VS Code extension is not built yet.** The daemon, its protocol, and the CLI exist; the
   extension is the next milestone and ships from a separate repository.
 - No POP3, no JMAP (v0.3+), no HTML compose, no attachment upload in the composer, no message-rules
@@ -343,6 +343,7 @@ What has actually been run against the real binaries, and what has not: [docs/ve
 
 | | |
 |---|---|
+| [docs/manual/](docs/manual/README.md) | **the user manual**: installing, accounts, the terminal client, every verb, troubleshooting |
 | [SPEC.md](SPEC.md) | the executable specification |
 | [docs/rpc.md](docs/rpc.md) | JSON-RPC reference: methods, framing, error codes |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | layering, dependency direction, error policy |
