@@ -1,0 +1,11 @@
+{
+  "name": "mailcoded-workspace",
+  "private": true,
+  "workspaces": [
+    "packages/protocol"
+  ],
+  "scripts": {
+    "gen:types": "bash scripts/gen-types.sh",
+    "check:types": "npm run check -w @mailcoded/protocol"
+  }
+}

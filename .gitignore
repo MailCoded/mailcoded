@@ -27,3 +27,6 @@ node_modules/
 
 # mdBook output for docs/manual
 /build/
+
+# @mailcoded/protocol build output
+packages/protocol/dist/

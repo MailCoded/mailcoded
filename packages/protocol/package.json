@@ -1,0 +1,30 @@
+{
+  "name": "@mailcoded/protocol",
+  "version": "0.1.0",
+  "description": "TypeScript types for the mailcoded JSON-RPC surface, generated from the C# DTOs in Mailcoded.Protocol.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "gen:types": "bash ../../scripts/gen-types.sh",
+    "check": "tsc --noEmit -p .",
+    "build": "tsc -p ."
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MailCoded/mailcoded.git",
+    "directory": "packages/protocol"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

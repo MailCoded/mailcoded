@@ -19,5 +19,6 @@
     <ProjectReference Include="../../src/Mailcoded.Cli/Mailcoded.Cli.csproj" />
     <ProjectReference Include="../../src/Mailcoded.Mcp/Mailcoded.Mcp.csproj" />
     <ProjectReference Include="../../src/Mailcoded.Tui/Mailcoded.Tui.csproj" />
+    <ProjectReference Include="../../tools/Mailcoded.Protocol.TypeScript/Mailcoded.Protocol.TypeScript.csproj" />
   </ItemGroup>
 </Project>

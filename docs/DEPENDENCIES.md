@@ -43,6 +43,7 @@ RPL-1.5 is strong copyleft reaching network-deployed and internal use — not a 
 | **Dapper.AOT** | Apache-2.0 | PRE-APPROVED data-access fallback (interceptors, ~0 runtime size). Only past ~15-20 hand-written mappers |
 | NetArchTest.Rules (test-only) | MIT | Architecture tests |
 | sizoscope (dev tool) | MIT | AOT size analysis; not shipped |
+| TypeScript (npm dev tool, `packages/protocol`) | Apache-2.0 | type-checks the generated `@mailcoded/protocol`; not shipped, not referenced by any .NET project |
 
 **Explicitly banned:** MediatR, AutoMapper, Mapster (stalled + AOT-hostile), **EF Core under AOT** (experimental in EF10 + size), FluentAssertions v8+, MassTransit v9, EPPlus v5+, UPX.
 

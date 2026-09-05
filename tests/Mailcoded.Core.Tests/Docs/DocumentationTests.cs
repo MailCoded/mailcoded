@@ -143,7 +143,7 @@ public sealed class DocumentationTests
         Assert.Contains("only drafts", readme, StringComparison.Ordinal);
     }
 
-    private static string LocateRepositoryRoot()
+    internal static string LocateRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
 

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Mailcoded.Protocol.TypeScript</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <!--
+    A development-time tool, never shipped and never published AOT: it reflects over the wire
+    types to emit TypeScript, which is exactly what the shipped binaries may not do.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../../src/Mailcoded.Protocol/Mailcoded.Protocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Mailcoded.Core.Tests" />
+  </ItemGroup>
+</Project>

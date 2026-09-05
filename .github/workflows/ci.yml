@@ -89,6 +89,26 @@ jobs:
           name: mailcoded-${{ matrix.rid }}
           path: artifacts/${{ matrix.rid }}
 
+  protocol-ts:
+    name: protocol types (typescript)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Generated types are current
+        run: |
+          dotnet build tools/Mailcoded.Protocol.TypeScript -c Release
+          dotnet run --no-build -c Release --project tools/Mailcoded.Protocol.TypeScript -- --check packages/protocol/src/generated.ts
+      - name: Generated types compile
+        run: |
+          npm ci --no-fund --no-audit
+          npm run check:types
+
   integration:
     name: integration (docker)
     runs-on: ubuntu-latest

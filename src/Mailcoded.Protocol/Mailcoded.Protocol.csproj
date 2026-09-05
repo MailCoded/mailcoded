@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <RootNamespace>Mailcoded.Protocol</RootNamespace>
+    <!-- The XML summaries become the JSDoc of the generated TypeScript (tools/Mailcoded.Protocol.TypeScript). -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
   <!--
