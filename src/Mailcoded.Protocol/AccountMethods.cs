@@ -31,6 +31,47 @@ public sealed record AccountAddResult
     public required long AccountId { get; init; }
 }
 
+/// <summary><c>provider.detect</c> — settings and credential guidance for an address, so a client can
+/// pre-fill onboarding. A table lookup: no network, nothing stored.</summary>
+public sealed record ProviderDetectParams
+{
+    public required string Email { get; init; }
+}
+
+public sealed record ProviderDetectResult
+{
+    public required ProviderPresetDto Preset { get; init; }
+}
+
+/// <summary>What a client shows on its onboarding screen. <see cref="Imap"/> and <see cref="Smtp"/>
+/// are shaped so they can be handed to <c>account.add</c> once the human has confirmed them.</summary>
+public sealed record ProviderPresetDto
+{
+    public required string DisplayName { get; init; }
+
+    public required ImapConfigDto Imap { get; init; }
+
+    public required SmtpConfigDto Smtp { get; init; }
+
+    /// <summary><c>password|appPassword|oauthOnly</c>.</summary>
+    public required string Credential { get; init; }
+
+    /// <summary>Where the human creates the credential. Open it with the platform's external opener;
+    /// never render it as HTML.</summary>
+    public string? CredentialUrl { get; init; }
+
+    /// <summary>One line the human should read before typing a credential.</summary>
+    public string? Advice { get; init; }
+
+    /// <summary>True when the hosts were guessed from the domain rather than known, so a client must
+    /// show them as editable.</summary>
+    public bool IsGuess { get; init; }
+
+    /// <summary>Set when the provider usually refuses an ordinary password. A warning to display, not
+    /// a reason to block the attempt.</summary>
+    public string? Discouraged { get; init; }
+}
+
 /// <summary><c>account.list</c>.</summary>
 public sealed record AccountListParams
 {

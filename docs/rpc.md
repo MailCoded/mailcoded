@@ -178,8 +178,9 @@ Result:
 
 ## 4. Methods
 
-Eighteen methods. `params` must be a JSON object for every one of them; a missing, `null`, or
-non-object `params` is `-32602`. Methods whose params are `{}` still require the empty object.
+`params` must be a JSON object for every method; a missing, `null`, or non-object `params` is
+`-32602`. Methods whose params are `{}` still require the empty object. `capabilities.methods` from
+`initialize` is the authoritative list for a given build.
 
 ### `initialize`
 See §3.
@@ -463,6 +464,24 @@ account has no SMTP configuration. Details are short and redacted, never a crede
 No raw bytes and no body. `confirmed` is false until a confirm token was consumed; such a row is a
 draft the retry loop will never dispatch, however long it sits in `queued`.
 
+### `provider.detect`
+
+`{ "email": "me@gmail.com" }` → `{ "preset": ProviderPresetDto }`
+
+A table lookup: no network, nothing stored. `preset.imap` and `preset.smtp` are `ImapConfigDto` and
+`SmtpConfigDto` with `username` pre-filled, so they can be handed to `account.add` once the human has
+confirmed them.
+
+`credential` ∈ `password | appPassword | oauthOnly`. When it is `appPassword`, show `advice` and offer
+`credentialUrl` **before** asking for anything — the account password will simply be refused.
+`isGuess: true` means the hosts were derived from the domain (`imap.<domain>` / `smtp.<domain>`) and
+must be presented as editable. `discouraged`, when present, is a warning to display, not a reason to
+block the attempt.
+
+Open `credentialUrl` only through the platform's external opener; never render it as HTML.
+
+An address with no domain part → **-32602**.
+
 ## 5. Notifications
 
 Server → client, no `id`, no response. They arrive only after `watch.subscribe`.
@@ -697,7 +716,7 @@ is both a diagnostic and the CI smoke test:
 ```
 $ mailcoded-tui --check
 daemon      0.1.0
-methods     18
+methods     21
 maxSearch   200
 accounts    1
 ok

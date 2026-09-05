@@ -320,6 +320,43 @@ internal static class WireMapper
         _ => SecurityModes.SslOnConnect,
     };
 
+    /// <summary>Username is pre-filled with the address so the result can go straight to account.add.</summary>
+    public static ProviderPresetDto ToDto(ProviderPreset preset, string email)
+    {
+        ArgumentNullException.ThrowIfNull(preset);
+
+        return new ProviderPresetDto
+        {
+            DisplayName = preset.DisplayName,
+            Imap = new ImapConfigDto
+            {
+                Host = preset.ImapHost,
+                Port = preset.ImapPort,
+                Security = FromSecurity(preset.ImapSecurity),
+                Username = email,
+            },
+            Smtp = new SmtpConfigDto
+            {
+                Host = preset.SmtpHost,
+                Port = preset.SmtpPort,
+                Security = FromSecurity(preset.SmtpSecurity),
+                Username = email,
+            },
+            Credential = FromCredentialStyle(preset.Credential),
+            CredentialUrl = preset.CredentialUrl,
+            Advice = preset.Advice,
+            IsGuess = preset.IsGuess,
+            Discouraged = preset.Discouraged,
+        };
+    }
+
+    public static string FromCredentialStyle(CredentialStyle value) => value switch
+    {
+        CredentialStyle.AppPassword => CredentialStyles.AppPassword,
+        CredentialStyle.OAuthOnly => CredentialStyles.OAuthOnly,
+        _ => CredentialStyles.Password,
+    };
+
     public static ProviderKind ToProviderKind(string? value)
     {
         if (string.IsNullOrEmpty(value)) return ProviderKind.Imap;

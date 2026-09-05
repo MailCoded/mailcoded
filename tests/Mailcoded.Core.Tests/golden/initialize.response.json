@@ -26,6 +26,7 @@
         "health",
         "account.test",
         "outbox.list",
+        "provider.detect",
         "shutdown"
       ],
       "notifications": [

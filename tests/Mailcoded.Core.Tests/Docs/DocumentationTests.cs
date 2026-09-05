@@ -9,6 +9,24 @@ public sealed class DocumentationTests
     private static string Read(params string[] parts) =>
         File.ReadAllText(Path.Combine(Root, Path.Combine(parts)));
 
+    /// <summary>"every new method gets a row in docs/rpc.md" was a convention nobody checked.</summary>
+    [Fact]
+    public void Rpc_doc_has_a_section_for_every_method_the_daemon_serves()
+    {
+        var doc = Read("docs", "rpc.md");
+
+        foreach (var field in typeof(Mailcoded.Protocol.RpcMethods)
+                     .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+                     .Where(f => f.IsLiteral))
+        {
+            var method = (string)field.GetRawConstantValue()!;
+
+            Assert.True(
+                doc.Contains($"### `{method}`", StringComparison.Ordinal),
+                $"docs/rpc.md has no '### `{method}`' section. Every method needs one in the same change.");
+        }
+    }
+
     [Fact]
     public void License_file_exists_and_is_mit_for_the_stated_holder()
     {

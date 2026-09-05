@@ -31,6 +31,7 @@ public static class RpcMethods
     public const string Health = "health";
     public const string AccountTest = "account.test";
     public const string OutboxList = "outbox.list";
+    public const string ProviderDetect = "provider.detect";
     public const string Shutdown = "shutdown";
 }
 
@@ -71,6 +72,14 @@ public static class AuthKinds
 {
     public const string Password = "password";
     public const string OAuth2 = "oauth2";
+}
+
+/// <summary>Wire values for <c>Providers.CredentialStyle</c>: what a provider accepts as a credential.</summary>
+public static class CredentialStyles
+{
+    public const string Password = "password";
+    public const string AppPassword = "appPassword";
+    public const string OAuthOnly = "oauthOnly";
 }
 
 /// <summary>Wire values for <c>Providers.ProviderKind</c>, mirroring <c>ProviderKindExtensions</c>.</summary>

@@ -75,6 +75,9 @@ namespace Mailcoded.Protocol;
 [JsonSerializable(typeof(AccountTestResult))]
 [JsonSerializable(typeof(OutboxListParams))]
 [JsonSerializable(typeof(OutboxListResult))]
+[JsonSerializable(typeof(ProviderDetectParams))]
+[JsonSerializable(typeof(ProviderDetectResult))]
+[JsonSerializable(typeof(ProviderPresetDto))]
 
 // Notifications
 [JsonSerializable(typeof(MailAddedNotification))]

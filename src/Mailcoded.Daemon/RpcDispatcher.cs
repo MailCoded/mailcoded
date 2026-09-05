@@ -14,7 +14,7 @@ using AppSendResult = Mailcoded.Core.Application.SendResult;
 namespace Mailcoded.Daemon;
 
 /// <summary>
-/// The whole RPC surface as one explicit switch (CLAUDE invariant 12: eighteen methods need a
+/// The whole RPC surface as one explicit switch (CLAUDE invariant 12: this many methods need a
 /// switch, not a mediator). Every handler is a thin delegation to an Application service — no gate
 /// and no policy decision is re-implemented here (CLAUDE invariant 8).
 /// </summary>
@@ -26,7 +26,8 @@ internal sealed class RpcDispatcher
         RpcMethods.FolderList, RpcMethods.Sync, RpcMethods.Search, RpcMethods.ThreadGet,
         RpcMethods.MessageGet, RpcMethods.AttachmentGet, RpcMethods.TagsSet, RpcMethods.MessageMove,
         RpcMethods.SendPreview, RpcMethods.Send, RpcMethods.WatchSubscribe, RpcMethods.Stats,
-        RpcMethods.Health, RpcMethods.AccountTest, RpcMethods.OutboxList, RpcMethods.Shutdown,
+        RpcMethods.Health, RpcMethods.AccountTest, RpcMethods.OutboxList, RpcMethods.ProviderDetect,
+        RpcMethods.Shutdown,
     ];
 
     /// <summary>Before initialize the caller is the most restricted kind, never the permissive 'rpc' one:
@@ -89,6 +90,7 @@ internal sealed class RpcDispatcher
             RpcMethods.Health => Health(ct),
             RpcMethods.AccountTest => await AccountTestAsync(parameters, ct).ConfigureAwait(false),
             RpcMethods.OutboxList => OutboxList(parameters, ct),
+            RpcMethods.ProviderDetect => ProviderDetect(parameters),
             RpcMethods.Shutdown => Shutdown(),
             _ => throw new MethodNotFoundException(method),
         };
@@ -298,6 +300,18 @@ internal sealed class RpcDispatcher
         return RpcPayloads.Value(
             new FolderListResult { Folders = dtos },
             ProtocolJsonContext.Default.FolderListResult);
+    }
+
+    private static byte[] ProviderDetect(JsonElement? parameters)
+    {
+        var request = Require(parameters, ProtocolJsonContext.Default.ProviderDetectParams, RpcMethods.ProviderDetect);
+
+        if (!EmailAddress.TryParse(request.Email, out var email))
+            throw new ArgumentException("email is not a valid address.");
+
+        return RpcPayloads.Value(
+            new ProviderDetectResult { Preset = WireMapper.ToDto(ProviderPresets.ForEmail(email.Value), email.Value) },
+            ProtocolJsonContext.Default.ProviderDetectResult);
     }
 
     private async Task<byte[]> SyncAsync(JsonElement? parameters, CancellationToken ct)

@@ -38,6 +38,9 @@ public sealed class GoldenTranscriptTests : IClassFixture<DaemonTranscriptFixtur
     [InlineData("unknown-method")]
     [InlineData("malformed-json")]
     [InlineData("invalid-request")]
+    [InlineData("provider-detect")]
+    [InlineData("provider-detect-guess")]
+    [InlineData("provider-detect-invalid-email")]
     public async Task Transcript_MatchesItsGoldenFile(string name)
     {
         var actual = await CanonicalResponseAsync(name);
@@ -90,6 +93,7 @@ public sealed class GoldenTranscriptTests : IClassFixture<DaemonTranscriptFixtur
     [InlineData("unknown-method", (int)RpcErrorCode.MethodNotFound)]
     [InlineData("malformed-json", (int)RpcErrorCode.ParseError)]
     [InlineData("invalid-request", (int)RpcErrorCode.InvalidRequest)]
+    [InlineData("provider-detect-invalid-email", (int)RpcErrorCode.InvalidParams)]
     public async Task ErrorTranscripts_CarryTheDocumentedNumericCode(string name, int code)
     {
         using var document = JsonDocument.Parse(await ResponseAsync(name));

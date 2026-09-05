@@ -396,6 +396,48 @@ export interface OutboxListResult {
 }
 
 /**
+ * `provider.detect` — settings and credential guidance for an address, so a client can pre-fill
+ * onboarding. A table lookup: no network, nothing stored.
+ */
+export interface ProviderDetectParams {
+  email: string;
+}
+
+export interface ProviderDetectResult {
+  preset: ProviderPresetDto;
+}
+
+/**
+ * What a client shows on its onboarding screen. ProviderPresetDto.Imap and
+ * ProviderPresetDto.Smtp are shaped so they can be handed to `account.add` once the human has
+ * confirmed them.
+ */
+export interface ProviderPresetDto {
+  displayName: string;
+  imap: ImapConfigDto;
+  smtp: SmtpConfigDto;
+  /** `password|appPassword|oauthOnly`. */
+  credential: string;
+  /**
+   * Where the human creates the credential. Open it with the platform's external opener; never
+   * render it as HTML.
+   */
+  credentialUrl?: string;
+  /** One line the human should read before typing a credential. */
+  advice?: string;
+  /**
+   * True when the hosts were guessed from the domain rather than known, so a client must show
+   * them as editable.
+   */
+  isGuess: boolean;
+  /**
+   * Set when the provider usually refuses an ordinary password. A warning to display, not a
+   * reason to block the attempt.
+   */
+  discouraged?: string;
+}
+
+/**
  * Machine-readable detail attached to an error so a client can branch without parsing prose.
  */
 export interface RpcErrorData {
@@ -622,6 +664,14 @@ export const AuthKinds = {
 } as const;
 export type AuthKindsValue = (typeof AuthKinds)[keyof typeof AuthKinds];
 
+/** Wire values for `Providers.CredentialStyle`: what a provider accepts as a credential. */
+export const CredentialStyles = {
+  Password: "password",
+  AppPassword: "appPassword",
+  OAuthOnly: "oauthOnly",
+} as const;
+export type CredentialStylesValue = (typeof CredentialStyles)[keyof typeof CredentialStyles];
+
 /** Wire vocabulary for server IMAP flags. Tags are a separate vocabulary. */
 export const FlagNames = {
   Unread: "unread",
@@ -707,6 +757,7 @@ export const RpcMethods = {
   Health: "health",
   AccountTest: "account.test",
   OutboxList: "outbox.list",
+  ProviderDetect: "provider.detect",
   Shutdown: "shutdown",
 } as const;
 export type RpcMethodsValue = (typeof RpcMethods)[keyof typeof RpcMethods];
@@ -806,6 +857,7 @@ export interface RpcMethodMap {
   "health": { params: HealthParams; result: HealthResult };
   "account.test": { params: AccountTestParams; result: AccountTestResult };
   "outbox.list": { params: OutboxListParams; result: OutboxListResult };
+  "provider.detect": { params: ProviderDetectParams; result: ProviderDetectResult };
   "shutdown": { params: ShutdownParams; result: ShutdownResult };
 }
 export type RpcMethodName = keyof RpcMethodMap;

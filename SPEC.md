@@ -279,6 +279,7 @@ JSON-RPC 2.0 over stdio with **`Content-Length` framing (LSP-style)** so `vscode
 | `send` | `{accountId, draftId, confirmToken}` → `{messageId}` — **rejects without a valid token**; logs to `sync_log` |
 | `watch.subscribe` | `{accountId}` → `{}`; notifications `notify.mail.added`, `notify.folder.updated`, `notify.sync.error` |
 | `stats` / `health` | `{}` → metrics (see `RELIABILITY.md`) |
+| `provider.detect` | `{email}` → `{preset}` — built-in IMAP/SMTP settings and credential guidance; pure lookup, no network |
 | `shutdown` | `{}` → `{}` |
 
 Error codes are stable and numeric (`1000` auth, `1001` network, `1002` not-found, `1003` confirm-required, `1004` store-corrupt, `1005` rate-limited). Document each in `docs/rpc.md` when introduced.
