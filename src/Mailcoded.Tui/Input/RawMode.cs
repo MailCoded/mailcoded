@@ -20,7 +20,7 @@ internal sealed class RawMode : IDisposable
         var saved = Stty("-g");
         if (string.IsNullOrWhiteSpace(saved)) return new RawMode(null);
 
-                // min 0 time 1: a read returns empty after 100ms of quiet, which is how a lone Escape is
+        // min 0 time 1: a read returns empty after 100ms of quiet, which is how a lone Escape is
         // told apart from the start of a cursor sequence.
         return Stty("raw -echo min 0 time 1") is null ? new RawMode(null) : new RawMode(saved.Trim());
     }
