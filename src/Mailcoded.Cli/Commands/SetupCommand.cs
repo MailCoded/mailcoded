@@ -384,12 +384,11 @@ internal static class SetupCommand
         };
 
         var scratch = new EphemeralSecretStore(probeRef, secret);
-        await using var provider = new ImapProvider(host.Clock, MailTransportOptions.Default);
 
         try
         {
-            await provider.ConnectAsync(config, scratch, ct).ConfigureAwait(false);
-            await provider.ListFoldersAsync(ct).ConfigureAwait(false);
+            await ImapProbe.VerifyAsync(config, scratch, host.Clock, MailTransportOptions.Default, null, ct)
+                .ConfigureAwait(false);
             return null;
         }
         catch (ProviderException ex)

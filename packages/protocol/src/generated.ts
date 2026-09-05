@@ -14,12 +14,24 @@ export interface AccountAddParams {
   imap: ImapConfigDto;
   smtp?: SmtpConfigDto;
   auth?: AuthDto;
-  /** Handle previously registered through `secret.set`. Never the credential itself. */
+  /**
+   * Opaque handle into the secret store; `secret.set` must have registered it first. Never the
+   * credential itself.
+   */
   secretRef: string;
+  /**
+   * Prove the credential with one IMAP login before writing anything. On failure the call
+   * answers 1000 or 1001 and no account is created, so a bad password leaves nothing behind.
+   */
+  verify?: boolean;
 }
 
 export interface AccountAddResult {
   accountId: number;
+  /** True when a real login proved the credential, which only happens with `verify`. */
+  verified: boolean;
+  /** Folders the probe saw, when one ran. */
+  folders?: number;
 }
 
 /**

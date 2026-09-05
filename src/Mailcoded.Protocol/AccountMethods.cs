@@ -16,8 +16,13 @@ public sealed record AccountAddParams
 
     public AuthDto Auth { get; init; } = new();
 
-    /// <summary>Handle previously registered through <c>secret.set</c>. Never the credential itself.</summary>
+    /// <summary>Opaque handle into the secret store; <c>secret.set</c> must have registered it first.
+    /// Never the credential itself.</summary>
     public required string SecretRef { get; init; }
+
+    /// <summary>Prove the credential with one IMAP login before writing anything. On failure the call
+    /// answers 1000 or 1001 and no account is created, so a bad password leaves nothing behind.</summary>
+    public bool Verify { get; init; }
 }
 
 public sealed record AuthDto
@@ -29,6 +34,12 @@ public sealed record AuthDto
 public sealed record AccountAddResult
 {
     public required long AccountId { get; init; }
+
+    /// <summary>True when a real login proved the credential, which only happens with <c>verify</c>.</summary>
+    public bool Verified { get; init; }
+
+    /// <summary>Folders the probe saw, when one ran.</summary>
+    public int? Folders { get; init; }
 }
 
 /// <summary><c>provider.detect</c> — settings and credential guidance for an address, so a client can

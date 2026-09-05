@@ -203,10 +203,20 @@ config, and never appears in an error message. Register the secret **before** `a
   "smtp": { "host": "smtp.example.com", "port": 587, "security": "startTls",
             "username": "me@example.com" },
   "auth": { "kind": "password" },
-  "secretRef": "mailcoded:me@example.com"
+  "secretRef": "mailcoded:me@example.com",
+  "verify": true
 }
 ```
-→ `{ "accountId": 1 }`
+→ `{ "accountId": 1, "verified": true, "folders": 12 }`
+
+`verify` (default `false`) opens one IMAP session with the credential under `secretRef` and lists
+folders **before** anything is written. On failure the call answers **1000** or **1001** and no
+account is created, so a mistyped app password leaves nothing to clean up — which matters because
+there is no method that removes an account. It costs one network round trip; omit it when the
+settings are already known to work.
+
+The credential stays under its `secretRef` after a failure. It is not deleted, because a ref may be
+shared with an account that is working; the next `secret.set` with the same ref overwrites it.
 
 `provider` ∈ `imap | graph | jmap | gmail`; only `imap` is implemented in v0.1 and anything else
 answers **1008**. `security` ∈ `none | sslOnConnect | startTls | startTlsWhenAvailable`.

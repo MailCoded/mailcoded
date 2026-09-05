@@ -258,23 +258,48 @@ internal sealed class RpcDispatcher
         if (string.IsNullOrWhiteSpace(request.SecretRef))
             throw new ArgumentException("secretRef is required; register the credential with secret.set first.");
 
-        var accountId = await host.Accounts.AddAsync(
-            new AddAccountRequest
-            {
-                Email = request.Email,
-                DisplayName = request.DisplayName,
-                Provider = WireMapper.ToProviderKind(request.Provider),
-                Imap = WireMapper.ToImapConfig(request.Imap),
-                Smtp = WireMapper.ToSmtpConfig(request.Smtp),
-                Auth = WireMapper.ToAuthKind(request.Auth?.Kind),
-                SecretRef = request.SecretRef,
-            },
-            Caller,
-            ct).ConfigureAwait(false);
+        var add = new AddAccountRequest
+        {
+            Email = request.Email,
+            DisplayName = request.DisplayName,
+            Provider = WireMapper.ToProviderKind(request.Provider),
+            Imap = WireMapper.ToImapConfig(request.Imap),
+            Smtp = WireMapper.ToSmtpConfig(request.Smtp),
+            Auth = WireMapper.ToAuthKind(request.Auth?.Kind),
+            SecretRef = request.SecretRef,
+        };
+
+        int? folders = request.Verify
+            ? await ProbeAsync(add, request.SecretRef, ct).ConfigureAwait(false)
+            : null;
+
+        var accountId = await host.Accounts.AddAsync(add, Caller, ct).ConfigureAwait(false);
 
         return RpcPayloads.Value(
-            new AccountAddResult { AccountId = accountId.Value },
+            new AccountAddResult { AccountId = accountId.Value, Verified = folders is not null, Folders = folders },
             ProtocolJsonContext.Default.AccountAddResult);
+    }
+
+    /// <summary>Throws before the account exists, so a refused credential leaves no row to clean up.</summary>
+    private async Task<int> ProbeAsync(AddAccountRequest add, string secretRef, CancellationToken ct)
+    {
+        var config = new AccountConfig
+        {
+            Email = add.Email,
+            Provider = add.Provider,
+            Imap = add.Imap,
+            Smtp = add.Smtp,
+            Auth = add.Auth,
+            SecretRef = secretRef,
+        };
+
+        var folders = await ImapProbe
+            .VerifyAsync(config, host.Secrets, host.Clock, MailTransportOptions.Default,
+                AccountTokenSources.For(config, host.Secrets), ct)
+            .ConfigureAwait(false);
+
+        log.Info($"account.add verified {folders} folders before writing the account.");
+        return folders;
     }
 
     private byte[] AccountList(CancellationToken ct)
