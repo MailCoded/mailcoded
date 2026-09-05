@@ -22,7 +22,12 @@ internal sealed class WatchCoordinator : IAsyncDisposable
     /// </summary>
     public const int CoalesceDelayMs = 250;
 
+    private const string NoCredential =
+        "This account has no stored credential, so it cannot sync. Add one with "
+        + "'mailcoded account reauth', or leave it as a local-only store for imported mail.";
+
     private readonly SqliteStore store;
+    private readonly AccountService accounts;
     private readonly SyncEngine sync;
     private readonly ProviderPool providers;
     private readonly ConnectionRegistry connections;
@@ -40,6 +45,7 @@ internal sealed class WatchCoordinator : IAsyncDisposable
 
     public WatchCoordinator(
         SqliteStore store,
+        AccountService accounts,
         SyncEngine sync,
         ProviderPool providers,
         ConnectionRegistry connections,
@@ -51,6 +57,7 @@ internal sealed class WatchCoordinator : IAsyncDisposable
         int maxWatchedFolders)
     {
         ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(accounts);
         ArgumentNullException.ThrowIfNull(sync);
         ArgumentNullException.ThrowIfNull(providers);
         ArgumentNullException.ThrowIfNull(connections);
@@ -59,6 +66,7 @@ internal sealed class WatchCoordinator : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(log);
 
         this.store = store;
+        this.accounts = accounts;
         this.sync = sync;
         this.providers = providers;
         this.connections = connections;
@@ -88,7 +96,7 @@ internal sealed class WatchCoordinator : IAsyncDisposable
         return false;
     }
 
-    public Task SubscribeAsync(AccountId accountId, IReadOnlyList<long> folderIds, CancellationToken ct)
+    public async Task SubscribeAsync(AccountId accountId, IReadOnlyList<long> folderIds, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(folderIds);
         ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
@@ -106,7 +114,23 @@ internal sealed class WatchCoordinator : IAsyncDisposable
                     "unsupported",
                     false,
                     Owned()));
-            return Task.CompletedTask;
+            return;
+        }
+
+        // Without a credential every connect is a guaranteed round trip to a timeout, and the
+        // reconnect policy would repeat it for the life of the daemon.
+        if (!await accounts.HasCredentialAsync(accountId, ct).ConfigureAwait(false))
+        {
+            log.Warn($"watch.subscribe for account {accountId.Value} is inert: no stored credential.");
+            PublishError(
+                accountId,
+                null,
+                new SyncErrorInfo(
+                    (int)RpcErrorCode.Auth,
+                    "auth",
+                    true,
+                    NoCredential));
+            return;
         }
 
         foreach (var folder in targets)
@@ -126,8 +150,6 @@ internal sealed class WatchCoordinator : IAsyncDisposable
             watch.Loop = Task.Run(() => RunAsync(accountId, folder, watch, watch.Cancellation.Token), CancellationToken.None);
             log.Info($"Watching folder {folder.Id.Value} of account {accountId.Value}.");
         }
-
-        return Task.CompletedTask;
     }
 
     /// <summary>Empty means the account's configured watch set; that in turn defaults to INBOX.</summary>

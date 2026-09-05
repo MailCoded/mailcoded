@@ -29,6 +29,20 @@ public sealed class DaemonLifecycleTests
         Assert.Equal(0, rig.Coordinator.LiveWatchCancellations);
     }
 
+    /// <summary>Without a credential every connect ends in the same timeout, and the reconnect policy
+    /// would repeat it for the life of the daemon. The watch must never start.</summary>
+    [Fact]
+    public async Task AnAccountWithNoCredentialIsNeverWatched()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var rig = await WatchRig.CreateAsync(ct, credentialed: false);
+
+        await rig.Coordinator.SubscribeAsync(rig.Account, [], ct);
+
+        Assert.False(rig.Coordinator.IsWatching(rig.Account));
+        Assert.Equal(0, rig.Coordinator.LiveWatchCancellations);
+    }
+
     [Fact]
     public async Task ShutdownReleasesEveryWatchCancellationExactlyOnce()
     {
@@ -60,7 +74,7 @@ public sealed class DaemonLifecycleTests
         var connections = new ConnectionRegistry(temp.Clock);
         await using var pool = new ProviderPool(
             temp.Store,
-            new NullSecretStore(),
+            new StubSecretStore(),
             connections,
             new MailTransportOptions { ConnectTimeoutMs = 2_000, RandomSeed = 7 },
             temp.Clock,
@@ -141,7 +155,7 @@ public sealed class DaemonLifecycleTests
 
         public AccountId Account { get; }
 
-        public static async Task<WatchRig> CreateAsync(CancellationToken ct)
+        public static async Task<WatchRig> CreateAsync(CancellationToken ct, bool credentialed = true)
         {
             var watched = TempStore.Create();
             var empty = TempStore.Create();
@@ -154,9 +168,12 @@ public sealed class DaemonLifecycleTests
             var audit = new AuditLog(watched.Store, watched.Clock);
             var sync = new SyncEngine(watched.Store, ReferencesThreader.Instance, watched.Clock, audit);
 
+            var secrets = new StubSecretStore(credentialed);
+            var accounts = new AccountService(watched.Store, secrets, sync, audit);
+
             var pool = new ProviderPool(
                 empty.Store,
-                new NullSecretStore(),
+                secrets,
                 connections,
                 MailTransportOptions.Default,
                 watched.Clock,
@@ -166,6 +183,7 @@ public sealed class DaemonLifecycleTests
 
             var coordinator = new WatchCoordinator(
                 watched.Store,
+                accounts,
                 sync,
                 pool,
                 connections,
@@ -190,15 +208,22 @@ public sealed class DaemonLifecycleTests
     }
 
     /// <summary>Holds nothing; the connect path under test never gets far enough to ask.</summary>
-    private sealed class NullSecretStore : ISecretStore
+    /// <summary>Answers every lookup, so the coordinator's no-credential guard is not what is under
+    /// test here. The value never leaves this class.</summary>
+    private sealed class StubSecretStore : ISecretStore
     {
-        public string BackendName => "test-null";
+        private readonly bool _answers;
+
+        public StubSecretStore(bool answers = true) => _answers = answers;
+
+        public string BackendName => "test-stub";
 
         public bool IsAvailable => true;
 
         public Task SetAsync(string secretRef, string value, CancellationToken ct) => Task.CompletedTask;
 
-        public Task<string?> GetAsync(string secretRef, CancellationToken ct) => Task.FromResult<string?>(null);
+        public Task<string?> GetAsync(string secretRef, CancellationToken ct) =>
+            Task.FromResult(_answers ? "stub" : null);
 
         public Task DeleteAsync(string secretRef, CancellationToken ct) => Task.CompletedTask;
     }

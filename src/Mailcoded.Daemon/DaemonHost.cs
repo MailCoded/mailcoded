@@ -96,6 +96,7 @@ internal sealed class DaemonHost : IAsyncDisposable
 
         watch = new WatchCoordinator(
             Store,
+            Accounts,
             Sync,
             Providers,
             Connections,
