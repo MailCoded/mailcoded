@@ -1,9 +1,9 @@
 # 11. Agents
 
-[← Contents](README.md)
+[← Contents](./)
 
 mailcoded is a mail client first; the agent surface is what falls out of having a good CLI. If you are
-going to let an AI agent at your mail, read **[docs/agents.md](../agents.md)**. It is written for the
+going to let an AI agent at your mail, read **[docs/agents.md](https://github.com/MailCoded/mailcoded/blob/main/docs/agents.md)**. It is written for the
 human making that decision and covers installing for an agent host, the default posture, how to turn
 the two off-by-default capabilities on, what is audited and where to read it, and the risk you accept.
 This chapter is the two-minute version.

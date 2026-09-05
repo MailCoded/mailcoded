@@ -5,8 +5,8 @@ installing it, adding an account, the full-screen client, every command-line ver
 to do when something goes wrong.
 
 It is deliberately not the design documentation. If you want to know *why* the daemon speaks JSON-RPC
-or how the sync planner works, start at [docs/ARCHITECTURE.md](../ARCHITECTURE.md). If you are giving
-an AI agent access to your mail, [docs/agents.md](../agents.md) is the document for you; chapter 11
+or how the sync planner works, start at [docs/ARCHITECTURE.md](https://github.com/MailCoded/mailcoded/blob/main/docs/ARCHITECTURE.md). If you are giving
+an AI agent access to your mail, [docs/agents.md](https://github.com/MailCoded/mailcoded/blob/main/docs/agents.md) is the document for you; chapter 11
 here only points at it.
 
 Everything in this manual was checked against **mailcoded 0.1.0, protocol 1**, on 2026-09-06, by

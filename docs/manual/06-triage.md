@@ -1,6 +1,6 @@
 # 6. Triage
 
-[← Contents](README.md)
+[← Contents](./)
 
 ## Tags and Flags
 

@@ -1,6 +1,6 @@
 # 4. The terminal client
 
-[← Contents](README.md)
+[← Contents](./)
 
     mailcoded tui
 
@@ -11,7 +11,7 @@ clickable.
 
 Unlike every other verb, `tui` does not run in the CLI's process. It starts `mailcoded-daemon` and
 talks to it over JSON-RPC, exactly as a third-party client would. That is deliberate: it is what makes
-the TUI the worked example behind [docs/rpc.md](../rpc.md). It never asks the daemon for HTML — a
+the TUI the worked example behind [docs/rpc.md](https://github.com/MailCoded/mailcoded/blob/main/docs/rpc.md). It never asks the daemon for HTML — a
 terminal has no sandbox — so what you read is the plaintext part of each message.
 
 ## Starting it

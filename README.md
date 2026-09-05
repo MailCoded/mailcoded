@@ -343,7 +343,7 @@ What has actually been run against the real binaries, and what has not: [docs/ve
 
 | | |
 |---|---|
-| [docs/manual/](docs/manual/README.md) | **the user manual**: installing, accounts, the terminal client, every verb, troubleshooting |
+| [docs/manual/](docs/manual/README.md) | **the user manual**: installing, accounts, the terminal client, every verb, troubleshooting. Published at [mailcoded.github.io/mailcoded](https://mailcoded.github.io/mailcoded/) |
 | [SPEC.md](SPEC.md) | the executable specification |
 | [docs/rpc.md](docs/rpc.md) | JSON-RPC reference: methods, framing, error codes |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | layering, dependency direction, error policy |

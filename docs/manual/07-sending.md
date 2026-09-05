@@ -1,6 +1,6 @@
 # 7. Sending
 
-[← Contents](README.md)
+[← Contents](./)
 
 Sending is two-phase everywhere — the TUI, the CLI and the MCP server — because a mail tool that can
 be scripted can be scripted into sending the wrong thing:

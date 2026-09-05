@@ -1,0 +1,19 @@
+[book]
+title = "The mailcoded manual"
+authors = ["mailcoded"]
+language = "en"
+src = "docs/manual"
+
+[build]
+build-dir = "build/manual"
+create-missing = false
+
+[output.html]
+site-url = "/mailcoded/"
+git-repository-url = "https://github.com/MailCoded/mailcoded"
+edit-url-template = "https://github.com/MailCoded/mailcoded/edit/main/docs/manual/{path}"
+default-theme = "light"
+preferred-dark-theme = "navy"
+
+[output.html.search]
+limit-results = 20

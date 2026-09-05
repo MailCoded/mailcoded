@@ -24,3 +24,6 @@ node_modules/
 /.zprofile
 /.zshrc
 /.claude/
+
+# mdBook output for docs/manual
+/build/

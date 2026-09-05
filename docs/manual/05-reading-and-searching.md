@@ -1,6 +1,6 @@
 # 5. Reading and searching from the command line
 
-[← Contents](README.md)
+[← Contents](./)
 
 Every verb here reads the local store and prints for a human; add `--json` and it prints a document
 your scripts can rely on. Nothing in this chapter changes your mail, and only `read` and

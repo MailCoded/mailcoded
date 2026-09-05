@@ -1,6 +1,6 @@
 # 10. Importing mail and raw SQL
 
-[← Contents](README.md)
+[← Contents](./)
 
 ## `import-eml`
 

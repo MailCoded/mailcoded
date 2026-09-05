@@ -1,6 +1,6 @@
 # 14. Reference
 
-[← Contents](README.md)
+[← Contents](./)
 
 ## Environment variables
 

@@ -1,6 +1,6 @@
 # 1. Installing
 
-[← Contents](README.md)
+[← Contents](./)
 
 There are no release binaries yet. You build from source, and the installer puts four commands on your
 PATH. The first time takes a few minutes, because Native AOT compilation is slow; after that it is a

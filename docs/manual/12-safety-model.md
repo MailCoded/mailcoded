@@ -1,6 +1,6 @@
 # 12. The safety model, in plain terms
 
-[← Contents](README.md)
+[← Contents](./)
 
 The design documents state these as invariants. This is what they mean for you.
 
@@ -63,6 +63,6 @@ Honest limits:
 - The store is a file on your disk with your user's permissions. Anyone who can read it can read your
   mail and your audit trail.
 - An agent you give read access to can read everything, one query at a time. mailcoded narrows what an
-  agent can *do*, not what it can *see*. See [docs/agents.md](../agents.md).
+  agent can *do*, not what it can *see*. See [docs/agents.md](https://github.com/MailCoded/mailcoded/blob/main/docs/agents.md).
 - The Microsoft sign-in currently borrows a public client registration (chapter 2). The consent screen
   names another application, and that registration is outside this project's control.

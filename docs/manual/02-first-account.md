@@ -1,6 +1,6 @@
 # 2. Your first account
 
-[← Contents](README.md)
+[← Contents](./)
 
     mailcoded setup
 

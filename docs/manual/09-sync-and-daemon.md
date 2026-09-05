@@ -1,6 +1,6 @@
 # 9. Sync and the daemon
 
-[← Contents](README.md)
+[← Contents](./)
 
 ## `sync`
 
@@ -68,5 +68,5 @@ command line and exits, which is a handy way to poke at it:
     mailcoded-daemon --one-shot account.list
 
 The protocol — every method, notification, framing rule and error code — is in
-[docs/rpc.md](../rpc.md). The TUI is its reference client; `MAILCODED_DAEMON=<path>` tells the TUI
+[docs/rpc.md](https://github.com/MailCoded/mailcoded/blob/main/docs/rpc.md). The TUI is its reference client; `MAILCODED_DAEMON=<path>` tells the TUI
 which daemon executable to start, otherwise it looks beside itself, then on PATH.

@@ -1,6 +1,6 @@
 # 3. Where your mail lives
 
-[← Contents](README.md)
+[← Contents](./)
 
 mailcoded keeps everything in one **data directory**:
 

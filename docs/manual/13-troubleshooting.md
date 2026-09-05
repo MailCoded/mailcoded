@@ -1,6 +1,6 @@
 # 13. Troubleshooting
 
-[← Contents](README.md)
+[← Contents](./)
 
 Start with these three; between them they explain most problems:
 

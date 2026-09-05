@@ -1,6 +1,6 @@
 # 8. Accounts
 
-[← Contents](README.md)
+[← Contents](./)
 
     mailcoded account list
     mailcoded account test    [--account <id|email>] [--no-smtp]
