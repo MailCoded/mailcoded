@@ -48,6 +48,10 @@ registered with `--no-password`, or the local account `import-eml` creates — t
 
 rather than retrying a login that can never succeed.
 
+The same guard covers every other path. An explicit `sync`, a body fetch, or `account test` on an
+account with no credential is refused before the socket is opened, so it answers in milliseconds with
+`auth (1000)` instead of spending a full connect timeout to arrive at the same place.
+
 ## Connections, retries and backoff
 
 Every connection is attempted over IPv4 and IPv6 in parallel and the first to answer wins, so a broken

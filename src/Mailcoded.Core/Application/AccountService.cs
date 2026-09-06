@@ -146,13 +146,7 @@ public sealed class AccountService
         var account = _store.GetAccount(accountId, ct);
         if (account is null) return false;
 
-        // An OAuth account holds no password; its credential is the token cache beside the ref.
-        var reference = account.Auth == AuthKind.OAuth2
-            ? OAuthOptions.CacheRefFor(account.SecretRef)
-            : account.SecretRef;
-
-        var value = await _secrets.GetAsync(reference, ct).ConfigureAwait(false);
-        return !string.IsNullOrEmpty(value);
+        return await AccountCredentials.ExistsAsync(account, _secrets, ct).ConfigureAwait(false);
     }
 
     public IReadOnlyList<AccountSummary> List(CancellationToken ct = default)

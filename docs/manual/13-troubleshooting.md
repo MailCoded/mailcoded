@@ -37,8 +37,9 @@ connection test.
 
 | You see | It means | Do |
 |---|---|---|
-| `sync: Timed out connecting to <host>:<port>.` | nothing answered at that address | a wrong host, a firewall, or the import-only account (chapter 10) |
-| `This account has no stored credential, so it cannot sync. ...` | the account was registered without a credential, or is the local import account | `mailcoded account reauth --account <id>`, or leave it |
+| `sync: Timed out connecting to <host>:<port>.` | nothing answered at that address | a wrong host or a firewall. An account with no credential is refused before this point, so a timeout means the settings are wrong rather than the credential |
+| `This account has no stored credential, so it cannot sync. ...` | watching an account registered without a credential, or the local import account | `mailcoded account reauth --account <id>`, or leave it |
+| `auth (1000): No stored credential for <address>.` | the same account, on an explicit `sync`, `read` or `account test` | as above. It is refused before the connection is attempted, so it fails at once rather than after a timeout |
 | `Live updates belong to another mailcoded window; press r to refresh here.` | another daemon owns this store's live connections | normal with two TUI windows; `r` refreshes (chapter 9) |
 | `Another live daemon (pid N) owns this store; watch connections stay closed here.` (stderr) | the same, from the daemon's side | |
 | any other red `sync: ...` | the server refused, or failed | `A` or `account test` for the detail; `S` for the last error |

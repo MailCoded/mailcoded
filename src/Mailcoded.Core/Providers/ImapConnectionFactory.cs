@@ -36,6 +36,15 @@ internal static class ImapConnectionFactory
         ArgumentNullException.ThrowIfNull(secrets);
         ArgumentNullException.ThrowIfNull(options);
 
+        // Without a credential the session can only end at AUTHENTICATE, so the wait is spent
+        // before the socket rather than after a full connect timeout.
+        if (!await AccountCredentials.ExistsAsync(cfg, secrets, ct).ConfigureAwait(false))
+        {
+            throw new ProviderException(
+                FailureCategory.Auth,
+                $"No stored credential for {cfg.Email}. Add one with 'mailcoded account reauth'.");
+        }
+
         var client = new ImapClient
         {
             Timeout = options.CommandTimeoutMs,
