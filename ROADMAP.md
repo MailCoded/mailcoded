@@ -11,7 +11,7 @@ This roadmap signals direction, not dates. Order and scope change based on real 
 | **mailcoded** (CLI) | In-process CLI over the engine; the agent surface | 🟡 In progress |
 | `mailcoded-tui` | Reference client over JSON-RPC; not a supported product | 🟡 In progress |
 | **mailcoded for VS Code** | Read, search, and triage mail in your editor | 🟡 In progress |
-| MCP adapter | `mailcoded --mcp` for agent hosts without a shell | ⚪ Planned (M5) |
+| MCP adapter | `mailcoded-mcp`, a separate binary for agent hosts without a shell | 🟢 Builds and answers |
 | Microsoft Graph provider | Work mail after the EWS shutdown | ⚪ Planned (v0.2) |
 | HTTP / socket API | `mailcoded --listen` — unlocks every other client | ⚪ Planned (v0.2) |
 | Obsidian plugin | Email in your PKM vault | ⚪ Planned (v0.3) |

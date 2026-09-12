@@ -151,8 +151,10 @@ grew the database to ~750 MB. On that evidence an approximate index is premature
 p95 gate above remains a target until the bench harness runs.
 
 The encoder is written out in C# rather than taken as a dependency, for size: ONNX Runtime's
-`libonnxruntime.so` is 28,985,152 bytes against the ~1.8 MiB of headroom the largest shipped
-binary now has (docs/DEPENDENCIES.md) — over the gate by more than an order of magnitude. The one figure here that
+`libonnxruntime.so` is 28,985,152 bytes — 27.64 MiB. It would ride with `mailcoded-daemon`, the
+largest Native AOT binary at 16.25 MiB, which leaves 3.75 MiB before the 20 MB gate. The library
+alone is 7.4x that headroom; the pair comes to 43.9 MiB, which is 11.7x the headroom and more than
+twice the gate itself. The one figure here that
 *is* a measurement, because it is a byte count of a published binary rather than a timing, is the
 encoder's cost in the AOT daemon: **158,000 bytes**, or 0.9% of the binary, against a 400 KB
 sidecar trigger. It is 3.5x the 45,144 B the design estimated, because ILC deltas are not additive.

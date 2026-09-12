@@ -39,8 +39,8 @@ install -m 0755 src/Mailcoded.Cli/bin/Release/net10.0/linux-x64/publish/mailcode
 mailcoded help
 ```
 
-Use the runtime identifier for your machine (`osx-arm64`, `win-x64`, …). The CLI is a
-single AOT binary with no runtime dependency; putting it on `PATH` is the whole install.
+Use the runtime identifier for your machine (`osx-arm64`, `win-x64`, …). The CLI is AOT and needs
+no .NET runtime, but it is not one file: copy `libe_sqlite3.so` beside it or it will not start.
 
 Then set up an account and confirm the store answers:
 

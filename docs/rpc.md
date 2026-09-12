@@ -728,9 +728,10 @@ engine, and do not assume the MCP surface will reject an oversized body — it w
 `mailcoded` (CLI) and `mailcoded-mcp` run in process against the engine.
 
 It references `Mailcoded.Protocol` and nothing else: not the engine, not MailKit, not SQLite. An
-architecture test enforces that, and the size difference is the evidence — 5.90 MiB against the
-CLI's 15.53 MiB, both Native AOT on linux-x64, measured 2026-09-12. Whatever a third-party client needs is therefore in
-`Mailcoded.Protocol`, because the TUI compiles without anything else.
+architecture test enforces that, and the size difference is the evidence: `mailcoded-tui` is
+5.90 MiB where `mailcoded` is 15.53 MiB, both Native AOT on linux-x64, measured 2026-09-12.
+Whatever a third-party client needs is therefore in `Mailcoded.Protocol`, because the TUI compiles
+without anything else.
 
 The reusable half lives in `src/Mailcoded.Protocol/Client/`:
 

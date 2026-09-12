@@ -48,22 +48,82 @@ public sealed class DocumentationTests
         Assert.Contains("[LICENSE](LICENSE)", readme, StringComparison.Ordinal);
     }
 
-    /// <summary>Pinning one literal here would freeze a number that is meant to be re-measured, and
-    /// would not notice the two documents drifting apart. DEPENDENCIES is the normative size doc, so
-    /// the README has to quote whatever it currently records.</summary>
+    /// <summary>DEPENDENCIES is the normative size doc; every other document must quote what it
+    /// records for the same binary, and a frozen literal would go stale on the next measurement.</summary>
     [Fact]
-    public void Readme_claims_no_single_binary_and_the_size_DEPENDENCIES_measured()
+    public void Readme_claims_no_single_binary_and_every_doc_quotes_the_measured_sizes()
     {
         var readme = Read("README.md");
         var dependencies = Read("docs/DEPENDENCIES.md");
 
-        Assert.DoesNotContain("single-file", readme, StringComparison.OrdinalIgnoreCase);
+        foreach (var phrase in new[] { "single-file", "single binary with", "one file" })
+            Assert.DoesNotContain(phrase, readme, StringComparison.OrdinalIgnoreCase);
+
         Assert.Contains("not a single binary", readme, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("libe_sqlite3.so", readme, StringComparison.Ordinal);
 
-        var measured = Regex.Match(dependencies, @"`mailcoded-daemon`\s*\*\*([\d.]+\s*MiB)\*\*");
-        Assert.True(measured.Success, "docs/DEPENDENCIES.md no longer records a measured daemon size.");
-        Assert.Contains(measured.Groups[1].Value, readme, StringComparison.Ordinal);
+        var quoted = new[]
+        {
+            ("mailcoded-daemon", new[] { "README.md", "docs/manual/01-install.md" }),
+            ("mailcoded", new[] { "README.md", "docs/rpc.md", "docs/manual/01-install.md" }),
+            ("mailcoded-tui", new[] { "README.md", "docs/rpc.md", "docs/manual/01-install.md" }),
+            ("mailcoded-mcp", new[] { "README.md", "docs/manual/01-install.md" }),
+        };
+
+        var measured = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (binary, _) in quoted) measured[binary] = MeasuredSize(dependencies, binary);
+
+        foreach (var (binary, quotedBy) in quoted)
+        {
+            foreach (var document in quotedBy)
+                AssertAttributes(Read(document), document, binary, measured[binary], measured.Values);
+        }
+    }
+
+    /// <summary>The first size *after* the name, not merely one nearby: every document writes
+    /// "`name` size", and a window test passes even when two binaries' sizes are swapped.</summary>
+    private static void AssertAttributes(
+        string document,
+        string path,
+        string binary,
+        string size,
+        IReadOnlyCollection<string> everySize)
+    {
+        const int SameSentence = 160;
+        var stated = false;
+
+        foreach (Match mention in Regex.Matches(document, Regex.Escape(binary) + "(?![-\\w])"))
+        {
+            var nearest = string.Empty;
+            var distance = int.MaxValue;
+            var after = mention.Index + mention.Length;
+
+            foreach (var candidate in everySize)
+            {
+                var at = document.IndexOf(candidate, after, StringComparison.Ordinal);
+                if (at < 0 || at - after >= distance) continue;
+                distance = at - after;
+                nearest = candidate;
+            }
+
+            if (distance > SameSentence) continue;
+
+            Assert.True(
+                string.Equals(nearest, size, StringComparison.Ordinal),
+                $"{path} puts {nearest} next to {binary}, which docs/DEPENDENCIES.md measures at {size}.");
+            stated = true;
+        }
+
+        Assert.True(stated, $"{path} never states {binary}'s measured size of {size}.");
+    }
+
+    /// <summary>Newlines are normalized away first: a paragraph reflow must not fail this.</summary>
+    private static string MeasuredSize(string dependencies, string binary)
+    {
+        var flat = Regex.Replace(dependencies, @"\s+", " ");
+        var measured = Regex.Match(flat, $@"`{Regex.Escape(binary)}`(?![-\w])[^*]{{0,40}}?\*\*([\d.]+ MiB)\*\*");
+        Assert.True(measured.Success, $"docs/DEPENDENCIES.md no longer records a measured size for {binary}.");
+        return measured.Groups[1].Value;
     }
 
     [Fact]

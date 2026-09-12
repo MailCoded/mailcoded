@@ -21,9 +21,9 @@ produced 16 confirmed defects, all since fixed with regression tests. The store 
 | Native AOT | `dotnet publish -r linux-x64 -p:PublishAot=true`, daemon and CLI | 16.25 MiB / 15.53 MiB, **zero IL2xxx/IL3xxx warnings**; both under the 20 MB fail gate, both over the 12 MB warning |
 | Size gate | `scripts/size-gate.sh` over the publish directory | every file counted, incl. `libe_sqlite3.so` (1.40 MiB); a 29 MB decoy library fails the gate |
 | Encoder AOT cost | byte count of the published daemon with and without the encoder reachable | **+158,000 bytes** (0.9%); 3.5x the design's 45,144 B estimate |
-| AOT runtime | the AOT **CLI** imported all 35 fixtures and ran FTS, CJK-trigram, short-CJK `LIKE` and metadata search | identical results to the JIT build — MimeKit and SQLitePCLRaw survive trimming |
+| AOT runtime | the AOT **CLI** imported all 37 fixtures and ran FTS, CJK-trigram, short-CJK `LIKE` and metadata search | identical results to the JIT build — MimeKit and SQLitePCLRaw survive trimming |
 | Daemon stdio | `scripts/aot-smoke.sh` plus a pipelined 4-request session | `initialize`, `account.list`, `folder.list`, `stats`, `health`, `shutdown` all answered; framing correct |
-| FTS5 assertion | startup check against `PRAGMA compile_options` | present; store opens at `user_version` 4 |
+| FTS5 assertion | startup check against `PRAGMA compile_options` | present; a fresh store opens at `user_version` 8 |
 | MIME corpus | `mailcoded import-eml fixtures/eml` | 37/37 imported, **0 failures** |
 | Migration 008 | fresh store, and store at v7 | reaches `user_version` 8; `msg_vec`, `vec_model` present; account forget cascades to `msg_vec` |
 | Semantic pipeline | synthetic random-weight model in `<data>/model`; daemon in stdio mode; then CLI | daemon logged the model and `capabilities.semantic: true`; backfill wrote 37/37 vectors in the background; `search 'invoice' --meaning` returned `semantic: true` with the lexical hit still ranked first; `vec_model` row count unchanged after the CLI (it attaches read-only) |
@@ -60,7 +60,7 @@ produced 16 confirmed defects, all since fixed with regression tests. The store 
 | `setup` failure path | same, with an unreachable host | reported the host:port that failed with actionable hints and saved **nothing** — no account, no stored credential |
 | `setup` guidance | `me@gmail.com` and `me@outlook.com` | Gmail showed the app-password requirement and link *before* prompting; Outlook stopped with the basic-auth explanation instead of failing at login |
 | `setup` in a script | piped stdin | refuses with a pointer to `account add --password-stdin`, rather than hanging on a prompt |
-| **Install** | `scripts/install.sh` into `~/.local`, then the commands used from PATH with no `--db` | all three commands resolve; `mailcoded import-eml` + `search` work against the default store at `~/.local/share/mailcoded` |
+| **Install** | `scripts/install.sh` into `~/.local`, then the commands used from PATH with no `--db` | all four commands resolve; `mailcoded import-eml` + `search` work against the default store at `~/.local/share/mailcoded` |
 | Install guard | planted a `store.db` where the payload goes, then reinstalled and uninstalled | both refused and the file survived — `$PREFIX/share/mailcoded` **is** the Linux store path, so the payload lives in `libexec` instead |
 | Symlink resolution | AOT binary symlinked into a directory with no `libe_sqlite3.so` | works (resolves via `/proc/self/exe`); a bare copy without the library fails, which is why the installer symlinks rather than copies |
 
@@ -75,7 +75,7 @@ hardware, or the other two OS legs, none of which were available here.
 | **M1** Store + MIME | met | — |
 | **M2** IMAP sync + send | mostly met | Dovecot and smtp4dev now run (5 tests): the QRESYNC/CONDSTORE arms and the 5k-message timing are still unrun |
 | **M3** Daemon + secrets + extension skeleton | backend met | the Windows/macOS keyrings are untested; the VS Code extension is a separate repository this record does not cover |
-| **M4** Read/act/compose in the extension | not started | the extension is a separate repository |
+| **M4** Read/act/compose in the extension | partly, elsewhere | reading, search and the sandboxed reader exist in the extension's own repository; compose and send do not. Nothing here tests it |
 | **M-perf** | harness only | benchmarks never run; `baseline.json` is zeros on purpose |
 | **M5** Polish + agents + packaging | agent surface met | `vsce`/Open VSX packaging, screenshots, and the release tag are human steps |
 | **M-chaos / M-soak** | not started | no Toxiproxy run, no 24h soak |
@@ -89,7 +89,7 @@ hardware, or the other two OS legs, none of which were available here.
   PERFORMANCE §15.2 is a target, not a measurement.
 - **QRESYNC and CONDSTORE delta paths.** The local test server advertises neither, so only the
   full-diff arm has executed. The planner's delta arms are covered by unit tests, not by a server.
-- **`MOVE`**, and the 5k-message sync timing. An external `APPEND` producing `notify.mail.added` is covered by the Dovecot suite.
+- **`MOVE`**, and the 5k-message sync timing.
 - **The Windows and macOS keyring backends.** Only `EncryptedFileStore` and the libsecret
   *unavailable* path ran here. The macOS and libsecret interop needs a smoke test on real hardware.
 - **Search-by-meaning quality.** The pipeline runs end to end (above), but only against a model

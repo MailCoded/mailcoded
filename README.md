@@ -16,7 +16,7 @@ for search-by-meaning if you ask it to, but no model is pinned yet, so today it 
 
 > **Status: pre-release.** The backend (Core, daemon, CLI, MCP adapter) builds and runs. There is
 > no tagged release and no published binary yet, so everything below builds from source. The VS
-> Code extension is not built yet. See [Known gaps](#known-gaps).
+> Code extension is unreleased and lives in its own repository. See [Known gaps](#known-gaps).
 
 ## It's a sidecar, not a migration
 
@@ -72,16 +72,25 @@ dotnet publish src/Mailcoded.Daemon -c Release -r linux-x64 /p:PublishAot=true
 ```
 
 It is **not a single binary**, and nothing here should call it one. Sizes come from the publish
-output rather than an estimate: on 2026-09-12 the linux-x64 Release AOT binaries measured
-**16.25 MiB** (daemon), **15.53 MiB** (CLI), **18.23 MiB** (MCP adapter) and **5.90 MiB** (TUI),
-all with **zero trim or AOT warnings**. Each ships alongside `libe_sqlite3.so` (1.40 MiB) and will
-not start without it. Desktop RIDs get only the shared
-library from the SQLite native package — there is no static `e_sqlite3.a` to link — so distribute
-the pair. Details in [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).
+output rather than an estimate, measured 2026-09-12 on linux-x64:
+
+| Binary | Size | Build |
+|---|---|---|
+| `mailcoded-daemon` | **16.25 MiB** | Native AOT, zero trim or AOT warnings |
+| `mailcoded` (CLI) | **15.53 MiB** | Native AOT, zero trim or AOT warnings |
+| `mailcoded-tui` | **5.90 MiB** | Native AOT, zero trim or AOT warnings |
+| `mailcoded-mcp` | **64.11 MiB** | framework-dependent; needs the .NET runtime |
+
+The MCP adapter is the odd one out because its SDK is not annotated for trimming, so it cannot be
+compiled AOT. Most of its bulk is a `runtimes/` tree carrying SQLite natives for thirty platforms,
+because a runtime-independent publish cannot know which one it will run on. Each AOT binary ships alongside `libe_sqlite3.so` (1.40 MiB) and will not start without
+it. Desktop RIDs get only the shared library from the SQLite native package — there is no static
+`e_sqlite3.a` to link — so distribute the pair. Details in
+[docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).
 
 ## Quick start
 
-Steps 1 and 2 are verified working against this tree — all 35 bundled fixtures import with zero
+Steps 1 and 2 are verified working against this tree — all 37 bundled fixtures import with zero
 failures, and the search examples return hits. The rest are the documented verbs; run
 `mailcoded help <verb>` for the authoritative arguments.
 
@@ -229,7 +238,7 @@ Design and rationale: [docs/AGENT-INTERFACE.md](docs/AGENT-INTERFACE.md).
 - `message.get` returns `bodyHtml` **raw and unsanitized** — sanitizing it is the client's job,
   because only the client knows its rendering context. See the warning in
   [docs/rpc.md](docs/rpc.md).
-- The planned VS Code reader renders HTML only inside a sandboxed webview, after DOMPurify, under
+- The VS Code reader renders HTML only inside a sandboxed webview, after DOMPurify, under
   a CSP with **no remote origins**. Remote images — including tracking pixels — are blocked by
   default with a per-message opt-in.
 - No S/MIME, no PGP, no BouncyCastle anywhere in the tree.
@@ -335,8 +344,9 @@ Stated plainly, because these are the things you would otherwise discover on day
 - **No PGP and no S/MIME.** Out of scope, and deliberately excluded from the Native AOT path.
 - **IMAP only in v0.1.** Microsoft Graph — the durable path for work mail once EWS is disabled on
   1 Oct 2026 — is planned for v0.2, along with Gmail OAuth2.
-- **The VS Code extension is not built yet.** The daemon, its protocol, and the CLI exist; the
-  extension is the next milestone and ships from a separate repository.
+- **The VS Code extension is unreleased and lives in a separate repository.** It reads mail there —
+  sidebar, message list, sandboxed reader, search — but it has no account setup and no compose or
+  send, there is no VSIX on any marketplace, and nothing in this repository tests it.
 - **Search-by-meaning is built but unproven.** The encoder, the vector store, the background
   backfill and the rank fusion all exist and run end to end. But **no model is pinned** — the
   installer ships with an empty URL and checksum and refuses to download until a human has read a

@@ -33,11 +33,12 @@ usage: scripts/install.sh [--prefix DIR] [--rid RID] [--no-aot] [--with-model] [
 
   --prefix DIR   install root (default: \$HOME/.local, or \$PREFIX)
   --rid RID      target runtime identifier (default: this machine's)
-  --no-aot       install the framework-dependent build instead of publishing Native AOT.
-                 Much faster to install; needs the .NET runtime present to run.
-  --with-model   download the embedding model that lets search find a message by what it is
-                 about, not only which words it used. This is the only network access this
-                 script makes, it is off by default, and search works without it.
+  --no-aot       build every command framework-dependent instead of publishing Native AOT.
+                 Much faster to install, and then all of them need the .NET runtime. Note that
+                 mailcoded-mcp is framework-dependent either way.
+  --with-model   download the embedding model search-by-meaning needs. No model is pinned yet,
+                 so today this prints why and installs nothing. When one is pinned it will ask
+                 first, print the licence and verify a checksum. Search works without it.
   --uninstall    remove the symlinks and the payload directory
 USAGE
 }
