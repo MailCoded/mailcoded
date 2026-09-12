@@ -28,7 +28,10 @@ Full-text over subject, sender, recipients and body, plus structured predicates.
 | `before:2026-01-31`, `after:2026-01-01`, `since:2026-01-01` | strictly earlier; at or after. ISO dates |
 | `-term`, `-tag:spam`, `not term` | negation |
 
-Terms are combined with AND. `OR` is not supported; it is reported in `errors` and skipped. A query is
+Terms are combined with AND, and if nothing matches every word the search is retried once with OR
+rather than answering nothing. You will see a line saying so above the hits, and `relaxed: true` in
+the JSON. Ranking does the rest: a message matching every word still comes first. `OR` is not
+something you can type; typing it is reported in `errors` and skipped. A query is
 capped at 64 terms and 4096 characters. A malformed query never fails: the parser reports what it could
 not read and searches with the rest, so look at `errors` in the JSON when a result seems thin.
 
@@ -44,6 +47,18 @@ two-character terms.
 The first column is the message id the other verbs take. Latin-script text queries come back by
 relevance; Chinese, Japanese and Korean text, and queries with no text at all, always come back newest
 first. `--order date` asks for newest first explicitly.
+
+Relevance weighs a hit in the subject far above the same word in a body, so a message whose subject
+names what you are looking for wins over one that merely repeats the word. A hit in the sender
+address counts for more than one in a body, and less than one in a subject.
+
+    $ mailcoded search 'invoice roof'
+    ~ nothing matched every word, so these match some of them, best first.
+          14  2025-01-19T08:00:00.000Z  [unread]  accounts@example.com
+              Invoice 4471
+         304  2026-09-06T05:17:41.000Z  [-]  "Freelancer" <noreply@notifications...>
+              Andrew, these PHP, HTML, and JavaScript projects and contests might interest you
+    2 hit(s), truncated=false
 
 **Paging.** `--limit` is 1 to 200, default 50. When there is more, the human output ends with the
 exact command to continue —

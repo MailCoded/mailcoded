@@ -58,6 +58,27 @@ public sealed record SearchQuery
     /// <summary>MATCH expression for msg_fts_cjk, or null when no CJK term was given.</summary>
     public string? CjkMatchExpression { get; init; }
 
+    /// <summary>The same positive Latin terms joined with OR instead of AND, or null when there is
+    /// nothing to relax: fewer than two terms, so OR would ask exactly what AND already asked.
+    /// Ranking is what makes this useful — a document matching every term still sorts first.</summary>
+    public string? RelaxedLatinMatchExpression { get; init; }
+
+    /// <summary>As <see cref="RelaxedLatinMatchExpression"/>, for the CJK trigram index.</summary>
+    public string? RelaxedCjkMatchExpression { get; init; }
+
+    /// <summary>Whether a second, wider attempt exists for this query.</summary>
+    public bool CanRelax => RelaxedLatinMatchExpression is not null || RelaxedCjkMatchExpression is not null;
+
+    /// <summary>This query with the wider match expressions in place of the strict ones.</summary>
+    public SearchQuery Relaxed() =>
+        this with
+        {
+            LatinMatchExpression = RelaxedLatinMatchExpression ?? LatinMatchExpression,
+            CjkMatchExpression = RelaxedCjkMatchExpression ?? CjkMatchExpression,
+            RelaxedLatinMatchExpression = null,
+            RelaxedCjkMatchExpression = null,
+        };
+
     /// <summary>Patterns for the LIKE fallback, bound with <c>ESCAPE '\'</c>.</summary>
     public IReadOnlyList<string> LikePatterns { get; init; } = [];
 

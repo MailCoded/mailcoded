@@ -219,12 +219,33 @@ public sealed partial class SqliteStore
         if (withSnippet) sql.Append(" LEFT JOIN body_text b ON b.message_id = m.id");
         if (where.Length > 0) sql.Append(" WHERE ").Append(where);
 
-        sql.Append(relevance ? " ORDER BY rank" : " ORDER BY m.date_utc DESC, m.id DESC");
+        sql.Append(relevance ? RelevanceOrder(route) : " ORDER BY m.date_utc DESC, m.id DESC");
         sql.Append(" LIMIT ").Append(limitName);
         if (offsetName is not null) sql.Append(" OFFSET ").Append(offsetName);
 
         return sql.ToString();
     }
+
+    /// <summary>
+    /// Field weights for bm25, in the column order the FTS tables declare. Bare <c>ORDER BY rank</c>
+    /// weights every column at 1.0, so a term in a signature footer counted as much as the same term
+    /// in the subject line. bm25 returns a negative score where more negative is a better match, so
+    /// ascending order still puts the best hit first, exactly as <c>rank</c> did.
+    /// </summary>
+    /// Measured rather than chosen by taste, on a 43-document corpus where 3 documents match: with
+    /// the subject at 10 a body repeating the term twenty times still edged out a subject naming it
+    /// (-4.995 against -4.947). Twenty is where the principle holds — a subject that names the topic
+    /// outranks a body that merely repeats the word — and a body mentioning it once stays last.
+    private const string FtsWeights = "20.0, 1.0, 3.0, 1.0";  // subject, body_text, from_addr, to_addr
+
+    private const string CjkWeights = "20.0, 1.0";            // subject, body_text
+
+    private static string RelevanceOrder(SearchRoute route) => route switch
+    {
+        SearchRoute.Fts => $" ORDER BY bm25(msg_fts, {FtsWeights})",
+        SearchRoute.Cjk => $" ORDER BY bm25(msg_fts_cjk, {CjkWeights})",
+        _ => " ORDER BY m.date_utc DESC, m.id DESC",
+    };
 
     private static IReadOnlyList<string> SnippetNeedles(ParsedQuery query)
     {

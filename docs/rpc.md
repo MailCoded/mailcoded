@@ -258,7 +258,13 @@ recipients, body), `"quoted phrases"`, `from:`, `to:`, `cc:`, `subject:`, `tag:`
 `-` negation.
 
 - `limit` defaults to **50** and is clamped to **200**. `limit: 0` or absent means the default.
-- `order` ∈ `relevance | date`; relevance is the default for text queries.
+- `order` ∈ `relevance | date`; relevance is the default for text queries. Relevance is BM25 with
+  per-column weights — subject 20, sender 3, recipient 1, body 1 — so a term in a subject outranks
+  the same term in a body.
+- Terms are combined with AND. When that matches **nothing**, and the query has two or more terms,
+  and no `cursor` was given, the daemon retries once with the same terms joined by OR. The reply is
+  otherwise unchanged; a client that shows the hits should tell the user they are partial matches.
+  A cursor never widens, so page two keeps asking page one's question.
 - `cursor` is an **opaque keyset cursor** — pass `nextCursor` back verbatim, never construct or
   decode one. Paging is keyset seek; there is no offset parameter and there never will be.
 - `truncated` on `search` is the **strong** meaning: with a non-null `nextCursor` it just says

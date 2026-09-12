@@ -96,7 +96,8 @@ public static class SearchQueryParser
                 {
                     errors.Add(new SearchParseError(
                         SearchParseErrorKind.UnsupportedOperator,
-                        "OR is not supported; terms are combined with AND.",
+                        "OR is not an operator you can type; terms are combined with AND, and a "
+                            + "query that matches nothing is retried with OR automatically.",
                         start,
                         Excerpt(word)));
                     continue;
@@ -147,6 +148,8 @@ public static class SearchQueryParser
             Terms = terms,
             LatinMatchExpression = latin.Count == 0 ? null : string.Join(" AND ", latin),
             CjkMatchExpression = cjk.Count == 0 ? null : string.Join(" AND ", cjk),
+            RelaxedLatinMatchExpression = latin.Count < 2 ? null : string.Join(" OR ", latin),
+            RelaxedCjkMatchExpression = cjk.Count < 2 ? null : string.Join(" OR ", cjk),
             LikePatterns = like,
             NegatedLatinMatchExpression = negatedLatin.Count == 0 ? null : string.Join(" OR ", negatedLatin),
             NegatedCjkMatchExpression = negatedCjk.Count == 0 ? null : string.Join(" OR ", negatedCjk),

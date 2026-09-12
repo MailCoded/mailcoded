@@ -1,5 +1,6 @@
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Search;
+using ParsedQuery = Mailcoded.Core.Domain.Search.SearchQuery;
 using Mailcoded.Core.Store;
 
 namespace Mailcoded.Core.Application;
@@ -26,6 +27,10 @@ public sealed record SearchResults
     public bool Truncated { get; init; }
 
     public SearchRoute Route { get; init; }
+
+    /// <summary>True when no document matched every term and these hits come from the wider retry.
+    /// A caller that shows results should say so, or the user reads a near miss as an exact one.</summary>
+    public bool Relaxed { get; init; }
     public IReadOnlyList<SearchParseError> Errors { get; init; } = [];
 
     public static readonly SearchResults Empty = new() { Hits = [], Route = SearchRoute.None };
@@ -85,18 +90,31 @@ public sealed class SearchService
 
         var parse = SearchQueryParser.Parse(request.Query);
 
-        var result = _store.Search(
-            new StoreSearchRequest
-            {
-                Query = parse.Query,
-                AccountId = request.AccountId,
-                FolderId = request.FolderId,
-                Limit = NormalizeLimit(request.Limit),
-                Cursor = request.Cursor,
-                Order = request.Order,
-                IncludeSnippet = request.IncludeSnippet,
-            },
-            ct);
+        StoreSearchResult Run(ParsedQuery query) =>
+            _store.Search(
+                new StoreSearchRequest
+                {
+                    Query = query,
+                    AccountId = request.AccountId,
+                    FolderId = request.FolderId,
+                    Limit = NormalizeLimit(request.Limit),
+                    Cursor = request.Cursor,
+                    Order = request.Order,
+                    IncludeSnippet = request.IncludeSnippet,
+                },
+                ct);
+
+        var result = Run(parse.Query);
+
+        // Every term had to match, and none did. Ask the wider question once rather than answer
+        // nothing: ranking puts a document matching all the terms above one matching a single term.
+        // Not on a cursor, because page two of a relaxed search must not silently change question.
+        var relaxed = false;
+        if (result.Hits.Count == 0 && request.Cursor is null && parse.Query.CanRelax)
+        {
+            result = Run(parse.Query.Relaxed());
+            relaxed = result.Hits.Count > 0;
+        }
 
         return new SearchResults
         {
@@ -104,6 +122,7 @@ public sealed class SearchService
             NextCursor = result.NextCursor,
             Truncated = result.Truncated,
             Route = result.Route,
+            Relaxed = relaxed,
             Errors = parse.Errors,
         };
     }

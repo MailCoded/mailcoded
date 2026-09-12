@@ -46,6 +46,9 @@ CREATE INDEX ix_msg_folder_date
   ON messages(folder_id, date_utc DESC, id DESC, subject, from_addr, flags);  -- covering, page-ordered
 CREATE INDEX ix_msg_unread   ON messages(folder_id) WHERE (flags & 1) = 1;  -- partial: bit0 is Unread
 CREATE INDEX ix_msg_thread   ON messages(thread_key, date_utc DESC, id);
+-- ix_msg_folder_date is folder-first and cannot order across folders. Measured at 500k rows:
+-- ORDER BY date_utc DESC, id DESC LIMIT 2000 is 189.5 ms without this and 0.5 ms with it (~7.2 MB).
+CREATE INDEX ix_msg_date     ON messages(date_utc DESC, id DESC);
 -- messages.UNIQUE (folder_id, uid) already indexes that pair; no standalone index.
 ```
 

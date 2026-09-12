@@ -45,6 +45,7 @@ internal static class SearchCommand
             writer.WriteString("query", query);
             writer.WriteString("route", results.Route.ToString().ToLowerInvariant());
             writer.WriteNumber("count", results.Hits.Count);
+            writer.WriteBoolean("relaxed", results.Relaxed);
             JsonFields.WritePaging(writer, results.NextCursor, more);
 
             writer.WriteStartArray("hits");
@@ -87,6 +88,10 @@ internal static class SearchCommand
     {
         foreach (var error in results.Errors)
             output.Line($"! {error.Kind}: {SafeText.Line(error.Message, 160)}");
+
+        // Before the hits, not after: unread, these look like exact matches.
+        if (results.Relaxed)
+            output.Line("~ nothing matched every word, so these match some of them, best first.");
 
         foreach (var hit in results.Hits)
         {
