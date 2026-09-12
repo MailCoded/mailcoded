@@ -130,9 +130,12 @@ OPTIONS
   --folder <id>    restrict to one folder id
   --order <o>      relevance (default for text queries) or date
   --no-snippet     omit match excerpts, which shortens the output a lot
+  --meaning        also rank by what a message is about, not only its words. Needs an
+                   installed model and costs one model load, so it is off by default
 
 EXAMPLES
   mailcoded search 'from:acme invoice' --json --limit 20
+  mailcoded search 'the leaking roof thing' --meaning
   mailcoded search 'tag:unread after:2026-08-01' --json --order date
   mailcoded search 'quarterly report' --json --limit 20 --cursor eyJ...
 

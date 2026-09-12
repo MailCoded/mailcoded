@@ -27,6 +27,7 @@ public sealed class LayeringTests
                 ArchitectureAssemblies.StoreNamespace,
                 ArchitectureAssemblies.ParsingNamespace,
                 ArchitectureAssemblies.SecretsNamespace,
+                ArchitectureAssemblies.EmbeddingNamespace,
                 ArchitectureAssemblies.ProtocolNamespace,
                 ArchitectureAssemblies.ApplicationNamespace,
             ],
@@ -59,6 +60,7 @@ public sealed class LayeringTests
                 ArchitectureAssemblies.ProvidersNamespace,
                 ArchitectureAssemblies.StoreNamespace,
                 ArchitectureAssemblies.SecretsNamespace,
+                ArchitectureAssemblies.EmbeddingNamespace,
                 ArchitectureAssemblies.ApplicationNamespace,
                 Sqlite,
                 MailKit,
@@ -77,6 +79,7 @@ public sealed class LayeringTests
                 ArchitectureAssemblies.ProvidersNamespace,
                 ArchitectureAssemblies.StoreNamespace,
                 ArchitectureAssemblies.ParsingNamespace,
+                ArchitectureAssemblies.EmbeddingNamespace,
                 ArchitectureAssemblies.ApplicationNamespace,
                 Sqlite,
                 MailKit,
@@ -85,6 +88,28 @@ public sealed class LayeringTests
             "RULE (ARCHITECTURE §12.1.3 + SPEC invariant 3): Secrets is a leaf. A credential must never be able to "
             + "reach the database, a log or an RPC response, and the cheapest way to guarantee that is for the secret "
             + "stores to have no way of naming those things.");
+    }
+
+    [Fact]
+    public void Embedding_references_no_other_adapter()
+    {
+        AssertNoDependency(
+            ArchitectureAssemblies.Core,
+            ArchitectureAssemblies.EmbeddingNamespace,
+            [
+                ArchitectureAssemblies.ProvidersNamespace,
+                ArchitectureAssemblies.StoreNamespace,
+                ArchitectureAssemblies.ParsingNamespace,
+                ArchitectureAssemblies.SecretsNamespace,
+                ArchitectureAssemblies.ApplicationNamespace,
+                Sqlite,
+                SqlitePcl,
+                MailKit,
+                MimeKit,
+            ],
+            "RULE (ARCHITECTURE §12.1.3): Embedding turns text into numbers and reads a weights file. It must not "
+            + "be able to name a database, a socket, a keychain or a MIME type, so a model file can never become a "
+            + "path to anything else. Hand it text and hand back a vector.");
     }
 
     [Fact]

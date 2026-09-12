@@ -21,6 +21,8 @@ Microsoft.Data.Sqlite specifics: native connection pooling is on by default sinc
 | Initial ingest | >= 2,000 env/sec (network permitting) | single-txn batches, prepared reuse, deferred index + FTS |
 | Unread badge | < 5 ms | denormalized per-folder counter |
 | Thread view | < 20 ms | `ROW_NUMBER()` over a thread index |
+| Semantic search @ 500k vectors | < 100 ms p95 | int8 brute-force scan, no approximate index |
+| Embedding one message | < 50 ms | hand-written encoder, background, never on the writer thread |
 
 ## 15.3 Schema: FTS5 tables and indexes
 
@@ -135,6 +137,33 @@ PRAGMA synchronous=NORMAL;      -- restore
 ## 15.6 Where the real bottleneck is
 
 Ordering for initial sync: **network >> parse > insert**. MimeKit parses ~1,000 messages in ~0.7 s in its own published benchmark (and is 25-75x faster than the common alternatives), and single-transaction SQLite ingests tens of thousands of envelope rows/sec. The gate is the IMAP FETCH — Gmail caps IMAP downloads at 2,500 MB/day and suspends on breach. Design the UX around network-bound initial sync (newest-first windowed backfill with a resumable cursor and visible progress), not around local throughput.
+
+## 15.6a Vectors
+
+Semantic search stores one int8 vector per message in `msg_vec`, keyed by `message_id` — the rowid
+alias, so a candidate fetch is a point lookup. **Brute force is the design, not a placeholder.**
+
+The numbers that chose this design came from an exploratory probe on the *development* machine
+(NixOS on WSL2), not from `tests/Mailcoded.Bench` and not from reference hardware — treat them as
+the reason for the decision, not as results: a full int8 scan over 500k synthetic vectors came in
+around 11.8 ms on one thread at ~185 MiB, while `sqlite-vec` over the same set took 335-359 ms and
+grew the database to ~750 MB. On that evidence an approximate index is premature at 500k rows. The
+p95 gate above remains a target until the bench harness runs.
+
+The encoder is written out in C# rather than taken as a dependency, for size: ONNX Runtime's
+`libonnxruntime.so` is 28,985,152 bytes against roughly 4 MB of headroom. The one figure here that
+*is* a measurement, because it is a byte count of a published binary rather than a timing, is the
+encoder's cost in the AOT daemon: **158,000 bytes**, or 0.9% of the binary, against a 400 KB
+sidecar trigger. It is 3.5x the 45,144 B the design estimated, because ILC deltas are not additive.
+
+Vectors are derived data on the same footing as FTS: always rebuildable from `body_text`, droppable
+at any time, never a durability domain. Comparing vectors from two models is silently meaningless,
+so `model_id` filters every read and a fingerprint change invalidates rows by exclusion rather than
+by a migration.
+
+`System.Numerics.Vector<T>` throughout, never `Avx2.*` or `Fma.*`: those throw
+`PlatformNotSupportedException` at ILC's default SSE2 baseline, while the portable API degrades to
+whatever the machine actually has and needs no minimum-CPU raise.
 
 ## 15.7 Blob storage
 

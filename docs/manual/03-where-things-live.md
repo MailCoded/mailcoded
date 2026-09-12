@@ -20,6 +20,7 @@ Three overrides, in increasing order of specificity: the `MAILCODED_DATA_DIR` en
 |---|---|
 | `store.db`, `store.db-wal`, `store.db-shm` | the SQLite database: accounts, folders, every envelope, the search index, Tags, drafts and the outbox, and the append-only `sync_log` audit trail. It runs in WAL mode, so the `-wal` and `-shm` files are normal. |
 | `blobs/` | raw message bytes, fetched on demand |
+| `model/` | the optional embedding model for search-by-meaning, installed only if you asked for it (`install.sh --with-model`). Deleting it is safe: search falls back to words alone. |
 | `secrets.enc`, `secrets.key` | the encrypted-file credential vault and, on Linux and macOS, the machine key that unlocks it. They appear only once a credential has actually been written to the file backend; with a working keyring their absence is normal. On Windows there is no `secrets.key` — the vault key is DPAPI-wrapped inside `secrets.enc` |
 | `daemon.lock` | the OS lock that makes one daemon the owner of this store's live connections (chapter 9) |
 | `daemon.owner` | a diagnostic stamp — pid, start time, version — of the current or most recent owner; nothing reads it to make a decision |

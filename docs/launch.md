@@ -38,7 +38,8 @@ rejected.
 Structural facts that are true by construction and verifiable by reading the repository:
 
 - local-first; the mail and the index live on the user's machine
-- no telemetry, no analytics, no network calls beyond mail protocols
+- no telemetry, no analytics; the shipped binaries make no network call beyond mail protocols, and
+  the installer downloads nothing unless the user opts in to a search model
 - full-text search over subject and body, with Tags
 - plaintext-first reading; remote images and tracking pixels blocked by default
 - no delete tool exists in the CLI or MCP surface — absent, not gated

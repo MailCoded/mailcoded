@@ -20,7 +20,7 @@ This roadmap signals direction, not dates. Order and scope change based on real 
 
 ## Principles
 
-- **Local-first.** Your mail and your index stay on your machine. No telemetry, no ads, no cloud round-trip to search your own inbox.
+- **Local-first.** Your mail and your index stay on your machine. No telemetry, no ads, no cloud round-trip to search your own inbox. Search by meaning runs a small model locally too; the installer offers to fetch it once and nothing phones home afterwards.
 - **Plaintext-first.** HTML mail renders sandboxed with remote content blocked by default. Tracking pixels don't load.
 - **Agent-safe by construction.** No delete tool exists for agents — not gated, absent. Sending requires a human-confirmed one-time token, a recipient allowlist, and a rate limit, and every attempt is logged.
 - **One backend, many clients.** The engine is a daemon with a documented JSON-RPC surface. Editors, plugins, and agents are all just clients.

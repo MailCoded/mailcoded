@@ -9,6 +9,7 @@ public static class StorePaths
     public const string ApplicationFolderName = "mailcoded";
     public const string DatabaseFileName = "store.db";
     public const string BlobFolderName = "blobs";
+    public const string ModelFolderName = "model";
 
     public static string DefaultDataDirectory()
     {
@@ -33,6 +34,10 @@ public static class StorePaths
     public static string DefaultDatabasePath() => Path.Combine(DefaultDataDirectory(), DatabaseFileName);
 
     public static string BlobDirectoryFor(string dataDirectory) => Path.Combine(dataDirectory, BlobFolderName);
+
+    /// <summary>Where an installed embedding model lives. Nothing in the product ever writes here;
+    /// only the installer puts a model there, and only when asked.</summary>
+    public static string ModelDirectoryFor(string dataDirectory) => Path.Combine(dataDirectory, ModelFolderName);
 
     /// <summary>
     /// Content-addressed location for an externalized blob. The name is hex only, so it is legal

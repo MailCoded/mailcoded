@@ -13,6 +13,7 @@ internal static class ArchitectureAssemblies
     public const string StoreNamespace = "Mailcoded.Core.Store";
     public const string ParsingNamespace = "Mailcoded.Core.Parsing";
     public const string SecretsNamespace = "Mailcoded.Core.Secrets";
+    public const string EmbeddingNamespace = "Mailcoded.Core.Embedding";
 
     public const string DaemonAssemblyName = "mailcoded-daemon";
     public const string CliAssemblyName = "mailcoded";

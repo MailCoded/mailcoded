@@ -61,7 +61,16 @@ public sealed partial class SqliteStore
                 .Execute();
 
             if (!string.Equals(oldBody, bodyText, StringComparison.Ordinal))
+            {
                 Fts.Replace(session, messageId.Value, subject, oldBody, from, to, subject, bodyText, from, to);
+
+                // Dropping the vector re-enters this message into the backfill queue, which is the
+                // absence of an msg_vec row. Same transaction as the FTS rewrite, for the same reason.
+                session
+                    .Prepare("DELETE FROM msg_vec WHERE message_id = $id", "$id")
+                    .SetInt(0, messageId.Value)
+                    .Execute();
+            }
 
             return true;
         }, ct);

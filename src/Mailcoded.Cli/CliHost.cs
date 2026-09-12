@@ -1,5 +1,6 @@
 using System.Globalization;
 using Mailcoded.Core.Application;
+using Mailcoded.Core.Embedding;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Threading;
 using Mailcoded.Core.Parsing;
@@ -78,6 +79,31 @@ internal sealed class CliHost : IAsyncDisposable
     public SendService Send { get; }
     public AccountService Accounts { get; }
     public HealthMonitor Health { get; }
+
+    /// <summary>A search service that also ranks by meaning, or the ordinary one when no model is
+    /// installed. Loading a model costs a read of every weight, so this is built only when asked for
+    /// and never on the path of a command that will not use it.</summary>
+    public SearchService SearchWithMeaning(CancellationToken ct)
+    {
+        var directory = StorePaths.ModelDirectoryFor(Store.DataDirectory);
+        if (!TextEmbedder.IsInstalledAt(directory)) return Search;
+
+        SemanticSearch semantic;
+        try
+        {
+            semantic = new SemanticSearch(Store, TextEmbedder.Load(directory));
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            return Search;
+        }
+
+        // Attaching rather than registering: a one-shot command must not write, and an unregistered
+        // model means no daemon has embedded anything yet, so there is nothing to rank against.
+        return semantic.TryAttach(ct)
+            ? new SearchService(Store, Policy, Audit, SearchServiceOptions.Default, semantic)
+            : Search;
+    }
     public CallerContext Caller { get; }
 
     /// <summary>Resolves <c>--account</c>, or the only account when the store holds exactly one.</summary>

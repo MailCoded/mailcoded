@@ -146,6 +146,7 @@ Result:
     "send": false,
     "rawSql": false,
     "htmlBodies": true,
+    "semantic": false,
     "maxSearchLimit": 200,
     "secretBackend": "libsecret"
   }
@@ -168,6 +169,9 @@ Result:
   `send.preview` anyway if you want to show the user why.
 - `htmlBodies: false` means `message.get` with `format: "html"` or `"raw"` answers **1006**;
   agent interfaces (`cli`, `mcp`) get plaintext only.
+- `semantic: false` means no embedding model is installed. `search` still works; it just ranks by
+  words alone. Asking for `semantic: true` then answers **1008**, because a search that silently
+  ignored the request would be a worse answer than a refusal.
 - `watch: false` means this process is not the store owner and will emit no notifications.
 - `maxSearchLimit` (200) is a **clamp, not a validation error**: a larger `limit` is silently
   reduced. Page with `nextCursor`.
@@ -248,9 +252,11 @@ after an interruption replays safely. A `folderId` that belongs to another accou
 ### `search`
 ```json
 { "query": "from:acme invoice", "limit": 50, "cursor": null,
-  "accountId": null, "folderId": null, "order": "relevance", "includeSnippet": true }
+  "accountId": null, "folderId": null, "order": "relevance", "includeSnippet": true,
+  "semantic": null }
 ```
-→ `{ "hits": [EnvelopeDto], "nextCursor": "…", "truncated": false }`
+→ `{ "hits": [EnvelopeDto], "nextCursor": "…", "truncated": false, "relaxed": false,
+   "semantic": false }`
 
 Local only; never touches the network. Query syntax: bare words (full text over subject, sender,
 recipients, body), `"quoted phrases"`, `from:`, `to:`, `cc:`, `subject:`, `tag:`, `folder:`,
@@ -262,9 +268,21 @@ recipients, body), `"quoted phrases"`, `from:`, `to:`, `cc:`, `subject:`, `tag:`
   per-column weights — subject 20, sender 3, recipient 1, body 1 — so a term in a subject outranks
   the same term in a body.
 - Terms are combined with AND. When that matches **nothing**, and the query has two or more terms,
-  and no `cursor` was given, the daemon retries once with the same terms joined by OR. The reply is
-  otherwise unchanged; a client that shows the hits should tell the user they are partial matches.
+  and no `cursor` was given, the daemon retries once with the same terms joined by OR. `relaxed` is
+  then true; a client that shows the hits should tell the user they are partial matches.
   A cursor never widens, so page two keeps asking page one's question.
+- `semantic` asks for meaning as well as words. `null` (the default) fuses a vector ranking into the
+  results when a model is installed and changes nothing when one is not; `true` requires a model and
+  answers **1008** without one; `false` asks for words only. Check `capabilities.semantic` first.
+- `semantic: true` in the **reply** says the two rankings were fused. Such a page has
+  `nextCursor: null` on purpose — the rankings interleave, so a later lexical page would repeat what
+  fusion promoted. Fusion happens only on the first page of a `relevance` search.
+- A semantic search **fills the page**: every embedded message is a candidate, so the reply tends to
+  carry `limit` hits regardless of how many are genuinely relevant. There is no similarity floor yet
+  — choosing one needs a pinned model to calibrate against. Treat rank order as meaningful and the
+  tail as weak.
+- Vectors cover messages whose **body has been fetched**, and are built in the background. A message
+  synced a moment ago may be findable by word before it is findable by meaning.
 - `cursor` is an **opaque keyset cursor** — pass `nextCursor` back verbatim, never construct or
   decode one. Paging is keyset seek; there is no offset parameter and there never will be.
 - `truncated` on `search` is the **strong** meaning: with a non-null `nextCursor` it just says

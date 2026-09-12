@@ -70,6 +70,36 @@ exact command to continue —
 with a **null** cursor means the rest lies beyond what any cursor reaches: narrow the query, or use
 `--order date`. Follow the cursor rather than raising `--limit`.
 
+**Searching by meaning.** With `--meaning`, search also ranks by what a message is *about*, not only
+which words it used — so `mailcoded search 'the leaking roof thing' --meaning` can find a message
+that says *"water damage above the meeting room"* and never says "leak" at all.
+
+    $ mailcoded search 'the leaking roof thing' --meaning
+
+The two rankings are fused, with full-text staying primary: a message both stages found beats one
+that only a single stage found. The JSON reply carries `semantic: true` when that happened, and
+`false` when it did not — which is also what you get, with a note, when no model is installed.
+
+It is a flag rather than the default because it costs one model load per command, and `mailcoded` is
+a command an agent runs in a loop. The daemon loads the model once at startup, so clients that talk
+to the daemon — the VS Code extension — get it on every search without asking.
+
+- **It fills the page.** Every message with a body has a vector, so the ranking always has more
+  candidates to offer: a word search that found one message can come back with fifty. The first few
+  are the strong matches; below those are simply the nearest remaining messages, which may not be
+  relevant at all. Read down until they stop making sense, and use plain search when you know the
+  word you want.
+- A fused page has **no cursor**. The two rankings interleave, so a later full-text page would repeat
+  what fusion promoted. Page with `--order date` if you need to walk a large result set.
+- Only messages whose **body has been fetched** have a vector, and they are embedded in the
+  background by the daemon. A message that arrived a minute ago may be findable by word before it is
+  findable by meaning, and nothing is findable by meaning until a daemon has run.
+
+To install the model, re-run the installer with `--with-model`. It is the only thing in mailcoded
+that downloads anything, it asks first, it prints the licence and it verifies a checksum before
+unpacking. To remove it again, delete the `model` directory inside your data directory
+(see [chapter 3](03-where-things-live.md)) — your mail is untouched and search keeps working.
+
 ## `read`
 
     mailcoded read <id> [--no-fetch] [--max-chars 20000] [--skip-chars 0]

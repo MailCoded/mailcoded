@@ -19,6 +19,10 @@ public sealed record SearchParams
     public string? Order { get; init; }
 
     public bool IncludeSnippet { get; init; } = true;
+
+    /// <summary>Null fuses meaning into the ranking when a model is installed; true requires one and
+    /// fails with <c>1008</c> without it; false asks for words only.</summary>
+    public bool? Semantic { get; init; }
 }
 
 public sealed record SearchResult
@@ -29,6 +33,12 @@ public sealed record SearchResult
 
     /// <summary>True when results were cut short; follow <see cref="NextCursor"/> rather than assuming completeness.</summary>
     public bool Truncated { get; init; }
+
+    /// <summary>True when nothing matched every word and these hits match some of them. Say so.</summary>
+    public bool Relaxed { get; init; }
+
+    /// <summary>True when meaning took part in the ranking. Such a page has no cursor.</summary>
+    public bool Semantic { get; init; }
 }
 
 /// <summary><c>thread.get</c> — every message sharing a thread key, oldest first.</summary>

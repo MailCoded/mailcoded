@@ -4,24 +4,32 @@ What has actually been exercised, and what has not. This file exists because
 `STRATEGY.md` §5 gates every public claim on a measurement, so "implemented" and
 "verified" have to be separable. Nothing here is a performance claim.
 
-Environment: NixOS on WSL2, .NET SDK 10.0.302, linux-x64. Docker was **not** available.
+Environment: NixOS on WSL2, .NET SDK 10.0.302, linux-x64. Docker was **not** available for the
+earlier rows; the most recent run had it, and the Dovecot/smtp4dev suite ran (see below).
 
 An adversarial review (six independent lenses, then a skeptic per finding instructed to refute it)
 produced 16 confirmed defects, all since fixed with regression tests. The store schema is at
-`user_version` 5.
+`user_version` 8.
 
 ## Verified by running it
 
 | Area | What was run | Result |
 |---|---|---|
 | Build | `dotnet build Mailcoded.slnx` with `TreatWarningsAsErrors=true` | clean, 0 warnings |
-| Unit suite | `tests/Mailcoded.Core.Tests` (xunit.v3) | **941 passed, 0 failed** |
+| Unit suite | `tests/Mailcoded.Core.Tests` (xunit.v3) | **1377 passed, 0 failed** |
 | Architecture tests | NetArchTest rules from ARCHITECTURE §12.7 | green, incl. the no-removal-verb rule |
-| Native AOT | `dotnet publish -r linux-x64 -p:PublishAot=true`, daemon and CLI | 13.3 MB / 12.0 MB, **zero IL2xxx/IL3xxx warnings** |
+| Native AOT | `dotnet publish -r linux-x64 -p:PublishAot=true`, daemon and CLI | 16.25 MiB / 15.53 MiB, **zero IL2xxx/IL3xxx warnings**; both under the 20 MB fail gate, both over the 12 MB warning |
+| Size gate | `scripts/size-gate.sh` over the publish directory | every file counted, incl. `libe_sqlite3.so` (1.40 MiB); a 29 MB decoy library fails the gate |
+| Encoder AOT cost | byte count of the published daemon with and without the encoder reachable | **+158,000 bytes** (0.9%); 3.5x the design's 45,144 B estimate |
 | AOT runtime | the AOT **CLI** imported all 35 fixtures and ran FTS, CJK-trigram, short-CJK `LIKE` and metadata search | identical results to the JIT build — MimeKit and SQLitePCLRaw survive trimming |
 | Daemon stdio | `scripts/aot-smoke.sh` plus a pipelined 4-request session | `initialize`, `account.list`, `folder.list`, `stats`, `health`, `shutdown` all answered; framing correct |
 | FTS5 assertion | startup check against `PRAGMA compile_options` | present; store opens at `user_version` 4 |
-| MIME corpus | `mailcoded import-eml fixtures/eml` | 36/36 imported, **0 failures** |
+| MIME corpus | `mailcoded import-eml fixtures/eml` | 37/37 imported, **0 failures** |
+| Migration 008 | fresh store, and store at v7 | reaches `user_version` 8; `msg_vec`, `vec_model` present; account forget cascades to `msg_vec` |
+| Semantic pipeline | synthetic random-weight model in `<data>/model`; daemon in stdio mode; then CLI | daemon logged the model and `capabilities.semantic: true`; backfill wrote 37/37 vectors in the background; `search 'invoice' --meaning` returned `semantic: true` with the lexical hit still ranked first; `vec_model` row count unchanged after the CLI (it attaches read-only) |
+| Semantic refusal | `search` with `semantic: true` and no model | **1008** with category `unsupported` (golden transcript) |
+| Backfill vs bulk ingest | unit test opening a bulk-ingest window | the worker stands down and writes nothing inside the window; a write issued inside it would join that window's transaction and be rolled back with it (found by test, fixed) |
+| Dovecot / smtp4dev | `tests/Mailcoded.Integration` via Testcontainers | **5 passed, 0 skipped**: add-account/sync/search/tag/send round trip; crash after SMTP 250 reconciles from Sent; stuck send is investigated, never resent; UIDVALIDITY change re-enumerates without duplicating blobs; external APPEND produces `notify.mail.added` within 5 s |
 | Search | FTS terms, phrases, diacritics, CJK ≥3 chars (trigram), CJK 1–2 chars (`LIKE`), `from:`, `subject:`, `tag:`, `is:unread`, `is:flagged`, `has:attachment`, `before:`/`after:`, negation | correct hits, correct reported route |
 | Malformed query | `search 'from: AND AND "unclosed'` | `ok: true` with a populated `errors` array — never throws |
 | IMAP sync | first sync against a minimal local IMAP server | plan `invalidate`, 3 envelopes ingested, 3 batches |
@@ -84,8 +92,18 @@ hardware, or the other two OS legs, none of which were available here.
 - **IMAP IDLE notifications**, `APPEND`-to-Sent, and `MOVE`.
 - **The Windows and macOS keyring backends.** Only `EncryptedFileStore` and the libsecret
   *unavailable* path ran here. The macOS and libsecret interop needs a smoke test on real hardware.
-- **The Dovecot / smtp4dev integration path**, including the crash-reconciliation and
-  UIDVALIDITY-change tests. Docker was unavailable.
+- **Search-by-meaning quality.** The pipeline runs end to end (above), but only against a model
+  with **random weights**, which proves plumbing and nothing about relevance. No model is pinned:
+  `scripts/install.sh` ships with `MODEL_URL` and `MODEL_SHA256` empty and refuses to download. No
+  recall@10 harness exists. **It has never been shown to beat lexical search.** Do not claim it does.
+- **Semantic search p95 at 500k.** The `< 100 ms` figure in PERFORMANCE §15.2 is a target. The
+  "11.8 ms" scan number quoted there came from an exploratory probe on the development machine, not
+  from `tests/Mailcoded.Bench`, which has no semantic gate yet.
+- **A similarity floor.** None exists, so a semantic search fills the page to `limit`. Choosing a
+  threshold needs a real model to calibrate against.
+- **Memory with a real model.** Weights are held as managed `float[]`; a MiniLM-class model is
+  roughly 90 MB on the GC heap against the daemon's `HeapHardLimitPercent=25`. Only the 32 KB
+  synthetic model has run.
 - **M-chaos and M-soak**: no Toxiproxy run, no 24h soak, so the RELIABILITY §14.1 resource budgets
   are unmeasured extrapolations.
 - **Windows and macOS CI legs.** The matrix is defined in `.github/workflows/ci.yml` and has not run.

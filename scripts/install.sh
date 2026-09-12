@@ -16,16 +16,28 @@ LIBEXEC="$PREFIX/libexec/mailcoded"
 BINDIR="$PREFIX/bin"
 RID=""
 AOT=1
+WANT_MODEL=0
 BINARIES=(mailcoded mailcoded-daemon mailcoded-mcp mailcoded-tui)
+
+# The one download this project's tooling can make, and only with --with-model. Leave these three
+# empty until a human has read the licence and pinned a real digest: an unverified model is a
+# binary blob from the internet that every mail body then flows through.
+MODEL_NAME=""
+MODEL_URL=""
+MODEL_SHA256=""
+MODEL_LICENCE=""
 
 usage() {
   cat <<USAGE
-usage: scripts/install.sh [--prefix DIR] [--rid RID] [--no-aot] [--uninstall]
+usage: scripts/install.sh [--prefix DIR] [--rid RID] [--no-aot] [--with-model] [--uninstall]
 
   --prefix DIR   install root (default: \$HOME/.local, or \$PREFIX)
   --rid RID      target runtime identifier (default: this machine's)
   --no-aot       install the framework-dependent build instead of publishing Native AOT.
                  Much faster to install; needs the .NET runtime present to run.
+  --with-model   download the embedding model that lets search find a message by what it is
+                 about, not only which words it used. This is the only network access this
+                 script makes, it is off by default, and search works without it.
   --uninstall    remove the symlinks and the payload directory
 USAGE
 }
@@ -52,6 +64,7 @@ while [ $# -gt 0 ]; do
     --prefix) PREFIX="$2"; LIBEXEC="$PREFIX/libexec/mailcoded"; BINDIR="$PREFIX/bin"; shift 2 ;;
     --rid) RID="$2"; shift 2 ;;
     --no-aot) AOT=0; shift ;;
+    --with-model) WANT_MODEL=1; shift ;;
     --uninstall) uninstall ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -131,6 +144,70 @@ case ":$PATH:" in
      echo "WARNING: $BINDIR is not on your PATH. Add it, e.g.:"
      echo "  export PATH=\"$BINDIR:\$PATH\"" ;;
 esac
+
+install_model() {
+  local target="$1"
+
+  if [ -z "$MODEL_URL" ] || [ -z "$MODEL_SHA256" ]; then
+    echo "no model is pinned in this checkout, so there is nothing to download." >&2
+    echo "search will rank by words alone, which needs no model at all." >&2
+    return 1
+  fi
+
+  echo
+  echo "About to download an embedding model:"
+  echo "  name     $MODEL_NAME"
+  echo "  from     $MODEL_URL"
+  echo "  licence  $MODEL_LICENCE"
+  echo "  sha256   $MODEL_SHA256"
+  echo "  into     $target"
+  echo
+  printf 'Download it? [y/N] '
+  read -r reply
+  case "$reply" in
+    y | Y | yes | YES) ;;
+    *) echo "skipped; search will rank by words alone."; return 1 ;;
+  esac
+
+  local scratch
+  scratch="$(mktemp -d)"
+  trap 'rm -rf "$scratch"' RETURN
+
+  if ! curl -fsSL "$MODEL_URL" -o "$scratch/model.tar.gz"; then
+    echo "the download failed; search will rank by words alone." >&2
+    return 1
+  fi
+
+  # Verified before it is unpacked, never after: an archive is code to the thing that opens it.
+  local actual
+  actual="$(sha256sum "$scratch/model.tar.gz" | cut -d' ' -f1)"
+  if [ "$actual" != "$MODEL_SHA256" ]; then
+    echo "checksum mismatch: expected $MODEL_SHA256, got $actual" >&2
+    echo "refusing to install this file." >&2
+    return 1
+  fi
+
+  mkdir -p "$target"
+  tar -xzf "$scratch/model.tar.gz" -C "$target"
+
+  for required in config.json model.safetensors vocab.txt; do
+    if [ ! -f "$target/$required" ]; then
+      echo "the archive did not contain $required; removing it." >&2
+      rm -rf "$target"
+      return 1
+    fi
+  done
+
+  echo "model installed; the daemon will embed your mail in the background."
+}
+
+if [ "$WANT_MODEL" = 1 ]; then
+  data_dir="${XDG_DATA_HOME:-$HOME/.local/share}/mailcoded"
+  case "$(uname -s)" in
+    Darwin) data_dir="$HOME/Library/Application Support/mailcoded" ;;
+  esac
+  install_model "$data_dir/model" || true
+fi
 
 if command -v mailcoded >/dev/null 2>&1; then
   echo

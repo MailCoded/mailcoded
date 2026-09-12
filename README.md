@@ -9,8 +9,10 @@ local SQLite store with FTS5 full-text search and notmuch-style Tags, sends via 
 two-phase confirmation, and exposes the whole thing over JSON-RPC 2.0 on stdio. One backend, many
 clients — an editor extension, a CLI, and an MCP adapter are all just clients of the same daemon.
 
-Your mail and your index live on your machine. There is no telemetry, no analytics, and no network
-call to anything except your own mail servers.
+Your mail and your index live on your machine. There is no telemetry and no analytics, and the
+daemon, CLI, TUI and MCP adapter make no network call to anything except your own mail servers.
+The installer is the one exception, and only if you say yes: it can offer to download an embedding
+model for search-by-meaning. Decline and everything still works, ranked by words alone.
 
 > **Status: pre-release.** The backend (Core, daemon, CLI, MCP adapter) builds and runs. There is
 > no tagged release and no published binary yet, so everything below builds from source. The VS
@@ -109,7 +111,8 @@ compiles against `Mailcoded.Protocol` alone, which is why it is 5.6 MB where the
 Search understands bare words and phrases plus `from:`, `to:`, `cc:`, `subject:`, `tag:`,
 `folder:`, `is:unread|flagged|draft|replied`, `has:attachment`, `before:`/`after:`, and `-`
 negation. Diacritics fold, and CJK is indexed with a trigram route (with a `LIKE` fallback for one-
-and two-character terms).
+and two-character terms). `--meaning` additionally ranks by what a message is about rather than
+which words it used, if you installed a model — see [Known gaps](#known-gaps) for its real state.
 
 Add a real account:
 
@@ -333,6 +336,11 @@ Stated plainly, because these are the things you would otherwise discover on day
   1 Oct 2026 — is planned for v0.2, along with Gmail OAuth2.
 - **The VS Code extension is not built yet.** The daemon, its protocol, and the CLI exist; the
   extension is the next milestone and ships from a separate repository.
+- **Search-by-meaning is built but unproven.** The encoder, the vector store, the background
+  backfill and the rank fusion all exist and run end to end. But **no model is pinned** — the
+  installer ships with an empty URL and checksum and refuses to download until a human has read a
+  licence and recorded a digest — and no recall harness has been built, so it has never been shown
+  to return better results than plain full-text search. Treat it as unfinished, not as a feature.
 - No POP3, no JMAP (v0.3+), no HTML compose, no attachment upload in the composer, no message-rules
   engine, no IMAP server mode, no mobile or web client.
 - No release binaries yet, and therefore no measured performance numbers. Build from source.

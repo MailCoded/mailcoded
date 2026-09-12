@@ -127,6 +127,7 @@ internal sealed class RpcDispatcher
                 Watch = host.Watch.WatchEnabled,
                 Send = host.Policy.IsEnabled(AgentCapability.Send, kind),
                 RawSql = host.Policy.IsEnabled(AgentCapability.RawSql, kind),
+                Semantic = host.Search.SemanticAvailable,
                 HtmlBodies = host.Policy.AllowsHtmlBody(kind),
                 MaxSearchLimit = SearchServiceOptions.Default.MaxLimit,
                 SecretBackend = host.Accounts.SecretBackendName,
@@ -379,6 +380,13 @@ internal sealed class RpcDispatcher
     {
         var request = Require(parameters, ProtocolJsonContext.Default.SearchParams, RpcMethods.Search);
 
+        if (request.Semantic == true && !host.Search.SemanticAvailable)
+        {
+            throw new StoreException(
+                FailureCategory.Unsupported,
+                "No embedding model is installed, so this build cannot search by meaning.");
+        }
+
         var results = await host.Search.SearchAsync(
             new SearchRequest
             {
@@ -389,6 +397,7 @@ internal sealed class RpcDispatcher
                 FolderId = request.FolderId is { } folder ? new FolderId(folder) : null,
                 Order = WireMapper.ToOrder(request.Order),
                 IncludeSnippet = request.IncludeSnippet,
+                Semantic = request.Semantic,
             },
             Caller,
             ct).ConfigureAwait(false);
@@ -415,7 +424,14 @@ internal sealed class RpcDispatcher
         }
 
         return RpcPayloads.Value(
-            new SearchResult { Hits = hits, NextCursor = results.NextCursor, Truncated = results.Truncated },
+            new SearchResult
+            {
+                Hits = hits,
+                NextCursor = results.NextCursor,
+                Truncated = results.Truncated,
+                Relaxed = results.Relaxed,
+                Semantic = results.Semantic,
+            },
             ProtocolJsonContext.Default.SearchResult);
     }
 

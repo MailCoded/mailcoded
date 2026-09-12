@@ -47,6 +47,33 @@ RPL-1.5 is strong copyleft reaching network-deployed and internal use — not a 
 
 **Explicitly banned:** MediatR, AutoMapper, Mapster (stalled + AOT-hostile), **EF Core under AOT** (experimental in EF10 + size), FluentAssertions v8+, MassTransit v9, EPPlus v5+, UPX.
 
+## User-supplied artifacts
+
+**Status:** [DECIDED]
+
+The four rules above assume a NuGet package. A model file is not one: it ships with no binary, is
+chosen by the user, and is read as data at runtime. It gets its own tier.
+
+An artifact may be read only if all of:
+
+1. **Licence** is OSI-approved and permits redistribution of the weights. Record it, and print it
+   before any tooling offers to fetch the file.
+2. **Provenance** is a pinned URL and a **SHA-256** recorded in the repository. A file whose digest
+   does not match is not loaded — not warned about, not loaded.
+3. **Shape is declared and checked**: dimension, pooling, quantization and tokenizer vocabulary. A
+   file that disagrees with its declaration is rejected rather than reinterpreted, because comparing
+   vectors from two models is silently meaningless rather than loudly wrong.
+4. **Parsed defensively.** The header is bounded before anything is allocated, a tensor whose offset
+   plus length escapes the file is rejected, nothing is allocated from an unvalidated size field,
+   and total mapped bytes are capped. Weights are data, never code.
+
+**No shipped binary may fetch one.** `mailcoded`, `mailcoded-daemon`, `mailcoded-mcp` and
+`mailcoded-tui` make no network call except to the user's own mail servers. Only `scripts/install.sh`
+may offer to download an artifact, only on an explicit answer, and never by default.
+
+An absent artifact is an absent feature: the capability reports false and the code path is
+unreachable, rather than present and failing.
+
 ## EF Core: the verdict
 
 Microsoft's own EF Core NativeAOT documentation states the feature is "highly experimental... not yet suited for production use" and recommends against deploying EF NativeAOT applications in production. It also requires a compiled model plus precompiled queries and still trips the interceptors experimental gate in real setups. Combined with its size and reflection weight, EF Core is disqualified for a size-sensitive local daemon. **Raw ADO.NET + hand-written SQL is correct here** — the SQL is hand-tuned (FTS5 MATCH, PRAGMA management, single-writer queue, `user_version` migrations) in ways no ORM models well.

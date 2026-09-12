@@ -327,6 +327,10 @@ public sealed record CapabilitiesDto
     /// <summary>Read-only, row-capped SQL, off unless MAILCODED_ENABLE_SQL=1.</summary>
     public bool RawSql { get; init; }
 
+    /// <summary>False when no embedding model is installed; <c>search</c> with <c>semantic: true</c>
+    /// then returns <c>1008</c> rather than quietly answering with lexical hits.</summary>
+    public bool Semantic { get; init; }
+
     /// <summary>True when <c>message.get</c> may return <c>bodyHtml</c>; agent surfaces get plaintext only.</summary>
     public bool HtmlBodies { get; init; } = true;
 

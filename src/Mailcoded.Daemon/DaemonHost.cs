@@ -1,6 +1,7 @@
 using Mailcoded.Core.Application;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Threading;
+using Mailcoded.Core.Embedding;
 using Mailcoded.Core.Parsing;
 using Mailcoded.Core.Providers;
 using Mailcoded.Core.Secrets;
@@ -15,7 +16,13 @@ namespace Mailcoded.Daemon;
 /// </summary>
 internal sealed class DaemonHost : IAsyncDisposable
 {
-    private DaemonHost(SqliteStore store, ISecretStore secrets, IClock clock, StderrLog log, bool isPrimary)
+    private DaemonHost(
+        SqliteStore store,
+        ISecretStore secrets,
+        IClock clock,
+        StderrLog log,
+        bool isPrimary,
+        TextEmbedder? embedder)
     {
         Store = store;
         Secrets = secrets;
@@ -30,7 +37,9 @@ internal sealed class DaemonHost : IAsyncDisposable
         Parser = new MessageParser();
         Sync = new SyncEngine(store, ReferencesThreader.Instance, clock, Audit);
         Messages = new MessageService(store, Parser, Audit, Policy);
-        Search = new SearchService(store, Policy, Audit);
+        Semantic = embedder is null ? null : new SemanticSearch(store, embedder);
+        Backfill = embedder is null ? null : new VectorBackfill(store, embedder);
+        Search = new SearchService(store, Policy, Audit, null, Semantic);
         Send = new SendService(store, Parser, clock, Audit, Policy, Tokens);
         Accounts = new AccountService(store, secrets, Sync, Audit);
         Health = new HealthMonitor(store, Connections, Policy, Tokens, Audit, clock, secrets.BackendName);
@@ -51,6 +60,8 @@ internal sealed class DaemonHost : IAsyncDisposable
     public SyncEngine Sync { get; }
     public MessageService Messages { get; }
     public SearchService Search { get; }
+    public SemanticSearch? Semantic { get; }
+    public VectorBackfill? Backfill { get; }
     public SendService Send { get; }
     public AccountService Accounts { get; }
     public HealthMonitor Health { get; }
@@ -61,6 +72,8 @@ internal sealed class DaemonHost : IAsyncDisposable
         watch ?? throw new InvalidOperationException("AttachWatch must run before the RPC surface is served.");
 
     private WatchCoordinator? watch;
+
+    private readonly CancellationTokenSource backfillStop = new();
 
     /// <summary>False when another live daemon owns this store: this instance opens no IDLE connection.</summary>
     public bool IsPrimaryInstance { get; }
@@ -87,7 +100,27 @@ internal sealed class DaemonHost : IAsyncDisposable
         var secrets = SecretStoreFactory.Create(store.DataDirectory);
         log.Info($"Secret backend: {secrets.BackendName}.");
 
-        return new DaemonHost(store, secrets, clock, log, isPrimary);
+        return new DaemonHost(store, secrets, clock, log, isPrimary, LoadEmbedder(store.DataDirectory, log));
+    }
+
+    /// <summary>A model is optional and user-supplied. A bad one turns semantic search off; it never
+    /// stops the daemon, which has a whole mailbox to serve either way.</summary>
+    private static TextEmbedder? LoadEmbedder(string dataDirectory, StderrLog log)
+    {
+        var directory = StorePaths.ModelDirectoryFor(dataDirectory);
+        if (!TextEmbedder.IsInstalledAt(directory)) return null;
+
+        try
+        {
+            var embedder = TextEmbedder.Load(directory);
+            log.Info($"Embedding model: {embedder.Dimensions} dimensions, fingerprint {embedder.Fingerprint[..12]}.");
+            return embedder;
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            log.Warn($"The model at {directory} could not be read, so search will use words only: {ex.Message}");
+            return null;
+        }
     }
 
     public void AttachWatch(RpcChannel channel)
@@ -116,6 +149,12 @@ internal sealed class DaemonHost : IAsyncDisposable
     /// </summary>
     public async Task StartAsync(CancellationToken ct)
     {
+        // Registering the model is a write, so it cannot happen in the constructor. Until it does,
+        // the search service declines to fuse rather than ranking against a model id of zero.
+        if (Semantic is not null) await Semantic.PrepareAsync(ct).ConfigureAwait(false);
+
+        StartBackfill();
+
         var report = await Send.ReconcileStuckSendsAsync(null, null, null, ct).ConfigureAwait(false);
         if (report.Outcomes.Count == 0) return;
 
@@ -125,10 +164,33 @@ internal sealed class DaemonHost : IAsyncDisposable
             + $"{report.NeedsInvestigation} need a connected account to resolve.");
     }
 
+    /// <summary>Only the primary instance embeds: a second daemon on the same store would write the
+    /// same vectors through the same writer thread, competing with the one already doing it.</summary>
+    private void StartBackfill()
+    {
+        if (Backfill is null || !IsPrimaryInstance) return;
+
+        _ = Task.Run(
+            async () =>
+            {
+                try
+                {
+                    await Backfill.RunAsync(null, backfillStop.Token).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    Log.Exception("The embedding backfill stopped; search falls back to words alone.", ex);
+                }
+            },
+            CancellationToken.None);
+    }
+
     public async ValueTask DisposeAsync()
     {
+        await backfillStop.CancelAsync().ConfigureAwait(false);
         if (watch is not null) await watch.DisposeAsync().ConfigureAwait(false);
         await Providers.DisposeAsync().ConfigureAwait(false);
+        backfillStop.Dispose();
         Store.Dispose();
     }
 }

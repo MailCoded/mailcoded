@@ -320,3 +320,20 @@ public sealed record RawQueryResult
     public required IReadOnlyList<IReadOnlyList<object?>> Rows { get; init; }
     public bool Truncated { get; init; }
 }
+
+/// <summary>The identity of an embedding model. <see cref="Fingerprint"/> is what makes two sets of
+/// vectors comparable; everything else is description.</summary>
+public sealed record VectorModel
+{
+    public required string Fingerprint { get; init; }
+    public string? Name { get; init; }
+    public required int Dimensions { get; init; }
+    public required string Pooling { get; init; }
+}
+
+/// <summary>A message whose body is stored but not yet embedded.</summary>
+public readonly record struct PendingVector(LocalMessageId MessageId, string Subject, string BodyText);
+
+public readonly record struct MessageVector(LocalMessageId MessageId, float Scale, byte[] Vector);
+
+public readonly record struct StoredVector(LocalMessageId MessageId, float Scale, byte[] Vector);

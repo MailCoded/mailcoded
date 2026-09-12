@@ -33,7 +33,9 @@ internal static class SearchCommand
             IncludeSnippet = !line.Flag("no-snippet"),
         };
 
-        var results = await host.Search.SearchAsync(request, host.Caller, ct).ConfigureAwait(false);
+        var meaning = line.Flag("meaning");
+        var service = meaning ? host.SearchWithMeaning(ct) : host.Search;
+        var results = await service.SearchAsync(request, host.Caller, ct).ConfigureAwait(false);
 
         // "more matches exist" is what an agent branches on; Core's stricter Truncated marks the
         // subset no cursor can reach, so the two are unioned here and documented in help.
@@ -46,6 +48,7 @@ internal static class SearchCommand
             writer.WriteString("route", results.Route.ToString().ToLowerInvariant());
             writer.WriteNumber("count", results.Hits.Count);
             writer.WriteBoolean("relaxed", results.Relaxed);
+            writer.WriteBoolean("semantic", results.Semantic);
             JsonFields.WritePaging(writer, results.NextCursor, more);
 
             writer.WriteStartArray("hits");
@@ -92,6 +95,9 @@ internal static class SearchCommand
         // Before the hits, not after: unread, these look like exact matches.
         if (results.Relaxed)
             output.Line("~ nothing matched every word, so these match some of them, best first.");
+
+        if (line.Flag("meaning") && !results.Semantic)
+            output.Line("~ no model is installed, or nothing has been embedded yet; these match on words alone.");
 
         foreach (var hit in results.Hits)
         {

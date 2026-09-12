@@ -149,6 +149,12 @@ internal readonly struct Stmt
         return this;
     }
 
+    public Stmt SetReal(int ordinal, double value)
+    {
+        _cmd.Parameters[ordinal].Value = value;
+        return this;
+    }
+
     public int Execute() => _cmd.ExecuteNonQuery();
 
     public SqliteDataReader ExecuteReader() => _cmd.ExecuteReader();
@@ -186,6 +192,9 @@ internal static class Db
 
     public static byte[]? Blob(SqliteDataReader r, int ordinal) =>
         r.IsDBNull(ordinal) ? null : (byte[])r.GetValue(ordinal);
+
+    public static double Real(SqliteDataReader r, int ordinal, double fallback = 0) =>
+        r.IsDBNull(ordinal) ? fallback : r.GetDouble(ordinal);
 
     /// <summary>
     /// Maps a SQLite error onto the category vocabulary the reconnect/backoff rules use.

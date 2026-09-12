@@ -32,6 +32,7 @@ public sealed class GoldenTranscriptTests : IClassFixture<DaemonTranscriptFixtur
     [InlineData("account-list")]
     [InlineData("folder-list-unknown-account")]
     [InlineData("search")]
+    [InlineData("search-semantic-unsupported")]
     [InlineData("message-get")]
     [InlineData("tags-set-unknown-message")]
     [InlineData("send-without-token")]
@@ -67,7 +68,7 @@ public sealed class GoldenTranscriptTests : IClassFixture<DaemonTranscriptFixtur
         foreach (var required in new[]
                  {
                      "methods", "notifications", "providers", "search", "threading", "attachments",
-                     "watch", "send", "rawSql", "htmlBodies", "maxSearchLimit", "secretBackend",
+                     "watch", "send", "rawSql", "htmlBodies", "semantic", "maxSearchLimit", "secretBackend",
                  })
         {
             Assert.True(capabilities.TryGetProperty(required, out _), $"capabilities.{required} is missing");

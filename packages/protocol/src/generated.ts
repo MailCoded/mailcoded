@@ -141,6 +141,11 @@ export interface CapabilitiesDto {
   send: boolean;
   /** Read-only, row-capped SQL, off unless MAILCODED_ENABLE_SQL=1. */
   rawSql: boolean;
+  /**
+   * False when no embedding model is installed; `search` with `semantic: true` then returns
+   * `1008` rather than quietly answering with lexical hits.
+   */
+  semantic: boolean;
   /** True when `message.get` may return `bodyHtml`; agent surfaces get plaintext only. */
   htmlBodies: boolean;
   maxSearchLimit: number;
@@ -477,6 +482,11 @@ export interface SearchParams {
   /** `relevance|date`. Defaults to relevance for text queries. */
   order?: string;
   includeSnippet?: boolean;
+  /**
+   * Null fuses meaning into the ranking when a model is installed; true requires one and fails
+   * with `1008` without it; false asks for words only.
+   */
+  semantic?: boolean;
 }
 
 export interface SearchResult {
@@ -487,6 +497,10 @@ export interface SearchResult {
    * completeness.
    */
   truncated: boolean;
+  /** True when nothing matched every word and these hits match some of them. Say so. */
+  relaxed: boolean;
+  /** True when meaning took part in the ranking. Such a page has no cursor. */
+  semantic: boolean;
 }
 
 /**

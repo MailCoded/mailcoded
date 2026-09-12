@@ -9,7 +9,7 @@ namespace Mailcoded.Core.Tests.Store;
 
 public sealed class MigrationTests
 {
-    private const int CurrentSchemaVersion = 7;
+    private const int CurrentSchemaVersion = 8;
 
     private const string CjkSubject = "关于下季项目进度的说明";
     private const string CjkBody = "你好，下周的项目进度报告已经完成。请查收。";

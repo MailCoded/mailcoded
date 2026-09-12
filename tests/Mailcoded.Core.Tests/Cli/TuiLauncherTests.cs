@@ -40,10 +40,42 @@ public sealed class TuiLauncherTests
         var gate = File.ReadAllText(RepositoryFile("scripts/size-gate.sh"));
 
         foreach (var binary in new[] { "mailcoded", "mailcoded-daemon", "mailcoded-mcp", "mailcoded-tui" })
-        {
             Assert.Contains(binary, install, StringComparison.Ordinal);
-            Assert.Contains(binary, gate, StringComparison.Ordinal);
-        }
+
+        // Coverage has to come from enumerating the directory. A second list of names beside the
+        // installer's is a list that stops matching it without anyone noticing, and a native
+        // library never named in either one is exactly what escapes.
+        Assert.Contains("find \"$dir\" -type f", gate, StringComparison.Ordinal);
+        Assert.DoesNotContain("mailcoded-daemon", gate, StringComparison.Ordinal);
+    }
+
+    /// <summary>The installer is the only thing in this project allowed to reach the network, and
+    /// only when asked. A default that downloaded would break a promise the README makes.</summary>
+    [Fact]
+    public void The_installer_downloads_nothing_unless_it_is_asked_to()
+    {
+        var install = File.ReadAllText(RepositoryFile("scripts/install.sh"));
+
+        Assert.Contains("WANT_MODEL=0", install, StringComparison.Ordinal);
+        Assert.Contains("--with-model) WANT_MODEL=1", install, StringComparison.Ordinal);
+
+        var curl = install.IndexOf("curl", StringComparison.Ordinal);
+        Assert.True(curl > 0, "the installer no longer has a download to gate");
+        Assert.Contains("if [ \"$WANT_MODEL\" = 1 ]", install, StringComparison.Ordinal);
+    }
+
+    /// <summary>An unverified weights file is a binary every mail body would then flow through.</summary>
+    [Fact]
+    public void The_installer_verifies_a_model_before_it_unpacks_it()
+    {
+        var install = File.ReadAllText(RepositoryFile("scripts/install.sh"));
+
+        var checksum = install.IndexOf("sha256sum", StringComparison.Ordinal);
+        var unpack = install.IndexOf("tar -xzf", StringComparison.Ordinal);
+
+        Assert.True(checksum > 0, "the installer does not checksum what it downloads");
+        Assert.True(unpack > checksum, "the installer unpacks the archive before checking it");
+        Assert.Contains("refusing to install this file", install, StringComparison.Ordinal);
     }
 
     private static string RepositoryFile(string relative)

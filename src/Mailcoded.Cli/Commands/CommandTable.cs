@@ -24,7 +24,7 @@ internal static class CommandTable
     private static readonly CliCommandDefinition[] Commands =
     [
         new CliCommandDefinition("search",
-            new VerbSpec(["limit", "cursor", "account", "folder", "order"], ["no-snippet"]),
+            new VerbSpec(["limit", "cursor", "account", "folder", "order"], ["no-snippet", "meaning"]),
             SearchCommand.RunAsync),
 
         new CliCommandDefinition("read",
