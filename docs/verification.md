@@ -73,8 +73,8 @@ hardware, or the other two OS legs, none of which were available here.
 |---|---|---|
 | **M0** Scaffold | criteria met on linux-x64 | the macOS and Windows CI legs have not run |
 | **M1** Store + MIME | met | — |
-| **M2** IMAP sync + send | mostly met | verified against a minimal local IMAP server, not Dovecot: the QRESYNC/CONDSTORE arms, IDLE, `APPEND`-to-Sent and the 5k-message timing are unrun |
-| **M3** Daemon + secrets + extension skeleton | backend met | the Windows/macOS keyrings are untested, and the VS Code extension does not exist |
+| **M2** IMAP sync + send | mostly met | Dovecot and smtp4dev now run (5 tests): the QRESYNC/CONDSTORE arms and the 5k-message timing are still unrun |
+| **M3** Daemon + secrets + extension skeleton | backend met | the Windows/macOS keyrings are untested; the VS Code extension is a separate repository this record does not cover |
 | **M4** Read/act/compose in the extension | not started | the extension is a separate repository |
 | **M-perf** | harness only | benchmarks never run; `baseline.json` is zeros on purpose |
 | **M5** Polish + agents + packaging | agent surface met | `vsce`/Open VSX packaging, screenshots, and the release tag are human steps |
@@ -89,7 +89,7 @@ hardware, or the other two OS legs, none of which were available here.
   PERFORMANCE §15.2 is a target, not a measurement.
 - **QRESYNC and CONDSTORE delta paths.** The local test server advertises neither, so only the
   full-diff arm has executed. The planner's delta arms are covered by unit tests, not by a server.
-- **IMAP IDLE notifications**, `APPEND`-to-Sent, and `MOVE`.
+- **`MOVE`**, and the 5k-message sync timing. An external `APPEND` producing `notify.mail.added` is covered by the Dovecot suite.
 - **The Windows and macOS keyring backends.** Only `EncryptedFileStore` and the libsecret
   *unavailable* path ran here. The macOS and libsecret interop needs a smoke test on real hardware.
 - **Search-by-meaning quality.** The pipeline runs end to end (above), but only against a model
@@ -107,13 +107,14 @@ hardware, or the other two OS legs, none of which were available here.
 - **M-chaos and M-soak**: no Toxiproxy run, no 24h soak, so the RELIABILITY §14.1 resource budgets
   are unmeasured extrapolations.
 - **Windows and macOS CI legs.** The matrix is defined in `.github/workflows/ci.yml` and has not run.
-- **The VS Code extension.** Not built.
+- **The VS Code extension.** A separate repository. It has its own unit suite and is unreleased;
+  nothing in this record covers it, and no run in this repository has exercised it.
 
 ## Reproducing the local checks
 
 ```bash
 scripts/build.sh                                   # restores offline if nuget.org is unreachable
-scripts/test.sh                                    # the 869-test unit suite
+scripts/test.sh                                    # the unit suite; the table above records the count
 dotnet publish src/Mailcoded.Daemon -c Release -r linux-x64 -p:PublishAot=true -o artifacts/linux-x64
 scripts/aot-smoke.sh artifacts/linux-x64
 scripts/size-gate.sh artifacts/linux-x64

@@ -38,8 +38,10 @@ rejected.
 Structural facts that are true by construction and verifiable by reading the repository:
 
 - local-first; the mail and the index live on the user's machine
-- no telemetry, no analytics; the shipped binaries make no network call beyond mail protocols, and
-  the installer downloads nothing unless the user opts in to a search model
+- no telemetry and no analytics; the shipped binaries connect to the user's own mail servers, and to
+  Microsoft's identity service only when signing in to a Microsoft account
+- the installer downloads nothing unless asked, and no search model is pinned yet, so today it
+  downloads nothing at all
 - full-text search over subject and body, with Tags
 - plaintext-first reading; remote images and tracking pixels blocked by default
 - no delete tool exists in the CLI or MCP surface — absent, not gated

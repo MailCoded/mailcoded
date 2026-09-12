@@ -147,9 +147,13 @@ Per-entity ordinal maps live next to the entity.
 
 **CI size gate:** warn > 12 MB, fail > 20 MB uncompressed per RID; warn > 6 MB, fail > 10 MB compressed. Archive `.mstat` and publish a size-trend chart. Tighten after the first real measurement with sizoscope (`dotnet tool install sizoscope --global`; artifacts land in `obj/Release/net10.0/<rid>/native/`).
 
-**Measured, linux-x64 Release AOT:** `mailcoded-daemon` **13.3 MB** and `mailcoded` (CLI)
-**12.0 MB** — both over the 12 MB warning line, both well under the 20 MB gate — with **zero**
-IL2xxx/IL3xxx trim or AOT warnings. The AOT CLI was then exercised end to end: all 35 MIME
+**Measured, linux-x64 Release AOT, 2026-09-12** — every shipped binary, via `scripts/size-gate.sh`:
+`mailcoded-mcp` **18.23 MiB**, `mailcoded-daemon` **16.25 MiB**, `mailcoded` (CLI) **15.53 MiB**,
+`mailcoded-tui` **5.90 MiB**, plus `libe_sqlite3.so` **1.40 MiB**. The first three are over the
+12 MB warning line and all are under the 20 MB gate; gzipped, the largest is 8.05 MiB, over the
+6 MB compressed warning and under the 10 MB compressed gate. **Zero** IL2xxx/IL3xxx trim or AOT
+warnings. Rule 3's headroom is therefore ~1.8 MiB on the MCP adapter, not the ~7 MB an older
+figure implied. The AOT CLI was then exercised end to end: all 35 MIME
 fixtures import, and FTS, CJK-trigram, short-CJK `LIKE` and metadata-only search all return the
 same results as the JIT build. MimeKit and SQLitePCLRaw both survive trimming intact.
 

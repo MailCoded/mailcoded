@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace Mailcoded.Core.Tests.Docs;
@@ -47,15 +48,22 @@ public sealed class DocumentationTests
         Assert.Contains("[LICENSE](LICENSE)", readme, StringComparison.Ordinal);
     }
 
+    /// <summary>Pinning one literal here would freeze a number that is meant to be re-measured, and
+    /// would not notice the two documents drifting apart. DEPENDENCIES is the normative size doc, so
+    /// the README has to quote whatever it currently records.</summary>
     [Fact]
-    public void Readme_claims_no_single_binary_and_only_the_measured_size()
+    public void Readme_claims_no_single_binary_and_the_size_DEPENDENCIES_measured()
     {
         var readme = Read("README.md");
+        var dependencies = Read("docs/DEPENDENCIES.md");
 
         Assert.DoesNotContain("single-file", readme, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("not a single binary", readme, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("13.3 MB", readme, StringComparison.Ordinal);
         Assert.Contains("libe_sqlite3.so", readme, StringComparison.Ordinal);
+
+        var measured = Regex.Match(dependencies, @"`mailcoded-daemon`\s*\*\*([\d.]+\s*MiB)\*\*");
+        Assert.True(measured.Success, "docs/DEPENDENCIES.md no longer records a measured daemon size.");
+        Assert.Contains(measured.Groups[1].Value, readme, StringComparison.Ordinal);
     }
 
     [Fact]

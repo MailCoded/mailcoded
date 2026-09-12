@@ -9,10 +9,10 @@ local SQLite store with FTS5 full-text search and notmuch-style Tags, sends via 
 two-phase confirmation, and exposes the whole thing over JSON-RPC 2.0 on stdio. One backend, many
 clients — an editor extension, a CLI, and an MCP adapter are all just clients of the same daemon.
 
-Your mail and your index live on your machine. There is no telemetry and no analytics, and the
-daemon, CLI, TUI and MCP adapter make no network call to anything except your own mail servers.
-The installer is the one exception, and only if you say yes: it can offer to download an embedding
-model for search-by-meaning. Decline and everything still works, ranked by words alone.
+Your mail and your index live on your machine. There is no telemetry and no analytics. The daemon,
+CLI, TUI and MCP adapter talk to your own mail servers, and — only when you sign in to a Microsoft
+account — to Microsoft's identity service. Nothing else. The installer can fetch an embedding model
+for search-by-meaning if you ask it to, but no model is pinned yet, so today it fetches nothing.
 
 > **Status: pre-release.** The backend (Core, daemon, CLI, MCP adapter) builds and runs. There is
 > no tagged release and no published binary yet, so everything below builds from source. The VS
@@ -71,10 +71,11 @@ scripts/test.sh                       # the unit suite
 dotnet publish src/Mailcoded.Daemon -c Release -r linux-x64 /p:PublishAot=true
 ```
 
-It is **not a single binary**, and nothing here should call it one. The only measurement this
-project has actually taken is the publish output: on 2026-08-30 the linux-x64 Release AOT
-`mailcoded-daemon` came out at **13.3 MB with zero trim or AOT warnings**, and it ships alongside
-`libe_sqlite3.so` (~1.5 MB) and will not start without it. Desktop RIDs get only the shared
+It is **not a single binary**, and nothing here should call it one. Sizes come from the publish
+output rather than an estimate: on 2026-09-12 the linux-x64 Release AOT binaries measured
+**16.25 MiB** (daemon), **15.53 MiB** (CLI), **18.23 MiB** (MCP adapter) and **5.90 MiB** (TUI),
+all with **zero trim or AOT warnings**. Each ships alongside `libe_sqlite3.so` (1.40 MiB) and will
+not start without it. Desktop RIDs get only the shared
 library from the SQLite native package — there is no static `e_sqlite3.a` to link — so distribute
 the pair. Details in [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).
 
@@ -106,7 +107,7 @@ mailcoded --db /tmp/mail.db tui
 
 `mailcoded tui` starts `mailcoded-tui`, which spawns `mailcoded-daemon` and talks to it over
 JSON-RPC rather than opening the store itself. It is the worked example behind `docs/rpc.md`: it
-compiles against `Mailcoded.Protocol` alone, which is why it is 5.6 MB where the CLI is 15.3 MB.
+compiles against `Mailcoded.Protocol` alone, which is why it is 5.90 MiB where the CLI is 15.53 MiB.
 
 Search understands bare words and phrases plus `from:`, `to:`, `cc:`, `subject:`, `tag:`,
 `folder:`, `is:unread|flagged|draft|replied`, `has:attachment`, `before:`/`after:`, and `-`

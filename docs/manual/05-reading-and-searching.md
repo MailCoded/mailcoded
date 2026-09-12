@@ -70,35 +70,39 @@ exact command to continue —
 with a **null** cursor means the rest lies beyond what any cursor reaches: narrow the query, or use
 `--order date`. Follow the cursor rather than raising `--limit`.
 
-**Searching by meaning.** With `--meaning`, search also ranks by what a message is *about*, not only
-which words it used — so `mailcoded search 'the leaking roof thing' --meaning` can find a message
-that says *"water damage above the meeting room"* and never says "leak" at all.
+**Searching by meaning — unfinished, and there is nothing to install yet.** The `--meaning` flag
+exists and the machinery behind it runs, but **no model is shipped or pinned**, so on any checkout
+today it has nothing to rank with:
 
     $ mailcoded search 'the leaking roof thing' --meaning
+    ~ no model is installed, or nothing has been embedded yet; these match on words alone.
 
-The two rankings are fused, with full-text staying primary: a message both stages found beats one
-that only a single stage found. The JSON reply carries `semantic: true` when that happened, and
-`false` when it did not — which is also what you get, with a note, when no model is installed.
+`scripts/install.sh --with-model` is where a model would come from, and it currently refuses:
+the URL and checksum it would verify are empty, so it prints *"no model is pinned in this checkout"*
+and installs nothing. Until a licence has been read and a digest recorded, that is the whole story —
+there is no download to accept, and nothing to delete afterwards.
 
-It is a flag rather than the default because it costs one model load per command, and `mailcoded` is
-a command an agent runs in a loop. The daemon loads the model once at startup, so clients that talk
-to the daemon — the VS Code extension — get it on every search without asking.
+What the flag does when a model *is* present: it embeds your query, ranks every embedded message by
+how close it sits to that query, and fuses that ranking with the ordinary word search, which stays
+primary — a message both stages found beats one only a single stage found. The JSON reply then
+carries `semantic: true`. **Whether that ordering is any better than plain search is unmeasured.**
+The pipeline has only ever run against a test model with random weights, which proves the plumbing
+and says nothing about relevance, so treat the feature as unfinished rather than as a way to find
+things. `mailcoded search 'roof'` is what to use meanwhile.
 
-- **It fills the page.** Every message with a body has a vector, so the ranking always has more
-  candidates to offer: a word search that found one message can come back with fifty. The first few
-  are the strong matches; below those are simply the nearest remaining messages, which may not be
-  relevant at all. Read down until they stop making sense, and use plain search when you know the
-  word you want.
+Three things to know if you do put a model in place:
+
+- **It fills the page.** Every embedded message is a candidate, so a word search that found one
+  message can come back with fifty. There is no relevance threshold, because choosing one needs a
+  real model to calibrate against. Read down until the results stop making sense.
 - A fused page has **no cursor**. The two rankings interleave, so a later full-text page would repeat
   what fusion promoted. Page with `--order date` if you need to walk a large result set.
 - Only messages whose **body has been fetched** have a vector, and they are embedded in the
-  background by the daemon. A message that arrived a minute ago may be findable by word before it is
-  findable by meaning, and nothing is findable by meaning until a daemon has run.
+  background by the daemon. Nothing is findable by meaning until a daemon has run.
 
-To install the model, re-run the installer with `--with-model`. It is the only thing in mailcoded
-that downloads anything, it asks first, it prints the licence and it verifies a checksum before
-unpacking. To remove it again, delete the `model` directory inside your data directory
-(see [chapter 3](03-where-things-live.md)) — your mail is untouched and search keeps working.
+It is a flag rather than the default because it costs one model load per command, and `mailcoded` is
+a command an agent runs in a loop. A long-lived daemon loads the model once at startup instead, so a
+client that talks to the daemon would not pay that per search.
 
 ## `read`
 
