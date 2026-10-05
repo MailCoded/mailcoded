@@ -257,6 +257,33 @@ public sealed record StoreSearchRequest
     public bool IncludeSnippet { get; init; } = true;
 }
 
+/// <summary>Index text for one attachment, keyed by the attachment index the MIME walk assigned.</summary>
+public sealed record AttachmentTextEntry
+{
+    public required int Index { get; init; }
+    public required string MimeType { get; init; }
+    public string? FileName { get; init; }
+    public required string Text { get; init; }
+    public bool Truncated { get; init; }
+}
+
+/// <summary>A message whose stored raw bytes have not been read for attachment text by the current extractor.</summary>
+public sealed record AttachmentIndexWork
+{
+    public required LocalMessageId MessageId { get; init; }
+    public required BlobId BlobId { get; init; }
+    public DateTimeOffset DateUtc { get; init; }
+}
+
+/// <summary>The attachment a search hit matched on, present only when the query asked about attachment text.</summary>
+public sealed record StoreAttachmentMatch
+{
+    public required int Index { get; init; }
+    public required string MimeType { get; init; }
+    public string? FileName { get; init; }
+    public string? Snippet { get; init; }
+}
+
 public sealed record StoreSearchHit
 {
     public required LocalMessageId Id { get; init; }
@@ -274,6 +301,8 @@ public sealed record StoreSearchHit
 
     /// <summary>Computed only for the returned page, never across the whole result set.</summary>
     public string? Snippet { get; init; }
+
+    public StoreAttachmentMatch? AttachmentMatch { get; init; }
 }
 
 public sealed record StoreSearchResult

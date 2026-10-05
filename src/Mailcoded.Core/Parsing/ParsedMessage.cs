@@ -36,6 +36,9 @@ public sealed record ParsedMessage
 
     public bool HasAttachments => Attachments.Count > 0;
 
+    /// <summary>Index text read out of text-like attachments and .docx files; empty when extraction is off or nothing qualified.</summary>
+    public IReadOnlyList<ParsedAttachmentText> AttachmentTexts { get; init; } = [];
+
     /// <summary>Null only when the message could not be parsed at all.</summary>
     public SignalHeaders? SignalHeaders { get; init; }
 
@@ -60,6 +63,18 @@ public sealed record ParsedAttachment
     public string? ContentId { get; init; }
     public long Size { get; init; }
     public bool IsInline { get; init; }
+}
+
+public sealed record ParsedAttachmentText
+{
+    /// <summary>The <see cref="ParsedAttachment.Index"/> this text came from.</summary>
+    public required int Index { get; init; }
+    public required string MimeType { get; init; }
+    public string? FileName { get; init; }
+    public required string Text { get; init; }
+
+    /// <summary>A byte, character or entry bound cut the text short.</summary>
+    public bool Truncated { get; init; }
 }
 
 /// <summary>Recipients extracted for a send, already validated through <see cref="EmailAddress"/>.</summary>

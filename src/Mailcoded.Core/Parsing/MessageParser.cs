@@ -31,6 +31,14 @@ public sealed class MessageParser
 
     public static MessageParser Default { get; } = new();
 
+    private MessageParser? _withoutAttachmentText;
+
+    /// <summary>The same parser with attachment extraction off, for reads that never index.</summary>
+    public MessageParser WithoutAttachmentText() =>
+        _options.ExtractAttachmentText
+            ? _withoutAttachmentText ??= new MessageParser(_options with { ExtractAttachmentText = false })
+            : this;
+
     public MessageParserOptions Options => _options;
 
     /// <param name="internalDateUtc">
@@ -340,6 +348,10 @@ public sealed class MessageParser
         if (bodyText.Length == 0 && walk.Html is null && walk.Attachments.Count == 0)
             warnings.Add("empty-body");
 
+        var attachmentTexts = _options.ExtractAttachmentText && walk.Attachments.Count > 0
+            ? new AttachmentTextExtractor(_options.AttachmentText).Extract(walk.Entities, walk.Attachments, warnings, ct)
+            : [];
+
         var signalHeaders = ReadSignalHeaders(message);
         var from = FormatFrom(message);
         ContentShape? top = message.Body is { } topEntity ? ShapeOf(topEntity.ContentType) : null;
@@ -362,6 +374,7 @@ public sealed class MessageParser
             BodyText = bodyText,
             BodyHtml = walk.Html,
             Attachments = walk.Attachments,
+            AttachmentTexts = attachmentTexts,
             ParseWarnings = warnings,
         };
     }

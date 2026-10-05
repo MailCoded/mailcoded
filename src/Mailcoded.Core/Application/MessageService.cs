@@ -77,6 +77,7 @@ public sealed class MessageService
 
     private readonly SqliteStore _store;
     private readonly MessageParser _parser;
+    private readonly MessageParser _readParser;
     private readonly AuditLog _audit;
     private readonly AgentPolicy _policy;
     private readonly MessageServiceOptions _options;
@@ -95,6 +96,7 @@ public sealed class MessageService
 
         _store = store;
         _parser = parser;
+        _readParser = parser.WithoutAttachmentText();
         _audit = audit;
         _policy = policy;
         _options = options ?? MessageServiceOptions.Default;
@@ -161,7 +163,7 @@ public sealed class MessageService
             };
         }
 
-        var parsed = _parser.Parse(raw, envelope.DateUtc, ct);
+        var parsed = _readParser.Parse(raw, envelope.DateUtc, ct);
 
         return new MessageView
         {
@@ -219,7 +221,7 @@ public sealed class MessageService
                 $"The body of message {id.Value} is not cached, so a reply cannot quote it. Sync first.");
         }
 
-        var parsed = _parser.Parse(raw, envelope.DateUtc, ct);
+        var parsed = _readParser.Parse(raw, envelope.DateUtc, ct);
         return ReplyBuilder.Create(parsed, selves, replyAll);
     }
 
@@ -241,7 +243,7 @@ public sealed class MessageService
         var raw = ReadRaw(envelope, ct);
         if (raw is null) return [];
 
-        return _parser.Parse(raw, envelope.DateUtc, ct).Attachments;
+        return _readParser.Parse(raw, envelope.DateUtc, ct).Attachments;
     }
 
     public async Task<AttachmentContent> GetAttachmentAsync(
@@ -483,6 +485,25 @@ public sealed class MessageService
                 ct)
             .ConfigureAwait(false);
 
+        if (parsed.HasAttachments)
+        {
+            try
+            {
+                await _store
+                    .SetAttachmentTextsAsync(envelope.Id, AttachmentTextIndexing.EntriesOf(parsed), AttachmentTextIndexing.ExtractorVersion, ct)
+                    .ConfigureAwait(false);
+            }
+            catch (StoreException ex)
+            {
+                await _audit.WarnAsync(
+                    AuditEvents.AttachmentTextFailed,
+                    envelope.AccountId,
+                    caller,
+                    AuditText.Fields(("message", AuditText.Number(envelope.Id.Value)), ("category", ex.Category.ToString())),
+                    ct).ConfigureAwait(false);
+            }
+        }
+
         await _audit.InfoAsync(
             AuditEvents.BodyFetched,
             envelope.AccountId,
@@ -507,7 +528,7 @@ public sealed class MessageService
             var raw = ReadRaw(envelope, ct);
             if (raw is null) return envelope;
 
-            parsed = _parser.Parse(raw, envelope.DateUtc, ct);
+            parsed = _readParser.Parse(raw, envelope.DateUtc, ct);
         }
         catch (Exception ex) when (ex is StoreException or FormatException)
         {

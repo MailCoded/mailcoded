@@ -21,6 +21,7 @@ public static class SearchQueryParser
         Folder,
         Is,
         Has,
+        Attachment,
         Before,
         After,
     }
@@ -106,7 +107,7 @@ public static class SearchQueryParser
 
             if (colon > 0 && TryField(word[..colon], out var field))
             {
-                if (AddPredicate(field, word[(colon + 1)..], negated, start, predicates, errors)) accepted++;
+                if (AddPredicate(field, word[(colon + 1)..], quoted, negated, start, predicates, errors)) accepted++;
                 continue;
             }
 
@@ -199,6 +200,7 @@ public static class SearchQueryParser
             case "in": field = FieldKind.Folder; return true;
             case "is": field = FieldKind.Is; return true;
             case "has": field = FieldKind.Has; return true;
+            case "attachment": field = FieldKind.Attachment; return true;
             case "before": field = FieldKind.Before; return true;
             case "after":
             case "since": field = FieldKind.After; return true;
@@ -209,6 +211,7 @@ public static class SearchQueryParser
     private static bool AddPredicate(
         FieldKind field,
         string rawValue,
+        bool quoted,
         bool negated,
         int position,
         List<SearchPredicate> predicates,
@@ -280,6 +283,16 @@ public static class SearchQueryParser
                 errors.Add(new SearchParseError(SearchParseErrorKind.UnknownValue, "Only has:attachment is supported.", position, Excerpt(value)));
                 return false;
 
+            case FieldKind.Attachment:
+                if (BuildTerm(value, quoted, negated) is not { } term)
+                {
+                    errors.Add(new SearchParseError(SearchParseErrorKind.EmptyValue, "attachment: needs a word to look for.", position, Excerpt(value)));
+                    return false;
+                }
+
+                predicates.Add(new SearchPredicate.AttachmentText(term) { Negated = negated });
+                return true;
+
             case FieldKind.Before:
             case FieldKind.After:
                 if (!TryParseSearchDate(value, out var date))
@@ -349,6 +362,14 @@ public static class SearchQueryParser
 
     private static bool AddTerm(string word, bool quoted, bool negated, List<FtsTerm> terms)
     {
+        if (BuildTerm(word, quoted, negated) is not { } term) return false;
+
+        terms.Add(term);
+        return true;
+    }
+
+    private static FtsTerm? BuildTerm(string word, bool quoted, bool negated)
+    {
         var text = SearchEscaping.NormalizeTerm(word);
         var isPrefix = false;
 
@@ -363,13 +384,13 @@ public static class SearchQueryParser
         }
 
         // A term FTS5 cannot tokenize would turn the whole MATCH into a syntax error.
-        if (!SearchEscaping.HasTokenChar(text)) return false;
+        if (!SearchEscaping.HasTokenChar(text)) return null;
 
         var script = SearchEscaping.Classify(text);
         var match = SearchEscaping.ToFtsString(text);
         if (isPrefix) match += "*";
 
-        terms.Add(new FtsTerm
+        return new FtsTerm
         {
             Text = text,
             MatchExpression = match,
@@ -378,9 +399,7 @@ public static class SearchQueryParser
             IsPrefix = isPrefix,
             Negated = negated,
             LikePattern = script == ScriptKind.ShortCjk ? SearchEscaping.ToLikePattern(text) : null,
-        });
-
-        return true;
+        };
     }
 
     /// <summary>Accepts yyyy-MM-dd, yyyy-MM, yyyy, and full ISO 8601. Date-only values mean UTC midnight.</summary>

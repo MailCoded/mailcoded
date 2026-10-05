@@ -1,0 +1,37 @@
+From: Sender Example <sender@example.com>
+To: Reader Example <reader@example.org>
+Subject: Exports
+Date: Tue, 20 Jan 2026 08:00:00 +0000
+Message-ID: <fixture-055@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="fixture-boundary"
+
+--fixture-boundary
+Content-Type: text/plain; charset=utf-8
+
+The attachments hold the details.
+--fixture-boundary
+Content-Type: text/csv
+Content-Disposition: attachment; filename="totals.csv"
+Content-Transfer-Encoding: base64
+
+cmVnaW9uLHRvdGFsCm5vcnRoLDEyMDAKc291dGgsOTUwCg==
+--fixture-boundary
+Content-Type: text/plain; charset=iso-8859-1
+Content-Disposition: attachment; filename="receipt.txt"
+Content-Transfer-Encoding: base64
+
+Q2Fm6SByZWNlaXB0OiBjcuhtZSBicvts6WUK
+--fixture-boundary
+Content-Type: application/octet-stream
+Content-Disposition: attachment; filename="notes.md"
+Content-Transfer-Encoding: base64
+
+IyBTaXRlIG5vdGVzCgpTY2FmZm9sZGluZyBpbnNwZWN0aW9uIHBhc3NlZC4K
+--fixture-boundary
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="scan.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQgbm90IGluZGV4ZWQgd29yZHMK
+--fixture-boundary--

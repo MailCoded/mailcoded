@@ -6,6 +6,8 @@ namespace Mailcoded.Cli.Commands;
 
 internal static class SyncCommand
 {
+    private static readonly TimeSpan AttachmentIndexBudget = TimeSpan.FromSeconds(5);
+
     public static async Task<int> RunAsync(CliHost host, CommandLine line, CliOutput output, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(host);
@@ -32,10 +34,14 @@ internal static class SyncCommand
             progress?.Finish();
         }
 
+        var pending = await new AttachmentTextBackfill(host.Store, host.Parser)
+            .RunWithinAsync(AttachmentIndexBudget, ct).ConfigureAwait(false);
+
         if (output.Json)
         {
             var writer = output.BeginJson();
             writer.WriteNumber("account_id", account.Id.Value);
+            writer.WriteNumber("attachment_text_pending", pending);
             writer.WriteNumber("added", report.Added);
             writer.WriteNumber("updated", report.Updated);
             writer.WriteNumber("expunged", report.Expunged);
@@ -78,6 +84,8 @@ internal static class SyncCommand
         }
 
         if (report.Degraded) output.Line("warning: at least one folder synced in degraded mode");
+        if (pending > 0)
+            output.Line(string.Create(CultureInfo.InvariantCulture, $"attachment text: {pending} fetched message(s) still to read; sync again to continue"));
         return ExitCodes.Ok;
     }
 }

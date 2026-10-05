@@ -41,7 +41,7 @@ is one, and names the gate it is waiting on. Code is what is gated, not folders.
 
 ## Known gaps (deliberate, for now)
 
-- **No attachment-content search.** We index subject and body, not text inside PDFs/Office files. On the roadmap.
+- **Attachment search covers text-like files and Word `.docx` only.** Text inside PDFs, spreadsheets, presentations and images is not indexed. On the roadmap.
 - **Windows needs no external tools**, but the classic Unix stack (mbsync/notmuch) interop is POSIX-only.
 - **No calendar, contacts, or PGP.** Not planned.
 

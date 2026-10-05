@@ -135,6 +135,8 @@ QUERY SYNTAX
   is:verified           a trusted server reported DMARC pass for the From domain
                         (not "safe"; -is:verified also matches unknown)
   has:attachment        carries an attachment
+  attachment:wiring     text inside a text-like attachment or a .docx (not PDFs, sheets, images);
+                        also attachment:"two words", attachment:inv*; plain words never match it
   before:2026-01-31     strictly earlier
   after:2026-01-01      at or after
   -term / -tag:spam     negation
@@ -432,6 +434,10 @@ mailcoded sync [--account <id>] [--folder <id>] [--json]
 
   Connects to the account's IMAP server and pulls changes. With --folder only that folder
   syncs. Sync is idempotent: re-running it after an interruption replays safely.
+
+  Afterwards it spends up to five seconds reading the attachments of mail fetched earlier, so
+  that attachment: search finds them. The JSON field attachment_text_pending says how many
+  messages are still waiting; run sync again to continue.
 
   On a terminal it draws one progress line on stderr while it runs and erases it when it
   ends. --json and --quiet turn that off, and so does redirecting stderr.

@@ -32,7 +32,9 @@ internal static class ToolText
 
     public const string SearchDescription =
         "Search the local mailcoded store. The query accepts free text plus the from:, to:, subject:, " +
-        "tag:, in:, is:, before: and after: operators. Messages in Trash and Junk folders are left out " +
+        "tag:, in:, is:, attachment:, before: and after: operators; attachment:word searches the text of " +
+        "text-like attachments and .docx files only (never PDFs, sheets or images), and plain words never do. " +
+        "Messages in Trash and Junk folders are left out " +
         "unless the query names a folder, says in:anywhere, or folder_id is given. " +
         "Returns envelope hits with an optional snippet. " +
         "Follow next_cursor unchanged while truncated is true; never edit or mix cursors.";
@@ -80,7 +82,7 @@ internal static class ToolText
     {
       "type": "object",
       "properties": {
-        "query": { "type": "string", "description": "Search expression; free text plus from:/to:/subject:/tag:/is:/before:/after:." },
+        "query": { "type": "string", "description": "Search expression; free text plus from:/to:/subject:/tag:/is:/attachment:/before:/after:." },
         "limit": { "type": "integer", "minimum": 1, "maximum": 200, "description": "Hits per page. Defaults to 50." },
         "cursor": { "type": "string", "description": "Opaque next_cursor from a previous call. Pass it back unchanged." },
         "account_id": { "type": "integer", "description": "Restrict to one account." },

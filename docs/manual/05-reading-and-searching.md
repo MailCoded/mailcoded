@@ -29,6 +29,7 @@ Full-text over subject, sender, recipients and body, plus structured predicates.
 | `is:encrypted` | PGP/MIME, an S/MIME envelope, or an inline PGP block; mailcoded cannot read the body |
 | `is:verified` | a receiving server you trust reported DMARC `pass` for the From domain (see below); this is not "safe" |
 | `has:attachment` | carries an attachment |
+| `attachment:wiring`, `attachment:"purchase order"`, `attachment:inv*` | text inside a text-like attachment (plain text, CSV, Markdown, calendar, JSON, HTML) or a Word `.docx`; see below |
 | `before:2026-01-31`, `after:2026-01-01`, `since:2026-01-01` | strictly earlier; at or after. ISO dates |
 | `-term`, `-tag:spam`, `not term` | negation |
 
@@ -47,6 +48,19 @@ word `anywhere` is reserved for this, so a folder literally called `anywhere` is
 `--folder` or by its full path. Reading a message, showing a thread, listing folders and `stats` are
 not affected, and a search for a word that only a discarded message contains answers nothing until
 you add `in:anywhere` or `in:trash`.
+
+**`attachment:` searches inside attachments, and nothing else does.** Plain words never look inside an
+attachment, and `attachment:` never looks in a message body, so `invoice attachment:wiring` means a
+message about an invoice with an attachment mentioning wiring. Readable attachments are text-like
+files (plain text, CSV and TSV, Markdown, calendar files, JSON, HTML, or a generic attachment named
+`.txt`, `.csv`, `.md`, `.log`, `.json` or `.ics`) and Word `.docx` documents. PDFs, spreadsheets,
+presentations, images, old `.doc` files and archives are **not** read, and the search will not find
+text inside them. Each hit tells you which attachment matched (`attachment 2 (plan.docx): ...`, and an
+`attachment_match` object in `--json`), and `mailcoded attachments <id> --save <index>` gets you the
+file. A very long attachment is read only up to a limit, and a damaged or oversized one is skipped.
+Mail you fetched before this existed is read in the background by the daemon, and for a few seconds at
+the end of every `mailcoded sync`, so older attachments become searchable gradually. The text of an
+attachment is as untrusted as the message that carried it.
 
 `is:automated` and `is:encrypted` are worked out from message headers and structure when mail is
 synced, and refined when a body is fetched (inline PGP armor can only be seen then). They match only a

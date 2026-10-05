@@ -112,6 +112,7 @@ Every row needs a fixture and a table-driven test against the pure planner.
 | 33 | Disk full (SQLITE_FULL) | error code | pause sync, surface notification, never corrupt |
 | 34 | User copies DB while running | n/a | `mailcoded backup` / `store.backup`: `VACUUM INTO` on a read-only connection plus the referenced external blob files and a verifiable manifest; `backup-verify` / `store.backupVerify` re-checks it |
 | 35 | A long sync or attachment fetch holds the sync connection while the user reads, tags or moves a Message | command waits behind the whole stream | the interactive lane: a second connection opened on demand; refusal falls back to sharing the sync connection and retries after a monotonic backoff; never more than the per-Account connection budget |
+| 36 | Hostile attachment container: zip bomb, oversized or lying central directory, DOCTYPE/entity expansion (XXE, billion laughs), non-zip named `.docx`, binary labelled `text/plain`, UTF-16 XML | entry count from the end-of-central-directory record before any entry is enumerated; declared ratio over 200:1 or size over 16 MiB; bytes counted as read; any `<!DOCTYPE`/`<!ENTITY`; NUL bytes and control-character density in text; a Stopwatch deadline | skip that attachment and carry on: a warning, never a failed fetch or sync; no XML parser exists to expand an entity, and nothing is fetched or resolved |
 
 ## 14.6 Observability
 

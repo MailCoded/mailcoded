@@ -105,7 +105,16 @@ Per-entity ordinal maps live next to the entity.
 
 **Baselines per RID.** .NET 10 AOT hello-world ~1.1-1.5 MB. e_sqlite3 native ~1.3-1.5 MB (linux-x64/win-x64), ~2.3 MB (macOS universal). Sockets/TLS +2-4 MB. MimeKit/MailKit managed after trimming +3-6 MB (no published measurement — estimate). Realistic total **~9-17 MB uncompressed per RID** (the 2026-09-12 daemon measured 16.25 MiB), Linux at the high end because of app-local ICU.
 
-**Globalization.** `InvariantGlobalization=false` is **required** — MIME needs legacy charset decoding via `CodePagesEncodingProvider`. Windows and macOS use OS-provided ICU (no size hit). Linux has no base-OS ICU: ship **app-local ICU** so the daemon works on machines without `libicu`. Decode-correctness beats size for a mail daemon.
+**Attachment text extraction (BCL only).** Reading a Word `.docx` adds no package: it uses
+`System.IO.Compression.ZipArchive` and a scanner written for the one XML vocabulary involved
+(`WordXmlTextScanner`). `System.Xml` was measured and rejected. Published as a Native AOT daemon with
+the extraction code stubbed out the binary was 17,902,256 bytes; with the zip and scanner it is
+18,270,648 bytes, so the whole `.docx` path costs 368,392 bytes. The same build with the scanner replaced
+by a minimal `XmlReader` (DTD processing prohibited, no resolver) was 18,919,576 bytes, 648,928 bytes
+more than the scanner, and still leaves DTD, entity and resolver machinery in the binary that this code
+only needs to refuse. Neither variant produced a trimming or AOT warning. These are byte counts of
+published daemons on the development machine at the commit they were measured; they are not the release
+sizes quoted below. `InvariantGlobalization=false` is **required** — MIME needs legacy charset decoding via `CodePagesEncodingProvider`. Windows and macOS use OS-provided ICU (no size hit). Linux has no base-OS ICU: ship **app-local ICU** so the daemon works on machines without `libicu`. Decode-correctness beats size for a mail daemon.
 
 **Size knobs.**
 

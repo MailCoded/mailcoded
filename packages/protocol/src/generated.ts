@@ -135,6 +135,19 @@ export interface AttachmentGetResult {
   size: number;
 }
 
+/**
+ * Which attachment of a search hit holds the text an `attachment:` term matched. The excerpt is
+ * attacker-controlled attachment text.
+ */
+export interface AttachmentMatchDto {
+  /** The index `attachment.get` takes for this attachment. */
+  index: number;
+  /** Already sanitized for use as a save-as name. */
+  filename?: string;
+  mime: string;
+  snippet?: string;
+}
+
 export interface AuthDto {
   /** `password|oauth2`. */
   kind?: string;
@@ -308,6 +321,11 @@ export interface EnvelopeDto {
   bodyFetched: boolean;
   /** Search-result excerpt, present only on hits from `search` when snippets were requested. */
   snippet?: string;
+  /**
+   * The attachment an `attachment:` term matched on, present only on hits from `search` whose
+   * query used one; its snippet follows `includeSnippet`.
+   */
+  attachmentMatch?: AttachmentMatchDto;
 }
 
 /**

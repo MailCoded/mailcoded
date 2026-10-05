@@ -18,6 +18,7 @@ public static class AuditEvents
     public const string FolderReconciled = "folder_reconciled";
     public const string FolderOrphaned = "folder_orphaned";
     public const string BodyFetched = "body_fetched";
+    public const string AttachmentTextFailed = "attachment_text_failed";
     public const string TagsSet = "tags_set";
     public const string MessageMoved = "message_moved";
     public const string AttachmentRead = "attachment_read";

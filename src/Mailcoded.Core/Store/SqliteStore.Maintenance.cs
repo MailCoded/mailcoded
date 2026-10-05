@@ -7,7 +7,7 @@ public sealed partial class SqliteStore
 {
     private static readonly string[] CountedTables =
     [
-        "accounts", "folders", "messages", "blobs", "tags", "body_text", "outbox", "sync_log",
+        "accounts", "folders", "messages", "blobs", "tags", "body_text", "attachment_text", "outbox", "sync_log",
     ];
 
     /// <summary>

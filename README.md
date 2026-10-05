@@ -122,7 +122,7 @@ compiles against `Mailcoded.Protocol` alone, which is why it is 5.90 MiB where t
 
 Search understands bare words and phrases plus `from:`, `to:`, `cc:`, `subject:`, `tag:`,
 `folder:`/`in:`, `is:unread|flagged|draft|replied`, `is:automated`, `is:encrypted`, `is:verified`, `has:attachment`,
-`before:`/`after:`, and `-` negation. Diacritics fold, and CJK is indexed with a trigram route (with a `LIKE` fallback for one-
+`attachment:` (text inside text-like attachments and `.docx` files), `before:`/`after:`, and `-` negation. Diacritics fold, and CJK is indexed with a trigram route (with a `LIKE` fallback for one-
 and two-character terms). `--meaning` additionally ranks by what a message is about rather than
 which words it used, if you installed a model — see [Known gaps](#known-gaps) for its real state.
 Search leaves out Messages in Trash and Junk Folders unless the query names a Folder (`in:trash`,
@@ -354,9 +354,12 @@ Default store roots: `%LOCALAPPDATA%\mailcoded` on Windows,
 
 Stated plainly, because these are the things you would otherwise discover on day three:
 
-- **No attachment-content search.** We index subject and body text only. Text inside PDFs, Word
-  documents, and spreadsheets is **not** searchable, and no phrasing anywhere in this project should
-  suggest otherwise. On the roadmap; not in v0.1.
+- **Attachment search is narrow.** Text-like attachments (plain text, CSV and TSV, Markdown, calendar
+  files, JSON, HTML) and Word `.docx` files are read for text and searched with `attachment:`. Text inside
+  PDFs, spreadsheets, presentations and images is **not** searchable, nor is a legacy `.doc`, and no phrasing
+  anywhere in this project should suggest otherwise. Bare words never match attachment text. Mail whose body
+  was fetched before this existed is read in the background by the daemon (or by `mailcoded sync`), so
+  older attachments become searchable over time, not at once. Those formats are on the roadmap.
 - **No calendar and no contacts.** Not planned.
 - **No PGP and no S/MIME.** Out of scope for v0.x, and decrypted content must never reach an agent or the
   store. Encrypted mail is marked `encrypted` and its body stays unread.

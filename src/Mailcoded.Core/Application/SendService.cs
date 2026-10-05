@@ -1034,7 +1034,7 @@ public sealed class SendService
         if (record.Envelope is { IsEmpty: false } stored)
             return new SendEnvelope(stored.From, stored.AllRecipients());
 
-        var parsed = _parser.Parse(record.Raw, record.CreatedUtc, ct);
+        var parsed = _parser.WithoutAttachmentText().Parse(record.Raw, record.CreatedUtc, ct);
         if (!RecipientExtractor.TryExtract(parsed, out var recipients, out _))
         {
             throw new ProviderException(

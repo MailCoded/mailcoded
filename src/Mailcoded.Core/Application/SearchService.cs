@@ -160,6 +160,7 @@ public sealed class SearchService
     {
         if (_semantic is null || !_semantic.IsReady || request.Semantic == false) return null;
         if (request.Cursor is not null || request.Order != SearchOrder.Relevance) return null;
+        if (query.PrimaryAttachmentTerm is not null) return null;
 
         var text = QueryText(query);
         if (text.Length == 0) return null;

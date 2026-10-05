@@ -20,6 +20,7 @@ namespace Mailcoded.Protocol;
 
 // Shared DTOs
 [JsonSerializable(typeof(EnvelopeDto))]
+[JsonSerializable(typeof(AttachmentMatchDto))]
 [JsonSerializable(typeof(FolderDto))]
 [JsonSerializable(typeof(AccountDto))]
 [JsonSerializable(typeof(ImapConfigDto))]

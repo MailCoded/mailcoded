@@ -1,0 +1,10 @@
+{
+  "id": 4,
+  "jsonrpc": "2.0",
+  "result": {
+    "hits": [],
+    "relaxed": false,
+    "semantic": false,
+    "truncated": false
+  }
+}

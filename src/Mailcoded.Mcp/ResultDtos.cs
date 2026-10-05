@@ -24,6 +24,15 @@ internal sealed record SearchHitDto
     [JsonPropertyName("encrypted")] public bool? Encrypted { get; init; }
     [JsonPropertyName("dmarc")] public string? Dmarc { get; init; }
     [JsonPropertyName("snippet")] public string? Snippet { get; init; }
+    [JsonPropertyName("attachment_match")] public AttachmentMatchResultDto? AttachmentMatch { get; init; }
+}
+
+internal sealed record AttachmentMatchResultDto
+{
+    [JsonPropertyName("index")] public int Index { get; init; }
+    [JsonPropertyName("filename")] public string? Filename { get; init; }
+    [JsonPropertyName("mime")] public string Mime { get; init; } = string.Empty;
+    [JsonPropertyName("snippet")] public string? Snippet { get; init; }
 }
 
 internal sealed record SearchParseErrorDto

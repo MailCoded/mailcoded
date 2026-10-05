@@ -94,6 +94,9 @@ public sealed partial class SqliteStore
                 }
             }
 
+            if (query.PrimaryAttachmentTerm is { } attachmentTerm)
+                AttachMatches(session, hits, attachmentTerm, withSnippet, ct);
+
             string? nextCursor = null;
             var truncated = false;
 
@@ -120,6 +123,51 @@ public sealed partial class SqliteStore
             };
         }, ct);
     }
+
+    private static void AttachMatches(DbSession session, List<StoreSearchHit> hits, FtsTerm term, bool withSnippet, CancellationToken ct)
+    {
+        var sql = term.Script switch
+        {
+            ScriptKind.ShortCjk => AttachmentMatchSql("a.text LIKE $expr ESCAPE '\\'", withSnippet),
+            ScriptKind.Cjk => AttachmentMatchSql(
+                "EXISTS (SELECT 1 FROM att_fts_cjk WHERE att_fts_cjk MATCH $expr AND rowid = a.id)", withSnippet),
+            _ => AttachmentMatchSql("EXISTS (SELECT 1 FROM att_fts WHERE att_fts MATCH $expr AND rowid = a.id)", withSnippet),
+        };
+
+        var expression = term.Script == ScriptKind.ShortCjk ? term.LikePattern : term.MatchExpression;
+        var needles = new[] { term.Text };
+
+        for (var i = 0; i < hits.Count; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            using var reader = session
+                .Prepare(sql, "$id", "$expr", "$needle")
+                .SetInt(0, hits[i].Id.Value)
+                .SetText(1, expression)
+                .SetText(2, term.Text)
+                .ExecuteReader();
+
+            if (!reader.Read()) continue;
+
+            hits[i] = hits[i] with
+            {
+                AttachmentMatch = new StoreAttachmentMatch
+                {
+                    Index = (int)reader.GetInt64(0),
+                    MimeType = reader.GetString(1),
+                    FileName = Db.Str(reader, 2),
+                    Snippet = withSnippet ? BuildSnippet(Db.Str(reader, 3), needles) : null,
+                },
+            };
+        }
+    }
+
+    // The excerpt window is cut in SQL: attachment text can be 256,000 characters and the match sits anywhere in it.
+    private static string AttachmentMatchSql(string condition, bool withSnippet) =>
+        "SELECT a.idx, a.mime_type, a.file_name, "
+        + (withSnippet ? "substr(a.text, MAX(1, instr(lower(a.text), lower($needle)) - 200), 600) " : "NULL ")
+        + "FROM attachment_text a WHERE a.message_id = $id AND " + condition + " ORDER BY a.idx LIMIT 1";
 
     /// <summary>The index the residual text is ranked and joined through; None for a metadata-only query.</summary>
     private static SearchRoute PrimaryRoute(ParsedQuery query)
@@ -169,6 +217,9 @@ public sealed partial class SqliteStore
                 break;
             case SearchPredicate.HasAttachment:
                 builder.And(negated ? "m.has_attachments = 0" : "m.has_attachments = 1");
+                break;
+            case SearchPredicate.AttachmentText attachmentPredicate:
+                builder.AndAttachmentText(attachmentPredicate.Term, negated);
                 break;
             case SearchPredicate.IsAutomated:
                 builder.And(negated ? "m.automated = 0" : "m.automated = 1");

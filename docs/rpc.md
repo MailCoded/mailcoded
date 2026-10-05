@@ -327,7 +327,23 @@ check `capabilities.notifications` for `notify.sync.progress` before relying on 
 Local only; never touches the network. Query syntax: bare words (full text over subject, sender,
 recipients, body), `"quoted phrases"`, `from:`, `to:`, `cc:`, `subject:`, `tag:`, `folder:`/`in:`,
 `is:unread|flagged|draft|replied`, `is:automated`, `is:encrypted`, `is:verified`, `has:attachment`,
-`before:YYYY-MM-DD`, `after:YYYY-MM-DD`, and `-` negation.
+`attachment:`, `before:YYYY-MM-DD`, `after:YYYY-MM-DD`, and `-` negation.
+
+**Attachment text.** `attachment:word`, `attachment:"two words"` and `attachment:pre*` search the text
+of attachments, and **only** that: bare words never match attachment text, and `attachment:` never
+matches a body. The text comes from text-like attachments (`text/plain`, `text/csv`,
+`text/tab-separated-values`, `text/markdown`, `text/calendar`, `application/json`, `text/html`, or
+`application/octet-stream` named `.txt`, `.csv`, `.tsv`, `.md`, `.markdown`, `.log`, `.json` or
+`.ics`) and Word `.docx` files (the body, footnotes and endnotes; not headers, footers, comments or
+tracked deletions). PDF, spreadsheets, presentations, images, legacy `.doc` and archives are not
+read. Text is read when a body is fetched or imported and, for bodies fetched earlier, by a
+background pass in the daemon (and for up to five seconds at the end of each `mailcoded sync`), so an
+older attachment becomes searchable some time after the upgrade. Each `attachment:` term is its own
+condition and may be satisfied by a different attachment; the same attachment is only required
+inside one quoted phrase. A message qualifies when any attachment holds the term, `-attachment:` when none does. A query
+with `attachment:` and bare words ranks by the bare words; with `attachment:` alone, results page by
+date. CJK follows the body rules (three or more characters by trigram, one or two by `LIKE`, which scans
+every stored attachment text). The semantic ranking is not fused into a query that uses `attachment:`.
 
 **Which Folders a search covers.** By default a search leaves out every Message whose Folder has
 `role` `trash` or `junk`, in every Account. Three things lift that, and any one is enough:
@@ -388,7 +404,23 @@ has no trusted pass to show.
 - `snippet` on an `EnvelopeDto` is present only on search hits and only when `includeSnippet` is
   true. It is an excerpt of attacker-controlled mail text.
 
-**Search covers subject and body text only. Attachment *contents* are not indexed.**
+- `attachmentMatch` on an `EnvelopeDto` is present only on search hits whose query had a positive
+  `attachment:` term. It names the first attachment (lowest
+  `index`) that holds the term — `index` is the one `attachment.get` takes, `filename` is the
+  sanitized save-as name, `mime` the declared type — and `snippet` is a short excerpt of it, present only when `includeSnippet` is true. The
+  excerpt is **attacker-controlled attachment text**, exactly as untrusted as `snippet`. Only the
+  first `attachment:` term decides which attachment is named.
+
+**Search covers subject, sender, recipients and body text, and, through `attachment:`, the text of
+text-like attachments and `.docx` files. It does not read PDFs, spreadsheets, presentations or
+images.** Extraction is bounded and treats every attachment as hostile: a `.docx` is a zip read with
+the .NET base class library only; at most 4,096 entries are declared, 16 attachments are read per message, each
+XML part is read through a 16 MiB counter whatever the zip claims, a part that declares more than a
+200:1 inflation ratio is refused unread, any DOCTYPE or ENTITY declaration refuses the part (no
+entity is ever expanded, nothing is ever fetched), at most 256,000 characters are kept per
+attachment and 512,000 per message, and a message gets five seconds. A file that exceeds a bound is
+skipped or cut, never fatal, and shows only as a count in the `warnings` field of the body-fetch
+audit entry.
 
 ### `thread.get`
 `{ "threadKey": "…", "limit": 200 }` → `{ "messages": [EnvelopeDto], "truncated": false }`
@@ -932,7 +964,7 @@ shell agent to branch:
   "date": "2026-08-30T12:34:56.000Z",
   "flags": ["unread"], "tags": ["unread", "triaged"],
   "hasAttachments": true, "size": 20481, "automated": false, "encrypted": false,
-  "dmarc": "pass", "bodyFetched": false, "snippet": null }
+  "dmarc": "pass", "bodyFetched": false, "snippet": null, "attachmentMatch": null }
 ```
 
 - `id`, `accountId`, `folderId` are **local row ids**, not server UIDs, and are only meaningful
@@ -979,6 +1011,8 @@ shell agent to branch:
     mail is synced again.
 - `bodyFetched: false` means `message.get` will hit the network unless you pass
   `fetchIfMissing: false`.
+- `attachmentMatch` is `{ "index", "filename", "mime", "snippet" }`; see `search`. It never appears
+  outside search results.
 
 ### `AttachmentDto`
 `{ "index": 0, "filename": "invoice.pdf", "mime": "application/pdf", "size": 20481,

@@ -42,6 +42,8 @@ public sealed class GoldenTranscriptTests : IClassFixture<DaemonTranscriptFixtur
     [InlineData("search-not-automated")]
     [InlineData("search-is-verified")]
     [InlineData("search-not-verified")]
+    [InlineData("search-attachment")]
+    [InlineData("search-attachment-bare-word")]
     [InlineData("search-in-anywhere")]
     [InlineData("search-in-junk")]
     [InlineData("search-semantic-unsupported")]

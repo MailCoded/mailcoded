@@ -58,6 +58,13 @@ CREATE INDEX ix_msg_date     ON messages(date_utc DESC, id DESC);
 -- messages.dmarc (nullable text, migration 010) is likewise unindexed: is:verified filters the same scan.
 -- messages.unsubscribe (nullable text, migration 011, at most 4,000 chars and NULL or empty for most mail) is
 -- read only by id and is not searchable, so it has no index and no query path of its own.
+-- Attachment text (migration 015) lives beside the message index, never inside it, so a bare-word query
+-- pays nothing for it. attachment_text(id, message_id, idx, file_name, mime_type, text, truncated) is the
+-- source of truth; att_fts (porter unicode61, contentless_delete=1) is keyed by attachment_text.id, and
+-- att_fts_cjk (trigram) holds a row only for text that contains CJK characters. contentless_delete lets
+-- a message's rows go by rowid alone, which is why removal needs no copy of the text. attachment_index
+-- (message_id, version) marks a message as read by extractor version N; ix_msg_attachment_queue is a
+-- partial index over the messages the backfill can read, so an idle poll never scans the table.
 -- Category Tags (auto.*) are ordinary rows in tags: one extra insert per categorised message, inside the
 -- ingest transaction. tag:auto.* uses ix_tags_tag. No new column or index.
 ```
@@ -192,6 +199,30 @@ by a migration.
 `System.Numerics.Vector<T>` throughout, never `Avx2.*` or `Fma.*`: those throw
 `PlatformNotSupportedException` at ILC's default SSE2 baseline, while the portable API degrades to
 whatever the machine actually has and needs no minimum-CPU raise.
+
+## 15.6b Attachment text
+
+`attachment:term` is `m.id IN (SELECT message_id FROM att_fts JOIN attachment_text ... MATCH ?)`: one
+uncorrelated subquery, so the matching attachment rows are found once through the index and never
+probed per message. Bare-word search is untouched, which is the reason the operator is explicit and
+attachment text is not a third column of `msg_fts`: folding it in would grow the index every query
+reads, add a ranking weight to tune, and make a 256,000-character CSV outrank a subject line. On the
+development machine, over 20,000 attachments of about 300 words each, `attachment:` on a term that
+10,000 of them hold took 32 ms to return its first 50 hits with a named attachment and an excerpt each,
+a term held by about 50 took 7 ms, and a second `attachment:` term added 11 ms; that is a probe on the
+development machine, not a gate. The excerpt window is cut in SQL (`substr` around the first
+case-folded occurrence of the term, falling back to the start of the text), because the text can be
+long and the match can sit anywhere in it.
+
+**Writes.** Attachment text arrives only with a body (lazy fetch, `import-eml`) or from the backfill, never from
+an envelope, so the bulk-ingest recipe above has nothing of it to defer: no envelope write touches these
+tables, and a bulk window opens and closes without them. The backfill (`AttachmentTextBackfill`) stands down while a bulk-ingest
+window is open, as the vector backfill does, because a write issued inside the window would join its
+transaction. It parses on the calling thread, never on the SQLite writer thread, and stores each message
+in its own transaction, 16 messages a batch with a 250 ms pause: about 64 messages a second, so a
+store of 100,000 messages with attachments finishes in roughly 25 minutes in the background. Storing a
+row costs about 0.7 ms (20,000 single-row transactions in 14.6 s on the development machine, fsync-bound).
+Like vectors, the tables are derived data: rebuildable from the stored raw message, droppable at any time.
 
 ## 15.7 Blob storage
 

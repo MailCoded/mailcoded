@@ -21,7 +21,7 @@ Mailcoded.Core/
 │   └── Threading/          # IThreader + ReferencesThreader (pure)
 ├── Application/            # SyncEngine, SendService, SearchService, AccountService
 ├── Providers/              # IMailProvider port + ImapProvider (ALL MailKit confined here)
-├── Parsing/                # MimeKit confined here: raw blob -> Envelope/BodyText/Attachment DTOs
+├── Parsing/                # MimeKit confined here: raw blob -> Envelope/BodyText/Attachment DTOs; attachment text (text-like files, .docx via BCL ZipArchive + a hand scanner)
 ├── Store/                  # SqliteStore adapter (ALL SQL confined here) + migrations
 └── Secrets/                # ISecretStore port + per-OS adapters
 ```

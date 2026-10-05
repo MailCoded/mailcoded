@@ -6,6 +6,7 @@ using Mailcoded.Core.Domain.Outbox;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Signals;
 using Mailcoded.Core.Domain.Tags;
+using Mailcoded.Core.Parsing;
 using Mailcoded.Core.Providers;
 using Mailcoded.Protocol;
 using Mailcoded.Core.Store;
@@ -57,6 +58,15 @@ internal sealed class MailTools
                 Encrypted = hit.Encrypted,
                 Dmarc = hit.Dmarc?.ToWire(),
                 Snippet = hit.Snippet,
+                AttachmentMatch = hit.AttachmentMatch is { } match
+                    ? new AttachmentMatchResultDto
+                    {
+                        Index = match.Index,
+                        Filename = AttachmentNaming.ToSaveAsFileName(match.FileName, match.Index, match.MimeType),
+                        Mime = match.MimeType,
+                        Snippet = match.Snippet,
+                    }
+                    : null,
             });
         }
 

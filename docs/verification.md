@@ -31,7 +31,7 @@ produced 16 confirmed defects, all since fixed with regression tests. The store 
 | Semantic refusal | `search` with `semantic: true` and no model | **1008** with category `unsupported` (golden transcript) |
 | Backfill vs bulk ingest | unit test opening a bulk-ingest window | the worker stands down and writes nothing inside the window; a write issued inside it would join that window's transaction and be rolled back with it (found by test, fixed) |
 | Dovecot / smtp4dev | `tests/Mailcoded.Integration` via Testcontainers | **5 passed, 0 skipped**: add-account/sync/search/tag/send round trip; crash after SMTP 250 reconciles from Sent; stuck send is investigated, never resent; UIDVALIDITY change re-enumerates without duplicating blobs; external APPEND produces `notify.mail.added` within 5 s |
-| Search | FTS terms, phrases, diacritics, CJK ≥3 chars (trigram), CJK 1–2 chars (`LIKE`), `from:`, `subject:`, `tag:`, `is:unread`, `is:flagged`, `has:attachment`, `before:`/`after:`, negation, `in:trash`/`in:anywhere`, Trash and Junk left out by default | correct hits, correct reported route |
+| Search | FTS terms, phrases, diacritics, CJK ≥3 chars (trigram), CJK 1–2 chars (`LIKE`), `from:`, `subject:`, `tag:`, `is:unread`, `is:flagged`, `has:attachment`, `attachment:` (text-like attachments and `.docx`), `before:`/`after:`, negation, `in:trash`/`in:anywhere`, Trash and Junk left out by default | correct hits, correct reported route |
 | Malformed query | `search 'from: AND AND "unclosed'` | `ok: true` with a populated `errors` array — never throws |
 | IMAP sync | first sync against a minimal local IMAP server | plan `invalidate`, 3 envelopes ingested, 3 batches |
 | Re-sync | second sync, same server | `added: 0`, row count unchanged, 96 ms — idempotent |

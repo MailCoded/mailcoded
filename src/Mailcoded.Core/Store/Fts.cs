@@ -1,7 +1,7 @@
 namespace Mailcoded.Core.Store;
 
 /// <summary>
-/// Writes to the two contentless FTS5 indexes. Contentless tables cannot look up their own old
+/// Writes to the two contentless FTS5 indexes of message text. Contentless tables cannot look up their own old
 /// values, so a replace must hand back exactly what was indexed — every call therefore normalizes
 /// NULL to the empty string and reads its "old" values from the same columns the insert used.
 /// </summary>
@@ -67,5 +67,6 @@ internal static class Fts
     {
         session.Exec("INSERT INTO msg_fts(msg_fts) VALUES('optimize')");
         session.Exec("INSERT INTO msg_fts_cjk(msg_fts_cjk) VALUES('optimize')");
+        AttachmentIndex.Optimize(session);
     }
 }

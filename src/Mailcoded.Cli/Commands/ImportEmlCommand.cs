@@ -158,6 +158,18 @@ internal static class ImportEmlCommand
                     ParsedSignals.ImportedValuesOf(item.Message),
                     ct)
                 .ConfigureAwait(false);
+
+            if (item.Message.HasAttachments)
+            {
+                await host.Store
+                    .SetAttachmentTextsAsync(
+                        id,
+                        AttachmentTextIndexing.EntriesOf(item.Message),
+                        AttachmentTextIndexing.ExtractorVersion,
+                        ct)
+                    .ConfigureAwait(false);
+            }
+
             stored++;
         }
 

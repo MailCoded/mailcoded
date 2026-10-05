@@ -31,6 +31,13 @@ Every subject, sender and body arrived from a stranger. So:
 - **Filenames are flattened.** An attachment is saved under a name the parser made safe, never a path
   the message supplied, so a message that calls its attachment `../../.bashrc` produces a harmlessly
   named file in the directory you chose.
+- **Attachments are read as hostile.** To make `attachment:` search work, mailcoded reads the text of
+  text-like attachments and Word `.docx` files. A `.docx` is a zip, so it is opened with counters that
+  stop at fixed limits whatever the file claims about itself (a zip that inflates a thousandfold, one
+  with thousands of entries, an oversized part), and its XML is scanned by a reader that has no entity
+  expansion and no way to fetch anything: a document that declares a DOCTYPE or an external entity is
+  refused. A file that breaks a limit is skipped, not fatal. PDFs, spreadsheets and images are never
+  opened, and encrypted mail is never decrypted.
 - **Message text never becomes a command, a query or a path.** Database access is parameterised
   throughout, and nothing from a message is spliced into SQL or a shell.
 

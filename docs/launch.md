@@ -67,10 +67,11 @@ Structural facts that are true by construction and verifiable by reading the rep
 - **an unqualified "faster than Outlook"** (or Thunderbird, or Gmail, or Apple Mail). Any incumbent
   comparison must name the exact operation, the exact corpus, both configurations, and link a
   reproducible method. If that link does not exist, the comparison does not go in the post.
-- **anything implying attachment-content search.** "Search your attachments", "find anything in
-  your mail", "search everything" — all red. We index **subject and body text only**. PDF, Word and
-  spreadsheet contents are not searchable. If a commenter assumes otherwise, correct them in the
-  thread immediately; do not let the assumption stand.
+- **anything implying attachment-content search beyond what exists.** "Search your attachments",
+  "find anything in your mail", "search everything" — all red. We index subject and body text, plus
+  text-like attachments and Word `.docx` files, and only through the explicit `attachment:` operator.
+  PDF, spreadsheet, presentation and image contents are not searchable. If a commenter assumes
+  otherwise, correct them in the thread immediately; do not let the assumption stand.
 - "secure email", "encrypted email", "private by design" as a bare claim — we have no PGP and no
   S/MIME, and saying otherwise is a safety claim we cannot back
 - "AI email client" / any AI-first framing. AI is the second paragraph, never the headline.
@@ -84,7 +85,7 @@ Structural facts that are true by construction and verifiable by reading the rep
 
 - [ ] Every factual claim traceable to code, a doc, or a benchmark run on the named machine.
 - [ ] Every number has a machine and a corpus next to it, or it has been deleted.
-- [ ] The attachment-content gap is stated, not omitted.
+- [ ] The attachment-content gap is stated, not omitted: text-like files and `.docx` only; no PDF, spreadsheets, presentations or images.
 - [ ] Platform matrix in the post matches the README's, including the untested rows.
 - [ ] Nothing claims the VS Code extension exists before it does.
 - [ ] AI/agents are not in the first paragraph.
@@ -120,8 +121,8 @@ Structural facts that are true by construction and verifiable by reading the rep
       browses a local mail store, the mbsync/notmuch stack is dead on native Windows, and EWS is
       being disabled on 1 Oct 2026 so Graph is the durable work-mail path; what it does not do.
 - [ ] Sidecar framing early: it points at the IMAP account you already use.
-- [ ] Known gaps in the post itself, not buried: no attachment-content search, no calendar, no
-      contacts, no PGP/S/MIME, IMAP only in v0.1, Graph in v0.2.
+- [ ] Known gaps in the post itself, not buried: attachment search limited to text-like files and
+      `.docx`, no calendar, no contacts, no PGP/S/MIME, IMAP only in v0.1, Graph in v0.2.
 - [ ] Agents mentioned once, late, factually.
 - [ ] A prepared first comment covering: the architecture, why .NET, why SQLite+FTS5 rather than
       notmuch, the security model for HTML mail, and the performance situation stated honestly.

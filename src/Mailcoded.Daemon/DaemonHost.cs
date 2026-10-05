@@ -39,6 +39,7 @@ internal sealed class DaemonHost : IAsyncDisposable
         Messages = new MessageService(store, Parser, Audit, Policy);
         Semantic = embedder is null ? null : new SemanticSearch(store, embedder);
         Backfill = embedder is null ? null : new VectorBackfill(store, embedder);
+        AttachmentBackfill = new AttachmentTextBackfill(store, Parser);
         Search = new SearchService(store, Policy, Audit, null, Semantic);
         Send = new SendService(store, Parser, clock, Audit, Policy, Tokens);
         Accounts = new AccountService(store, secrets, Sync, Audit);
@@ -64,6 +65,7 @@ internal sealed class DaemonHost : IAsyncDisposable
     public SearchService Search { get; }
     public SemanticSearch? Semantic { get; }
     public VectorBackfill? Backfill { get; }
+    public AttachmentTextBackfill AttachmentBackfill { get; }
     public SendService Send { get; }
     public AccountService Accounts { get; }
     public HealthMonitor Health { get; }
@@ -181,10 +183,27 @@ internal sealed class DaemonHost : IAsyncDisposable
     }
 
     /// <summary>Only the primary instance embeds: a second daemon on the same store would write the
-    /// same vectors through the same writer thread, competing with the one already doing it.</summary>
+    /// same vectors through the same writer thread, competing with the one already doing it. The attachment
+    /// text backfill follows suit.</summary>
     private void StartBackfill()
     {
-        if (Backfill is null || !IsPrimaryInstance) return;
+        if (!IsPrimaryInstance) return;
+
+        _ = Task.Run(
+            async () =>
+            {
+                try
+                {
+                    await AttachmentBackfill.RunAsync(null, backfillStop.Token).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    Log.Exception("The attachment text backfill stopped; older attachments stay unsearchable until the next start.", ex);
+                }
+            },
+            CancellationToken.None);
+
+        if (Backfill is null) return;
 
         _ = Task.Run(
             async () =>

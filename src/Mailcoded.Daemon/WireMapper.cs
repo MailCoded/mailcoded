@@ -166,6 +166,15 @@ internal static class WireMapper
             Encrypted = hit.Encrypted,
             Dmarc = hit.Dmarc?.ToWire(),
             Snippet = hit.Snippet,
+            AttachmentMatch = hit.AttachmentMatch is { } match
+                ? new AttachmentMatchDto
+                {
+                    Index = match.Index,
+                    Filename = AttachmentNaming.ToSaveAsFileName(match.FileName, match.Index, match.MimeType),
+                    Mime = match.MimeType,
+                    Snippet = match.Snippet,
+                }
+                : null,
         };
     }
 

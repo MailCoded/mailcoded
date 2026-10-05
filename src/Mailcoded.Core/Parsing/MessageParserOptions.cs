@@ -37,6 +37,11 @@ public sealed record MessageParserOptions
     /// <summary>Attempt TNEF (winmail.dat) text/attachment extraction. Never involves crypto.</summary>
     public bool ExtractTnef { get; init; } = true;
 
+    /// <summary>Read text-like attachments and .docx files for the attachment index. Off for callers that never index.</summary>
+    public bool ExtractAttachmentText { get; init; } = true;
+
+    public AttachmentTextLimits AttachmentText { get; init; } = AttachmentTextLimits.Default;
+
     /// <summary>Include text/calendar bodies in the FTS text.</summary>
     public bool IncludeCalendarText { get; init; } = true;
 }

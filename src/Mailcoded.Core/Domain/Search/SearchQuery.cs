@@ -24,6 +24,9 @@ public abstract record SearchPredicate
     public sealed record IsReplied : SearchPredicate;
     public sealed record HasAttachment : SearchPredicate;
 
+    /// <summary>Text read out of an attachment. Bare words never reach attachment text; only this operator does.</summary>
+    public sealed record AttachmentText(FtsTerm Term) : SearchPredicate;
+
     /// <summary>Known values only: an unknown signal matches neither this nor its negation.</summary>
     public sealed record IsAutomated : SearchPredicate;
 
@@ -112,6 +115,19 @@ public sealed record SearchQuery
             }
 
             return false;
+        }
+    }
+
+    /// <summary>The first attachment-text term that must match, for naming which attachment a hit matched on.</summary>
+    public FtsTerm? PrimaryAttachmentTerm
+    {
+        get
+        {
+            foreach (var predicate in Predicates)
+                if (predicate is SearchPredicate.AttachmentText { Negated: false } attachment)
+                    return attachment.Term;
+
+            return null;
         }
     }
 

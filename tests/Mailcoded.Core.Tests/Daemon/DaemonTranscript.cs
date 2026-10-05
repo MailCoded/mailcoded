@@ -7,6 +7,7 @@ using Mailcoded.Core.Domain.Identities;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Signals;
 using Mailcoded.Core.Providers;
+using Mailcoded.Core.Store;
 using Mailcoded.Core.Tests.Surface;
 using Mailcoded.Daemon;
 
@@ -141,6 +142,22 @@ internal sealed class DaemonTranscript : IAsyncDisposable
             automated: false,
             encrypted: false,
             dmarc: DmarcResult.Pass).ConfigureAwait(false);
+
+        var quarterly = host.Store.FindMessage(folderId, new Uid(1), ct)
+            ?? throw new InvalidOperationException("The seeded message is missing.");
+        await host.Store.SetAttachmentTextsAsync(
+            quarterly,
+            [
+                new AttachmentTextEntry
+                {
+                    Index = 0,
+                    MimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    FileName = "invoice-schedule.docx",
+                    Text = "Payment schedule: copper wiring supplied in two deliveries, invoiced on arrival.",
+                },
+            ],
+            AttachmentTextIndexing.ExtractorVersion,
+            ct).ConfigureAwait(false);
 
         await StoreSeeder.AddMessageAsync(
             host.Store,

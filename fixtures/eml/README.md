@@ -69,6 +69,9 @@ that identifies a person. `example.com`, `example.org`, `example.net` and the re
 | 051 | List-Unsubscribe with an https URL and an http URL, plus `List-Unsubscribe-Post: List-Unsubscribe=One-Click` |
 | 052 | hostile List-Unsubscribe: multi-recipient and header-injecting mailto entries rejected, a later mailto whose to/cc/bcc/from hfields must be ignored, userinfo and backslash URLs, javascript: and ftp: schemes |
 | 053 | a Sent copy with awkward recipients: a quoted name holding a comma, an RFC 2047 name, a group in Cc, a robot address, the account's own address, and a surviving Bcc |
+| 054 | a `.docx` attachment: three paragraphs (one CJK), a footnote and a header part that must stay out of the index |
+| 055 | readable attachment types: `text/csv`, a Latin-1 `text/plain`, a `.md` sent as `application/octet-stream`, and a PDF that must not be read |
+| 056 | hostile `.docx` files: a DOCTYPE with an external entity, a 3 MiB part that deflates to a few KiB, a non-zip named `.docx`, and a plain text attachment that must survive them |
 
 Edge case 14 (a 100 MB+ attachment) is deliberately **not** a file here. It is exercised
 by a synthetic stream in `tests/Mailcoded.Core.Tests`, because committing the payload

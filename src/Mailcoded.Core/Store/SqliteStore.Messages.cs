@@ -688,6 +688,8 @@ public sealed partial class SqliteStore
             .SetInt(0, messageId)
             .Execute();
 
+        AttachmentIndex.RemoveFor(session, messageId);
+
         session
             .Prepare(
                 "UPDATE messages SET blob_id = NULL, body_fetched = 0, thread_key = NULL, automated = NULL, encrypted = NULL, dmarc = NULL, unsubscribe = NULL "
@@ -762,6 +764,7 @@ public sealed partial class SqliteStore
         }
 
         Fts.Delete(session, id, subject, ReadBodyTextForFts(session, id), from, to);
+        AttachmentIndex.RemoveFor(session, id);
 
         session.Prepare("DELETE FROM messages WHERE id = $id", "$id").SetInt(0, id).Execute();
         context.AddFolderDelta(folderId, -1, (flags & 1) != 0 ? -1 : 0);
@@ -785,6 +788,8 @@ public sealed partial class SqliteStore
 
     private static void RemoveFolderFtsRows(DbSession session, long folderId)
     {
+        AttachmentIndex.RemoveForFolder(session, folderId);
+
         using var reader = session
             .Prepare(
                 "SELECT m.id, m.subject, m.from_addr, m.to_addrs, COALESCE(b.text, '') "

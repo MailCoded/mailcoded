@@ -27,7 +27,12 @@ DMARC pass for the sender. The trust list is read again for every batch, so a ch
 sync never contacts any address in them.
 
 Bodies are not pulled by sync. They are fetched on demand — when you open a message in the TUI, rest
-on it with the preview open, or `read` it — and then kept.
+on it with the preview open, or `read` it — and then kept. When a body is fetched, the text of its
+text-like attachments and Word `.docx` files is read and indexed in the same step (chapter 5,
+`attachment:`). For mail whose body was fetched before that existed, `sync` spends up to five seconds
+after it finishes reading those attachments, the daemon does the same continuously in the background,
+and `sync --json` reports `attachment_text_pending`, the number of messages still waiting; run `sync`
+again to continue.
 
 ## Who runs where
 

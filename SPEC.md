@@ -48,6 +48,7 @@ Backend first (M0–M2); the extension consumes released daemon binaries from M3
 - One IMAP account (app password or XOAUTH2), sync to local SQLite store.
 - Incremental sync: UIDVALIDITY tracking, QRESYNC/CONDSTORE fast resync, full-fetch fallback, lazy body fetch.
 - FTS5 search, notmuch-compatible tags (`unread`, `flagged`, `replied`, custom). Search leaves out Trash- and Junk-role Folders unless the query names a Folder, says `in:anywhere`, or is scoped to one Folder.
+- Attachment text search, narrowly: plain-text-like attachments (`text/plain`, `text/csv`, `text/tab-separated-values`, `text/markdown`, `text/calendar`, `application/json`, `text/html`) and Word `.docx` files are read for text when a message body is fetched or imported, and a background pass covers bodies fetched earlier. The `attachment:` operator searches that text; bare words never do. Nothing else is read: PDF, spreadsheets, presentations, images, legacy `.doc` and archives are not indexed. Extraction uses the .NET base class library only and treats every container as hostile (byte, ratio, entry, character and time budgets; no XML parser, no DTD or entity expansion).
 - Send via SMTP with mandatory confirmation + outbox state machine. A draft's From is the account address or a configured sender identity, checked in Core; plaintext signatures per account, with defaults for new messages and replies.
 - Drafts saved to the server (opt-in per account, off by default): a draft is also appended to the server's Drafts Folder so other mail clients show it. The local draft stays the only source for a send. After a send the server draft is moved into Sent with one MOVE when the server supports it and the account keeps a Sent copy, and otherwise left where it is; mailcoded never deletes, flags for deletion or expunges server mail.
 - Compose suggestions: the people you have written to, learned from outgoing mail only (mailcoded's own sends and messages in Sent-role Folders you wrote), ranked by frequency and recency. Received mail never adds anyone. This is not a contacts feature.
@@ -64,7 +65,7 @@ Backend first (M0–M2); the extension consumes released daemon binaries from M3
 - Maildir export/import (POSIX `:`, Windows `!`), optional notmuch interop on POSIX.
 
 ### 3.3 Explicitly out of scope (v0.x)
-POP3, JMAP (v0.3+), calendars/contacts (the Correspondent suggestion list in §3.1 is derived from sent mail and is not an address book), PGP, S/MIME (out of scope for v0.x; decrypted content must never reach an agent or the store, see `docs/AGENT-INTERFACE.md` §13.6), HTML compose, attachment upload in composer, mobile/web clients, IMAP server mode, message-rules engine, attachment-content indexing (disclose this gap in the README as roadmap).
+POP3, JMAP (v0.3+), calendars/contacts (the Correspondent suggestion list in §3.1 is derived from sent mail and is not an address book), PGP, S/MIME (out of scope for v0.x; decrypted content must never reach an agent or the store, see `docs/AGENT-INTERFACE.md` §13.6), HTML compose, attachment upload in composer, mobile/web clients, IMAP server mode, message-rules engine, attachment-content indexing beyond the text-like types and Word `.docx` listed in §3.1 (PDF, spreadsheets, presentations, images and OCR stay out; disclose this gap in the README as roadmap).
 
 **The extension never opens network connections to mail servers.** Only the daemon does.
 
@@ -438,4 +439,4 @@ MailKit `ExchangeOAuth2.md` / `GMailOAuth2.md` · Microsoft Learn "delta query m
 `mailcoded` (product, CLI command), `mailcoded` (daemon), `Mailcoded` (GitHub org), `Mailcoded.*` (NuGet), `@mailcoded/protocol` (npm). Obsidian store name (v0.3) must be "Mailcoded" — no "Obsidian" or "Plugin" in the name. Do not use "VS Code" in the extension's name.
 
 ## Appendix B — Deferred (v0.3+)
-JMAP provider; Neovim client over the same JSON-RPC; Maildir live-interop with notmuch on POSIX; webview message list; S/MIME as a framework-dependent optional build; Gmail API provider (labels-native); attachment-content indexing.
+JMAP provider; Neovim client over the same JSON-RPC; Maildir live-interop with notmuch on POSIX; webview message list; S/MIME as a framework-dependent optional build; Gmail API provider (labels-native); attachment-content indexing for PDF, spreadsheets, presentations and images.

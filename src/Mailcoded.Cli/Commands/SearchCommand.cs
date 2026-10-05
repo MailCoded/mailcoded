@@ -2,6 +2,7 @@ using System.Globalization;
 using Mailcoded.Core.Application;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Signals;
+using Mailcoded.Core.Parsing;
 using Mailcoded.Core.Store;
 
 namespace Mailcoded.Cli.Commands;
@@ -66,6 +67,17 @@ internal static class SearchCommand
                 JsonFields.WriteBool(writer, "encrypted", hit.Encrypted);
                 JsonFields.WriteText(writer, "dmarc", hit.Dmarc?.ToWire());
                 JsonFields.WriteText(writer, "snippet", hit.Snippet);
+
+                if (hit.AttachmentMatch is { } match)
+                {
+                    writer.WriteStartObject("attachment_match");
+                    writer.WriteNumber("index", match.Index);
+                    JsonFields.WriteText(writer, "filename", AttachmentNaming.ToSaveAsFileName(match.FileName, match.Index, match.MimeType));
+                    writer.WriteString("mime", match.MimeType);
+                    JsonFields.WriteText(writer, "snippet", match.Snippet);
+                    writer.WriteEndObject();
+                }
+
                 writer.WriteEndObject();
             }
 
@@ -110,6 +122,14 @@ internal static class SearchCommand
                 $"{hit.Id.Value,8}  {JsonFields.Iso(hit.DateUtc)}  [{JsonFields.Flags(hit.Flags)}]  {SafeText.Line(hit.From, 48)}"));
             output.Line("          " + SafeText.Line(hit.Subject, 96));
             if (hit.Snippet is { Length: > 0 } snippet) output.Line("          " + SafeText.Line(snippet, 160));
+
+            if (hit.AttachmentMatch is { } match)
+            {
+                var name = AttachmentNaming.ToSaveAsFileName(match.FileName, match.Index, match.MimeType);
+                var found = string.Create(CultureInfo.InvariantCulture, $"          attachment {match.Index} ({SafeText.Line(name, 60)})");
+                if (match.Snippet is { Length: > 0 } excerpt) found += ": " + SafeText.Line(excerpt, 120);
+                output.Line(found);
+            }
         }
 
         if (line.Flag("quiet")) return;

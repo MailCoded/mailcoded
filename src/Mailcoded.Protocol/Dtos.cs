@@ -55,6 +55,23 @@ public sealed record EnvelopeDto
 
     /// <summary>Search-result excerpt, present only on hits from <c>search</c> when snippets were requested.</summary>
     public string? Snippet { get; init; }
+
+    /// <summary>The attachment an <c>attachment:</c> term matched on, present only on hits from <c>search</c> whose query used one; its snippet follows <c>includeSnippet</c>.</summary>
+    public AttachmentMatchDto? AttachmentMatch { get; init; }
+}
+
+/// <summary>Which attachment of a search hit holds the text an <c>attachment:</c> term matched. The excerpt is attacker-controlled attachment text.</summary>
+public sealed record AttachmentMatchDto
+{
+    /// <summary>The index <c>attachment.get</c> takes for this attachment.</summary>
+    public required int Index { get; init; }
+
+    /// <summary>Already sanitized for use as a save-as name.</summary>
+    public string? Filename { get; init; }
+
+    public required string Mime { get; init; }
+
+    public string? Snippet { get; init; }
 }
 
 /// <summary>A folder as the client renders it. <see cref="FolderDto.Name"/> has '/' between levels whatever the server's delimiter is.</summary>

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Domain.Search;
 using Mailcoded.Core.Domain.Tags;
 
 namespace Mailcoded.Core.Store;
@@ -102,6 +103,32 @@ internal sealed class SearchSqlBuilder
         And(string.Concat(
             "m.id ", negated ? "NOT IN" : "IN",
             " (SELECT rowid FROM ", table, " WHERE ", table, " MATCH ", parameter, ")"));
+    }
+
+    /// <summary>Uncorrelated, so the matching attachment rows are found once through the index and never per Message.</summary>
+    public void AndAttachmentText(FtsTerm term, bool negated)
+    {
+        string subquery;
+
+        switch (term.Script)
+        {
+            case ScriptKind.ShortCjk:
+                subquery = string.Concat(
+                    "SELECT message_id FROM attachment_text WHERE text LIKE ", AddText(term.LikePattern), LikeEscape);
+                break;
+            case ScriptKind.Cjk:
+                subquery = string.Concat(
+                    "SELECT a.message_id FROM att_fts_cjk f JOIN attachment_text a ON a.id = f.rowid WHERE att_fts_cjk MATCH ",
+                    AddText(term.MatchExpression));
+                break;
+            default:
+                subquery = string.Concat(
+                    "SELECT a.message_id FROM att_fts f JOIN attachment_text a ON a.id = f.rowid WHERE att_fts MATCH ",
+                    AddText(term.MatchExpression));
+                break;
+        }
+
+        And(string.Concat("m.id ", negated ? "NOT IN" : "IN", " (", subquery, ")"));
     }
 
     public void AndTag(Tag tag, bool negated)

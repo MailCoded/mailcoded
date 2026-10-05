@@ -25,6 +25,7 @@ Every test carries `integration=docker`; each also names its scenario:
 | `scenario=server-drafts` | `ServerDraftTests` | an opted-in draft is APPENDed to Drafts with `\Draft` and `\Seen` and carries the outbox Message-ID; after the send it is moved into Sent with one MOVE (one Sent copy, `\Draft` cleared, nothing flagged deleted); after a UIDVALIDITY change the draft is left in Drafts and a normal Sent copy is appended |
 | `scenario=correspondents` | `CorrespondentTests` | a send and its synced Sent copy teach a recipient once; mail another client left in Sent teaches its recipient; mail in the Inbox teaches nobody; syncing again adds no use |
 | `scenario=interactive-lane` | `InteractiveLaneTests` | while a Folder sync is paused mid-stream on the sync connection, a body fetch and a `\Flagged` push finish on a second connection and the flag lands on the server; with the lane switched off the same fetch waits until the sync lets go; an idle provider serves a fetch on its one connection |
+| `scenario=attachment-text` | `AttachmentTextTests` | a `.docx` and a CSV APPENDed to the server become searchable with `attachment:` once their bodies are fetched, and a message the lazy path missed is picked up by `AttachmentTextBackfill` |
 
 ## When Docker is missing
 
