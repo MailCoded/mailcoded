@@ -109,7 +109,9 @@ internal sealed class DaemonTranscript : IAsyncDisposable
             dateUtc: new DateTimeOffset(2024, 1, 2, 3, 4, 5, TimeSpan.Zero),
             bodyText: "The invoice total is 42 dollars.",
             size: 1234,
-            ct: ct).ConfigureAwait(false);
+            ct: ct,
+            automated: false,
+            encrypted: false).ConfigureAwait(false);
 
         await StoreSeeder.AddMessageAsync(
             host.Store,
@@ -122,6 +124,21 @@ internal sealed class DaemonTranscript : IAsyncDisposable
             dateUtc: new DateTimeOffset(2024, 1, 3, 4, 5, 6, TimeSpan.Zero),
             bodyText: "Sandwiches at noon.",
             size: 2345,
+            ct: ct,
+            automated: true,
+            encrypted: false).ConfigureAwait(false);
+
+        await StoreSeeder.AddMessageAsync(
+            host.Store,
+            folderId,
+            uid: 3,
+            messageId: "golden-3@example.test",
+            subject: "Weekly notice",
+            from: "Notices <notices@example.test>",
+            to: "golden@example.test",
+            dateUtc: new DateTimeOffset(2024, 1, 4, 5, 6, 7, TimeSpan.Zero),
+            bodyText: "Nothing to report.",
+            size: 345,
             ct: ct).ConfigureAwait(false);
 
         await host.Store.RecountFolderAsync(folderId, ct).ConfigureAwait(false);

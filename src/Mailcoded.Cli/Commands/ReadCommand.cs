@@ -79,6 +79,8 @@ internal static class ReadCommand
             JsonFields.WriteTags(writer, "tags", view.Tags);
             writer.WriteBoolean("has_attachments", view.Envelope.HasAttachments);
             writer.WriteNumber("size", view.Envelope.Size);
+            JsonFields.WriteBool(writer, "automated", view.Envelope.Automated);
+            JsonFields.WriteBool(writer, "encrypted", view.Envelope.Encrypted);
             writer.WriteBoolean("body_fetched", view.BodyFetched);
             writer.WriteBoolean("fetched_now", view.FetchedNow);
             writer.WriteString("body_format", "plaintext");

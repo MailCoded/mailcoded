@@ -1,0 +1,23 @@
+From: Dave Example <dave@example.com>
+To: bob@example.org
+Subject: Encrypted message (PGP/MIME)
+Date: Thu, 23 Jan 2025 11:00:00 +0000
+Message-ID: <041-pgpmime@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/encrypted; protocol="application/pgp-encrypted"; boundary="bnd041"
+
+--bnd041
+Content-Type: application/pgp-encrypted
+
+Version: 1
+
+--bnd041
+Content-Type: application/octet-stream; name="encrypted.asc"
+
+-----BEGIN PGP MESSAGE-----
+
+wcBMA0000000000000000000000000000000000000000000000000000000000
+=AAAA
+-----END PGP MESSAGE-----
+
+--bnd041--

@@ -118,6 +118,8 @@ QUERY SYNTAX
   tag:triaged           has the local Tag
   folder:INBOX          in that folder
   is:unread             also is:flagged, is:draft, is:replied
+  is:automated          list/bulk mail, auto-replies, reports, noreply senders
+  is:encrypted          PGP or S/MIME; the body is not readable here
   has:attachment        carries an attachment
   before:2026-01-31     strictly earlier
   after:2026-01-01      at or after

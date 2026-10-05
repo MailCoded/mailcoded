@@ -48,6 +48,8 @@ internal static class WireMapper
             Tags = ToTagNames(tags),
             HasAttachments = row.HasAttachments,
             Size = row.Size,
+            Automated = row.Automated,
+            Encrypted = row.Encrypted,
             BodyFetched = row.BodyFetched,
             Snippet = snippet,
         };
@@ -70,6 +72,8 @@ internal static class WireMapper
             HasAttachments = hit.HasAttachments,
             BodyFetched = hit.BodyFetched,
             Size = hit.Size,
+            Automated = hit.Automated,
+            Encrypted = hit.Encrypted,
             Snippet = hit.Snippet,
         };
     }

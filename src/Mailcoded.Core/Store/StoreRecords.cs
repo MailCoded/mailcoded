@@ -67,6 +67,11 @@ public sealed record EnvelopeRow
     public bool HasAttachments { get; init; }
     public bool BodyFetched { get; init; }
     public BlobId? BlobId { get; init; }
+
+    /// <summary>Null means unknown: the row predates the signals or its headers were never seen.</summary>
+    public bool? Automated { get; init; }
+
+    public bool? Encrypted { get; init; }
 }
 
 /// <summary>One keyset page. Nothing is lost: every match is reachable by following NextCursor.</summary>
@@ -81,6 +86,12 @@ public sealed record StorePage<T>
     public bool Truncated { get; init; }
 
     public static StorePage<T> Empty { get; } = new() { Items = [] };
+}
+
+/// <summary>Signals derived from a whole parsed message. A null member leaves the stored value alone.</summary>
+public readonly record struct SignalValues(bool? Automated, bool? Encrypted)
+{
+    public bool IsUnknown => Automated is null && Encrypted is null;
 }
 
 public readonly record struct IngestResult(int Inserted, int Updated)
@@ -247,6 +258,8 @@ public sealed record StoreSearchHit
     public bool HasAttachments { get; init; }
     public bool BodyFetched { get; init; }
     public long Size { get; init; }
+    public bool? Automated { get; init; }
+    public bool? Encrypted { get; init; }
 
     /// <summary>Computed only for the returned page, never across the whole result set.</summary>
     public string? Snippet { get; init; }

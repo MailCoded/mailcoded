@@ -137,6 +137,12 @@ internal readonly struct Stmt
         return this;
     }
 
+    public Stmt SetBoolOrNull(int ordinal, bool? value)
+    {
+        _cmd.Parameters[ordinal].Value = value.HasValue ? (value.Value ? 1L : 0L) : DBNull.Value;
+        return this;
+    }
+
     public Stmt SetText(int ordinal, string? value)
     {
         _cmd.Parameters[ordinal].Value = value is null ? DBNull.Value : value;
@@ -189,6 +195,9 @@ internal static class Db
         r.IsDBNull(ordinal) ? null : r.GetInt64(ordinal);
 
     public static bool Bool(SqliteDataReader r, int ordinal) => !r.IsDBNull(ordinal) && r.GetInt64(ordinal) != 0;
+
+    public static bool? BoolOrNull(SqliteDataReader r, int ordinal) =>
+        r.IsDBNull(ordinal) ? null : r.GetInt64(ordinal) != 0;
 
     public static byte[]? Blob(SqliteDataReader r, int ordinal) =>
         r.IsDBNull(ordinal) ? null : (byte[])r.GetValue(ordinal);

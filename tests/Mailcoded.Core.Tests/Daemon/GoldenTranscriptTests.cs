@@ -32,6 +32,8 @@ public sealed class GoldenTranscriptTests : IClassFixture<DaemonTranscriptFixtur
     [InlineData("account-list")]
     [InlineData("folder-list-unknown-account")]
     [InlineData("search")]
+    [InlineData("search-is-automated")]
+    [InlineData("search-not-automated")]
     [InlineData("search-semantic-unsupported")]
     [InlineData("message-get")]
     [InlineData("tags-set-unknown-message")]

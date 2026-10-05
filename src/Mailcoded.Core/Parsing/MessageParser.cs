@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Text;
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Domain.Signals;
 using MimeKit;
 using MimeKit.Tnef;
 using MimeKit.Utils;
@@ -339,13 +340,20 @@ public sealed class MessageParser
         if (bodyText.Length == 0 && walk.Html is null && walk.Attachments.Count == 0)
             warnings.Add("empty-body");
 
+        var signalHeaders = ReadSignalHeaders(message);
+        var from = FormatFrom(message);
+        ContentShape? top = message.Body is { } topEntity ? ShapeOf(topEntity.ContentType) : null;
+
         return new ParsedMessage
         {
+            SignalHeaders = signalHeaders,
+            Automated = MessageSignals.IsAutomated(signalHeaders, from, top),
+            Encrypted = walk.Encrypted,
             MessageId = messageId,
             References = references,
             InReplyTo = inReplyTo,
             Subject = PlainText.NormalizeHeader(message.Subject, _options.MaxHeaderChars),
-            From = FormatFrom(message),
+            From = from,
             To = FormatAddresses(message.To),
             Cc = FormatAddresses(message.Cc),
             ReplyTo = FormatAddresses(message.ReplyTo),
@@ -356,6 +364,21 @@ public sealed class MessageParser
             ParseWarnings = warnings,
         };
     }
+
+    private static SignalHeaders ReadSignalHeaders(MimeMessage message)
+    {
+        var collector = new SignalHeaderCollector();
+        foreach (var header in message.Headers)
+            if (SignalHeaderCollector.Wants(header.Field)) collector.Add(header.Field, header.Value);
+
+        return collector.Build();
+    }
+
+    private static ContentShape ShapeOf(ContentType type) =>
+        new(type.MediaType, type.MediaSubtype, Parameter(type, "protocol"), Parameter(type, "smime-type"), Parameter(type, "report-type"));
+
+    private static string? Parameter(ContentType type, string name) =>
+        type.Parameters.TryGetValue(name, out string? value) ? value : null;
 
     private MessageId? ResolveMessageId(MimeMessage message, List<string> warnings)
     {
@@ -441,6 +464,9 @@ public sealed class MessageParser
             return;
         }
 
+        if (walk.NestedDepth == 0 && !walk.Encrypted && MessageSignals.IsEncrypted(ShapeOf(entity.ContentType)))
+            walk.Encrypted = true;
+
         switch (entity)
         {
             case Multipart multipart:
@@ -449,7 +475,16 @@ public sealed class MessageParser
 
             case MessagePart nested:
                 AddAttachment(nested, walk);
-                Walk(nested.Message?.Body, depth + 1, walk, ct);
+                walk.NestedDepth++;
+                try
+                {
+                    Walk(nested.Message?.Body, depth + 1, walk, ct);
+                }
+                finally
+                {
+                    walk.NestedDepth--;
+                }
+
                 return;
 
             case TnefPart tnef when _options.ExtractTnef:
@@ -470,7 +505,15 @@ public sealed class MessageParser
 
                 if (converted is not null)
                 {
-                    using (converted) Walk(converted.Body, depth + 1, walk, ct);
+                    walk.NestedDepth++;
+                    try
+                    {
+                        using (converted) Walk(converted.Body, depth + 1, walk, ct);
+                    }
+                    finally
+                    {
+                        walk.NestedDepth--;
+                    }
                 }
 
                 return;
@@ -507,6 +550,9 @@ public sealed class MessageParser
                     walk.Html = body.Length > _options.MaxHtmlChars ? body[.._options.MaxHtmlChars] : body;
                 return;
             }
+
+            if (walk.NestedDepth == 0 && !walk.Encrypted && MessageSignals.ContainsPgpArmor(body))
+                walk.Encrypted = true;
 
             if (walk.Text.Length < _options.MaxBodyTextChars && body.Length > 0)
             {
@@ -979,6 +1025,11 @@ public sealed class MessageParser
         public List<MimeEntity> Entities { get; } = [];
 
         public int Visited { get; set; }
+
+        /// <summary>Greater than zero inside an attached message, whose encryption says nothing about the outer one.</summary>
+        public int NestedDepth { get; set; }
+
+        public bool Encrypted { get; set; }
 
         /// <summary>Set when only attachment identity is wanted, so no body part is decoded.</summary>
         public bool SkipText { get; init; }

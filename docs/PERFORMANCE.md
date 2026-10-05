@@ -52,6 +52,9 @@ CREATE INDEX ix_msg_thread   ON messages(thread_key, date_utc DESC, id);
 -- ORDER BY date_utc DESC, id DESC LIMIT 2000 is 189.5 ms without this and 0.5 ms with it (~7.2 MB).
 CREATE INDEX ix_msg_date     ON messages(date_utc DESC, id DESC);
 -- messages.UNIQUE (folder_id, uid) already indexes that pair; no standalone index.
+-- messages.automated / messages.encrypted (nullable 0/1, migration 009) carry no index: is:automated and
+-- is:encrypted filter the date-ordered scan the way has:attachment does, and a partial index would cost
+-- space in proportion to how much mail is automated. Add one only against a measurement at 500k rows.
 ```
 
 `msg_fts_cjk` must keep FTS5's **default `detail='full'`**. The trigram tokenizer compiles a

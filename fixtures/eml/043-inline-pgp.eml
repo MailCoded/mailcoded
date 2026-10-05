@@ -1,0 +1,15 @@
+From: Frank Example <frank@example.com>
+To: bob@example.org
+Subject: Inline armored message
+Date: Sat, 25 Jan 2025 13:00:00 +0000
+Message-ID: <043-inlinepgp@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Here is the thing you asked for.
+
+-----BEGIN PGP MESSAGE-----
+
+hQEMA0000000000000000000000000000000000000000000000000000000000
+=BBBB
+-----END PGP MESSAGE-----

@@ -27,6 +27,13 @@ internal static class JsonFields
         else writer.WriteString(name, value);
     }
 
+    /// <summary>Null stays null: an unknown signal must never read as false.</summary>
+    public static void WriteBool(Utf8JsonWriter writer, string name, bool? value)
+    {
+        if (value is { } present) writer.WriteBoolean(name, present);
+        else writer.WriteNull(name);
+    }
+
     /// <summary>Server IMAP flags, in the wire vocabulary. Never merged with local Tags.</summary>
     public static void WriteFlags(Utf8JsonWriter writer, string name, MessageFlags flags)
     {

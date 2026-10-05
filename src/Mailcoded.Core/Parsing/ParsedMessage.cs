@@ -1,4 +1,5 @@
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Domain.Signals;
 
 namespace Mailcoded.Core.Parsing;
 
@@ -34,6 +35,15 @@ public sealed record ParsedMessage
     public IReadOnlyList<ParsedAttachment> Attachments { get; init; } = [];
 
     public bool HasAttachments => Attachments.Count > 0;
+
+    /// <summary>Null only when the message could not be parsed at all.</summary>
+    public SignalHeaders? SignalHeaders { get; init; }
+
+    /// <summary>Null only when the message could not be parsed at all.</summary>
+    public bool? Automated { get; init; }
+
+    /// <summary>True for PGP/MIME, an S/MIME envelope or inline PGP armor in a text body. Null only when the message could not be parsed.</summary>
+    public bool? Encrypted { get; init; }
 
     /// <summary>Notes about anything non-conforming we recovered from; surfaced in diagnostics.</summary>
     public IReadOnlyList<string> ParseWarnings { get; init; } = [];

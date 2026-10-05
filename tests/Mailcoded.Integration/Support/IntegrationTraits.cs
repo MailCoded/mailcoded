@@ -11,4 +11,5 @@ public static class IntegrationTraits
     public const string UidValidity = "uidvalidity";
     public const string CrashRecovery = "crash-recovery";
     public const string Idle = "idle";
+    public const string Signals = "signals";
 }

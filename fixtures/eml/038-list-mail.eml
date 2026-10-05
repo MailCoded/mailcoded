@@ -1,0 +1,19 @@
+From: Weekly Digest <digest@lists.example.net>
+To: bob@example.org
+Subject: [announce] Weekly digest
+Date: Mon, 20 Jan 2025 07:00:00 +0000
+Message-ID: <038-list@lists.example.net>
+List-Id: Announcements <announce.lists.example.net>
+List-Unsubscribe: <mailto:unsubscribe@lists.example.net?subject=unsubscribe>,
+ <https://lists.example.net/unsubscribe/abc123>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+Precedence: bulk
+Authentication-Results: mx.example.org;
+ dkim=pass header.d=lists.example.net;
+ spf=pass smtp.mailfrom=lists.example.net;
+ dmarc=pass header.from=lists.example.net
+Authentication-Results: relay.example.net; dmarc=none
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+This week: nothing happened.

@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using MailKit;
 using MailKit.Search;
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Domain.Signals;
 using Mailcoded.Core.Domain.Sync;
 using ImapFlags = MailKit.MessageFlags;
 
@@ -309,7 +310,7 @@ public sealed partial class ImapProvider
 
         ordered.Sort((a, b) => newestFirst ? b.Id.CompareTo(a.Id) : a.Id.CompareTo(b.Id));
 
-        var request = new FetchRequest(EnvelopeItems());
+        var request = new FetchRequest(EnvelopeItems(), SignalHeaderCollector.FetchNames);
         var batchSize = options.EffectiveBatchSize;
 
         for (var offset = 0; offset < ordered.Count; offset += batchSize)
@@ -478,6 +479,8 @@ public sealed partial class ImapProvider
         if (summary.UniqueId.Id == 0) return null;
 
         var envelope = summary.Envelope;
+        var from = Header(envelope?.From.ToString(), 1_000);
+        var signals = ImapEnvelopeSignals.Read(summary, from);
 
         return new RemoteEnvelope
         {
@@ -489,7 +492,7 @@ public sealed partial class ImapProvider
             References = ToReferences(summary.References),
             InReplyTo = Header(envelope?.InReplyTo, 998),
             Subject = Header(envelope?.Subject, 1_000),
-            From = Header(envelope?.From.ToString(), 1_000),
+            From = from,
             To = Header(envelope?.To.ToString(), 4_000),
             Cc = Header(envelope?.Cc.ToString(), 4_000),
             DateUtc = ResolveDate(summary),
@@ -497,6 +500,9 @@ public sealed partial class ImapProvider
             HasAttachments = HasAttachments(summary),
             GmailMessageId = summary.GMailMessageId,
             GmailThreadId = summary.GMailThreadId,
+            Headers = signals.Headers,
+            Automated = signals.Automated,
+            Encrypted = signals.Encrypted,
         };
     }
 

@@ -1,0 +1,45 @@
+From: Grace Example <grace@example.com>
+To: bob@example.org
+Subject: Fwd: something I could not read
+Date: Sun, 26 Jan 2025 14:00:00 +0000
+Message-ID: <044-fwdenc@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="bnd044"
+
+--bnd044
+Content-Type: text/plain; charset=utf-8
+
+The forwarded message is encrypted; this note is not. Someone quoted armor
+in a reply like this:
+
+> -----BEGIN PGP MESSAGE-----
+> hQEMA0000000000000000000000000000000000000000000000000000000000
+> -----END PGP MESSAGE-----
+
+--bnd044
+Content-Type: message/rfc822
+
+From: Heidi Example <heidi@example.com>
+To: grace@example.com
+Subject: secret
+Date: Sat, 25 Jan 2025 09:00:00 +0000
+Message-ID: <044-inner@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/encrypted; protocol="application/pgp-encrypted"; boundary="bnd044in"
+
+--bnd044in
+Content-Type: application/pgp-encrypted
+
+Version: 1
+
+--bnd044in
+Content-Type: application/octet-stream
+
+-----BEGIN PGP MESSAGE-----
+
+wcBMA0000000000000000000000000000000000000000000000000000000000
+-----END PGP MESSAGE-----
+
+--bnd044in--
+
+--bnd044--

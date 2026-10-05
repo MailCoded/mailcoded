@@ -1,0 +1,30 @@
+{
+  "id": 4,
+  "jsonrpc": "2.0",
+  "result": {
+    "hits": [
+      {
+        "accountId": 1,
+        "automated": true,
+        "bodyFetched": true,
+        "date": "2024-01-03T04:05:06.000Z",
+        "encrypted": false,
+        "flags": [
+          "unread"
+        ],
+        "folderId": 1,
+        "from": "Bob <bob@example.test>",
+        "hasAttachments": false,
+        "id": 2,
+        "size": 2345,
+        "subject": "Lunch plans",
+        "tags": [
+          "unread"
+        ]
+      }
+    ],
+    "relaxed": false,
+    "semantic": false,
+    "truncated": false
+  }
+}

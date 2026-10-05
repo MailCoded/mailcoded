@@ -260,8 +260,12 @@ after an interruption replays safely. A `folderId` that belongs to another accou
 
 Local only; never touches the network. Query syntax: bare words (full text over subject, sender,
 recipients, body), `"quoted phrases"`, `from:`, `to:`, `cc:`, `subject:`, `tag:`, `folder:`,
-`is:unread|flagged|draft|replied`, `has:attachment`, `before:YYYY-MM-DD`, `after:YYYY-MM-DD`, and
-`-` negation.
+`is:unread|flagged|draft|replied`, `is:automated`, `is:encrypted`, `has:attachment`,
+`before:YYYY-MM-DD`, `after:YYYY-MM-DD`, and `-` negation.
+
+`is:automated` and `is:encrypted` match only a **known** value. A message whose signal is unknown
+(`automated` / `encrypted` absent on its `EnvelopeDto`) matches neither the positive nor the negated
+form, so `-is:automated` means "known not to be automated", never "not known to be".
 
 - `limit` defaults to **50** and is clamped to **200**. `limit: 0` or absent means the default.
 - `order` ∈ `relevance | date`; relevance is the default for text queries. Relevance is BM25 with
@@ -639,7 +643,8 @@ shell agent to branch:
   "subject": "…", "from": "…", "to": "…", "cc": "…",
   "date": "2026-08-30T12:34:56.000Z",
   "flags": ["unread"], "tags": ["unread", "triaged"],
-  "hasAttachments": true, "size": 20481, "bodyFetched": false, "snippet": null }
+  "hasAttachments": true, "size": 20481, "automated": false, "encrypted": false,
+  "bodyFetched": false, "snippet": null }
 ```
 
 - `id`, `accountId`, `folderId` are **local row ids**, not server UIDs, and are only meaningful
@@ -650,6 +655,20 @@ shell agent to branch:
   Unknown names from a server are ignored, not rejected.
 - `tags` are local notmuch-style Tags. The two vocabularies are distinct and never merged.
 - `subject`, `from`, `to`, `cc`, `snippet` are decoded but **untrusted attacker input**.
+- `automated` is true when headers or MIME structure mark the message as machine-generated:
+  `List-Id` or `List-Unsubscribe` present, `Precedence` of `bulk`, `list` or `junk`,
+  `Auto-Submitted` other than `no` (RFC 3834), `X-Autoreply`, `X-Autorespond` or
+  `X-Failed-Recipients` present, a `multipart/report` of type `delivery-status`,
+  `disposition-notification` or `feedback-report`, or a `noreply`-style sender local part. The sender
+  controls every one of these, so the field sorts mail and never vouches for it.
+- `encrypted` is true for PGP/MIME (`multipart/encrypted`), an S/MIME `enveloped-data` or
+  `authEnveloped-data` message, or an inline `-----BEGIN PGP MESSAGE-----` block in a plain-text
+  body. mailcoded never decrypts. From a message whose body is not fetched yet, `false` means no
+  PGP/MIME or S/MIME envelope was seen; inline armor appears only once the body is fetched.
+- `automated` and `encrypted` are **absent when unknown** — mail stored before these signals existed,
+  until its body is fetched or read again, and mail from a server that did not return the headers.
+  Absent is not false. They are present on `search`, `message.get` and `thread.get` envelopes and
+  absent on plain folder listings, which are served from a covering index that does not carry them.
 - `bodyFetched: false` means `message.get` will hit the network unless you pass
   `fetchIfMissing: false`.
 

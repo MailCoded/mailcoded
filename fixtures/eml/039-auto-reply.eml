@@ -1,0 +1,12 @@
+From: Carol Example <carol@example.com>
+To: bob@example.org
+Subject: Automatic reply: Out of office
+Date: Tue, 21 Jan 2025 09:00:00 +0000
+Message-ID: <039-autoreply@example.com>
+In-Reply-To: <001-plain@example.com>
+Auto-Submitted: auto-replied (vacation)
+X-Autoreply: yes
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+I am away until next week.

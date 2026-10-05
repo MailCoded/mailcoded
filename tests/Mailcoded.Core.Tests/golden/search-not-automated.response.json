@@ -1,0 +1,30 @@
+{
+  "id": 4,
+  "jsonrpc": "2.0",
+  "result": {
+    "hits": [
+      {
+        "accountId": 1,
+        "automated": false,
+        "bodyFetched": true,
+        "date": "2024-01-02T03:04:05.000Z",
+        "encrypted": false,
+        "flags": [
+          "unread"
+        ],
+        "folderId": 1,
+        "from": "Ada <ada@example.test>",
+        "hasAttachments": false,
+        "id": 1,
+        "size": 1234,
+        "subject": "Quarterly invoice",
+        "tags": [
+          "unread"
+        ]
+      }
+    ],
+    "relaxed": false,
+    "semantic": false,
+    "truncated": false
+  }
+}

@@ -67,6 +67,32 @@ public sealed class SearchQueryParserTests
     }
 
     [Theory]
+    [InlineData("is:automated", false)]
+    [InlineData("-is:automated", true)]
+    [InlineData("IS:Automated", false)]
+    public void The_automated_predicate_parses_and_negates(string query, bool negated)
+    {
+        Assert.Equal(negated, Only<SearchPredicate.IsAutomated>(query).Negated);
+    }
+
+    [Theory]
+    [InlineData("is:encrypted", false)]
+    [InlineData("-is:encrypted", true)]
+    public void The_encrypted_predicate_parses_and_negates(string query, bool negated)
+    {
+        Assert.Equal(negated, Only<SearchPredicate.IsEncrypted>(query).Negated);
+    }
+
+    [Fact]
+    public void The_signal_predicates_combine_with_other_operators()
+    {
+        var parsed = SearchQueryParser.Parse("-is:automated is:encrypted from:alice@example.com invoice").Query;
+
+        Assert.Equal(3, parsed.Predicates.Count);
+        Assert.Single(parsed.Terms);
+    }
+
+    [Theory]
     [InlineData("is:nonsense", SearchParseErrorKind.UnknownValue)]
     [InlineData("has:beer", SearchParseErrorKind.UnknownValue)]
     [InlineData("tag:", SearchParseErrorKind.EmptyValue)]

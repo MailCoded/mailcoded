@@ -53,6 +53,14 @@ that identifies a person. `example.com`, `example.org`, `example.net` and the re
 | 036 | HTML where `<3` and `<10%` are text, not tags (HTML5 tag-open takes ASCII alpha only) |
 | 037 | terminal injection: `ESC[2J` in an RFC 2047 subject, `U+202E` in an attachment filename, zero-width marks in a display name, and astral tag-block scalars in the body |
 | 036 | HTML text where `<` starts no tag (`<3`, `<5000`, `<10%`) — body text a reader sees |
+| 038 | list mail: `List-Id`, `List-Unsubscribe` (mailto and https), `List-Unsubscribe-Post`, `Precedence: bulk` and two `Authentication-Results` instances |
+| 039 | an auto-reply: `Auto-Submitted: auto-replied` with a comment, and `X-Autoreply` |
+| 040 | a delivery status report: `multipart/report; report-type=delivery-status` from `MAILER-DAEMON` |
+| 041 | PGP/MIME: `multipart/encrypted` with protocol `application/pgp-encrypted` — catalogued, never decrypted |
+| 042 | S/MIME `enveloped-data` (023 is `signed-data` and must not count as encrypted) |
+| 043 | inline ASCII-armored PGP in a `text/plain` body |
+| 044 | an encrypted message forwarded as `message/rfc822` plus quoted armor in the body — the outer message is not encrypted |
+| 045 | hostile signal headers: twelve `Authentication-Results`, an oversized `List-Id`, and a contradictory `Auto-Submitted` pair |
 
 Edge case 14 (a 100 MB+ attachment) is deliberately **not** a file here. It is exercised
 by a synthetic stream in `tests/Mailcoded.Core.Tests`, because committing the payload

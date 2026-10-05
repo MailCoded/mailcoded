@@ -1,4 +1,5 @@
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Domain.Signals;
 
 namespace Mailcoded.Core.Domain.Sync;
 
@@ -54,4 +55,13 @@ public sealed record RemoteEnvelope
     /// <summary>Gmail's cross-folder identity, when the server offers X-GM-MSGID (edge case 5).</summary>
     public ulong? GmailMessageId { get; init; }
     public ulong? GmailThreadId { get; init; }
+
+    /// <summary>Null when the headers were not fetched.</summary>
+    public SignalHeaders? Headers { get; init; }
+
+    /// <summary>Null means unknown, which is not the same as false.</summary>
+    public bool? Automated { get; init; }
+
+    /// <summary>From BODYSTRUCTURE only; inline armor needs the body, so false is not final.</summary>
+    public bool? Encrypted { get; init; }
 }

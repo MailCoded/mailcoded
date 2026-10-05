@@ -1,0 +1,23 @@
+From: Mail Delivery System <MAILER-DAEMON@example.com>
+To: alice@example.com
+Subject: Undelivered Mail Returned to Sender
+Date: Wed, 22 Jan 2025 10:00:00 +0000
+Message-ID: <040-dsn@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/report; report-type=delivery-status; boundary="bnd040"
+
+--bnd040
+Content-Type: text/plain; charset=utf-8
+
+The message could not be delivered to nobody@example.org.
+
+--bnd040
+Content-Type: message/delivery-status
+
+Reporting-MTA: dns; mx.example.com
+
+Final-Recipient: rfc822; nobody@example.org
+Action: failed
+Status: 5.1.1
+
+--bnd040--

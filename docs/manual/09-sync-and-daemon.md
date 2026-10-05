@@ -11,6 +11,11 @@ messages. With `--folder` only that folder syncs. Sync is idempotent — re-runn
 interruption replays safely — and the server is the source of truth for mail and Flags, so a sync can
 only ever bring the local copy closer to what the server holds.
 
+Alongside each envelope, sync asks the server for nine headers (`List-Id`, `List-Unsubscribe`,
+`List-Unsubscribe-Post`, `Precedence`, `Auto-Submitted`, `X-Autoreply`, `X-Autorespond`,
+`X-Failed-Recipients`, `Authentication-Results`) in the same request, and reads the message's MIME
+structure. That is enough to mark mail as automated or encrypted (chapter 5) without downloading a body.
+
 Bodies are not pulled by sync. They are fetched on demand — when you open a message in the TUI, rest
 on it with the preview open, or `read` it — and then kept.
 

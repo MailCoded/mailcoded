@@ -24,9 +24,22 @@ Full-text over subject, sender, recipients and body, plus structured predicates.
 | `tag:triaged` | carries the local Tag |
 | `folder:INBOX`, `in:INBOX` | in that folder |
 | `is:unread`, `is:read`, `is:flagged`, `is:unflagged`, `is:draft`, `is:replied` | server Flags; `seen`, `starred` and `answered` are accepted synonyms |
+| `is:automated` | machine-generated: list or bulk mail, an auto-reply, a delivery or read report, a `noreply`-style sender |
+| `is:encrypted` | PGP/MIME, an S/MIME envelope, or an inline PGP block; mailcoded cannot read the body |
 | `has:attachment` | carries an attachment |
 | `before:2026-01-31`, `after:2026-01-01`, `since:2026-01-01` | strictly earlier; at or after. ISO dates |
 | `-term`, `-tag:spam`, `not term` | negation |
+
+`is:automated` and `is:encrypted` are worked out from message headers and structure when mail is
+synced, and refined when a body is fetched (inline PGP armor can only be seen then). They match only a
+**known** value, and so do their negations: `-is:automated` finds mail known not to be automated, and
+mail whose status is not known yet matches neither form. Mail that was already in your store before
+these operators existed stays unknown until you open it with `read` or its body is fetched, so
+`-is:automated` will not list it at first. A sender writes these headers, so treat both as a sorting
+aid, never as a statement that a message is safe.
+
+In `--json` output, `search`, `read` and `thread` carry `automated` and `encrypted` as `true`, `false`
+or `null` (unknown).
 
 Terms are combined with AND, and if nothing matches every word the search is retried once with OR
 rather than answering nothing. You will see a line saying so above the hits, and `relaxed: true` in

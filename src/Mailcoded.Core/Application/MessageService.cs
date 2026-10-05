@@ -126,6 +126,10 @@ public sealed class MessageService
             envelope = await FetchBodyAsync(provider, envelope, caller, ct).ConfigureAwait(false);
             fetchedNow = true;
         }
+        else if (envelope.BodyFetched && (envelope.Automated is null || envelope.Encrypted is null))
+        {
+            envelope = await BackfillSignalsAsync(envelope, ct).ConfigureAwait(false);
+        }
 
         var tags = ReadTagView(envelope, ct);
         var bodyText = _store.GetBodyText(id, ct);
@@ -469,7 +473,14 @@ public sealed class MessageService
             TryDelete(staging);
         }
 
-        await _store.SetBodyTextAsync(envelope.Id, parsed.BodyText, blob.Id, parsed.HasAttachments, ct)
+        await _store
+            .SetBodyTextAsync(
+                envelope.Id,
+                parsed.BodyText,
+                blob.Id,
+                parsed.HasAttachments,
+                new SignalValues(parsed.Automated, parsed.Encrypted),
+                ct)
             .ConfigureAwait(false);
 
         await _audit.InfoAsync(
@@ -483,6 +494,36 @@ public sealed class MessageService
             ct).ConfigureAwait(false);
 
         return _store.GetEnvelope(envelope.Id, ct) ?? (envelope with { BodyFetched = true, BlobId = blob.Id });
+    }
+
+    /// <summary>A body cached before signals existed carries them nowhere else; the stored raw message is the only source.
+    /// Unreadable input leaves the signals unknown rather than failing the read.</summary>
+    private async Task<EnvelopeRow> BackfillSignalsAsync(EnvelopeRow envelope, CancellationToken ct)
+    {
+        ParsedMessage parsed;
+
+        try
+        {
+            var raw = ReadRaw(envelope, ct);
+            if (raw is null) return envelope;
+
+            parsed = _parser.Parse(raw, envelope.DateUtc, ct);
+        }
+        catch (Exception ex) when (ex is StoreException or FormatException)
+        {
+            return envelope;
+        }
+
+        var signals = new SignalValues(parsed.Automated, parsed.Encrypted);
+        if (signals.IsUnknown) return envelope;
+
+        await _store.SetSignalsAsync(envelope.Id, signals, ct).ConfigureAwait(false);
+
+        return envelope with
+        {
+            Automated = parsed.Automated ?? envelope.Automated,
+            Encrypted = parsed.Encrypted ?? envelope.Encrypted,
+        };
     }
 
     private static FileStream Create(string path) =>

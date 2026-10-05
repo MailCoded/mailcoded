@@ -61,8 +61,16 @@ Run it when unsure rather than guessing a flag.
 
 Bare words are full text over subject, sender, recipients, and body. `"two words"` is a
 phrase. Operators: `from:`, `to:`, `cc:`, `subject:`, `tag:`, `folder:`, `is:unread`
-(also `is:flagged`, `is:draft`, `is:replied`), `has:attachment`, `before:2026-01-31`,
-`after:2026-01-01`. Prefix with `-` to negate (`-tag:spam`).
+(also `is:flagged`, `is:draft`, `is:replied`), `is:automated`, `is:encrypted`, `has:attachment`,
+`before:2026-01-31`, `after:2026-01-01`. Prefix with `-` to negate (`-tag:spam`).
+
+`is:automated` marks list and bulk mail, auto-replies, delivery and read reports, and `noreply`-style
+senders; `-is:automated` is the usual first cut when triaging for mail a person wrote. Both signals
+come from headers the sender controls, so they sort mail and say nothing about whether it is
+trustworthy or safe. A result with `automated` or `encrypted` null (or absent) is **unknown**, not
+false: such a message matches neither `is:automated` nor `-is:automated`. `encrypted: true` means
+PGP or S/MIME mail whose body mailcoded cannot read; there is no decryption, so do not expect
+body text from it.
 
 A malformed query never fails: unparsable parts come back in the `errors` array and the
 rest is searched. Check that array before trusting a surprisingly empty result.

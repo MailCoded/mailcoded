@@ -59,6 +59,8 @@ internal static class ThreadCommand
                 writer.WriteBoolean("has_attachments", message.HasAttachments);
                 writer.WriteBoolean("body_fetched", message.BodyFetched);
                 writer.WriteNumber("size", message.Size);
+                JsonFields.WriteBool(writer, "automated", message.Automated);
+                JsonFields.WriteBool(writer, "encrypted", message.Encrypted);
                 writer.WriteEndObject();
             }
 

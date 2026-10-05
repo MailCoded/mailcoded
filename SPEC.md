@@ -176,6 +176,8 @@ CREATE TABLE messages (
   has_attachments INTEGER NOT NULL DEFAULT 0,
   blob_id INTEGER REFERENCES blobs(id),
   body_fetched INTEGER NOT NULL DEFAULT 0,
+  automated INTEGER,                  -- 1 yes, 0 no, NULL unknown (migration 009)
+  encrypted INTEGER,                  -- 1 PGP/MIME, S/MIME envelope or inline armor; NULL unknown
   UNIQUE (folder_id, uid)
 );
 

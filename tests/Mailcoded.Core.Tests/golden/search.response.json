@@ -5,8 +5,10 @@
     "hits": [
       {
         "accountId": 1,
+        "automated": false,
         "bodyFetched": true,
         "date": "2024-01-02T03:04:05.000Z",
+        "encrypted": false,
         "flags": [
           "unread"
         ],

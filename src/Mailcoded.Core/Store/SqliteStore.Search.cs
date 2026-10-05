@@ -85,6 +85,8 @@ public sealed partial class SqliteStore
                         HasAttachments = Db.Int(reader, 7) != 0,
                         BodyFetched = Db.Int(reader, 8) != 0,
                         Size = Db.Int(reader, 9),
+                        Automated = Db.BoolOrNull(reader, 10),
+                        Encrypted = Db.BoolOrNull(reader, 11),
                     });
                 }
             }
@@ -163,6 +165,12 @@ public sealed partial class SqliteStore
             case SearchPredicate.HasAttachment:
                 builder.And(negated ? "m.has_attachments = 0" : "m.has_attachments = 1");
                 break;
+            case SearchPredicate.IsAutomated:
+                builder.And(negated ? "m.automated = 0" : "m.automated = 1");
+                break;
+            case SearchPredicate.IsEncrypted:
+                builder.And(negated ? "m.encrypted = 0" : "m.encrypted = 1");
+                break;
             case SearchPredicate.BeforeDate beforePredicate:
                 builder.AndIntCompare("m.date_utc", negated ? ">=" : "<", ToUnixMs(beforePredicate.DateUtc));
                 break;
@@ -207,7 +215,7 @@ public sealed partial class SqliteStore
         var sql = new StringBuilder(512);
         sql.Append("SELECT m.id, m.folder_id, m.subject, m.from_addr, m.date_utc, m.flags");
         sql.Append(withSnippet ? ", substr(COALESCE(b.text, ''), 1, 4000)" : ", NULL");
-        sql.Append(", m.has_attachments, m.body_fetched, m.size");
+        sql.Append(", m.has_attachments, m.body_fetched, m.size, m.automated, m.encrypted");
 
         sql.Append(route switch
         {

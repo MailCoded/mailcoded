@@ -88,6 +88,20 @@ what removes markdown links and remote images, the EchoLeak-class exfiltration c
 from the agent's context. And no-delete is enforced by absence: the agent has no write
 handle to the database, so an injected `DELETE FROM messages` has nothing to run against.
 
+## Triage signals
+
+`search`, `read` and `thread` results carry two booleans, `automated` and `encrypted`, and the
+query language filters on them: `-is:automated` is the usual first cut for mail a person wrote,
+`is:encrypted` finds mail whose body mailcoded cannot read. Both are derived from headers and MIME
+structure the sender controls, so they sort mail and **never** vouch for it: an automated-looking
+message can be a person, and a message that is not marked automated can still be an attack.
+
+Unknown is a real state. Mail synced before these signals existed carries `null` (JSON) or omits the
+field (MCP) until its body is fetched or read again, and such a message matches neither
+`is:automated` nor `-is:automated`. An agent that needs "everything that is not known to be
+automated" must run the positive query as well and subtract. `encrypted: true` means the body is
+ciphertext or an opaque S/MIME blob; there is no decryption, so do not expect text from it.
+
 ## Turning send on, deliberately
 
 Sending is two locks plus a key, and all three are required.

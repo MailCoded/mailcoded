@@ -201,6 +201,16 @@ export interface EnvelopeDto {
   hasAttachments: boolean;
   size: number;
   /**
+   * Machine-generated mail (list, bulk, auto-reply, report, noreply sender); absent means
+   * unknown, not false. Sender-controlled, so not a trust signal.
+   */
+  automated?: boolean;
+  /**
+   * PGP/MIME, S/MIME envelope or inline PGP armor (never decrypted); inline armor is seen only
+   * after the body is fetched. Absent means unknown.
+   */
+  encrypted?: boolean;
+  /**
    * True once the body has been fetched and indexed; false means `message.get` will hit the
    * network.
    */

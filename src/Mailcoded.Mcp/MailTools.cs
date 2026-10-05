@@ -51,6 +51,8 @@ internal sealed class MailTools
                 From = hit.From,
                 Date = Wire.Date(hit.DateUtc),
                 Flags = Wire.Flags(hit.Flags),
+                Automated = hit.Automated,
+                Encrypted = hit.Encrypted,
                 Snippet = hit.Snippet,
             });
         }
@@ -113,6 +115,8 @@ internal sealed class MailTools
                 Tags = Wire.Tags(view.Tags),
                 HasAttachments = row.HasAttachments,
                 Size = row.Size,
+                Automated = row.Automated,
+                Encrypted = row.Encrypted,
                 BodyFetched = view.BodyFetched,
                 BodyText = view.BodyText,
                 ParseWarnings = view.ParseWarnings,
@@ -162,6 +166,8 @@ internal sealed class MailTools
                 Date = Wire.Date(message.DateUtc),
                 Flags = Wire.Flags(message.Flags),
                 Tags = tags,
+                Automated = message.Automated,
+                Encrypted = message.Encrypted,
                 BodyFetched = message.BodyFetched,
             });
         }

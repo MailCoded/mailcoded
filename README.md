@@ -118,8 +118,8 @@ JSON-RPC rather than opening the store itself. It is the worked example behind `
 compiles against `Mailcoded.Protocol` alone, which is why it is 5.90 MiB where the CLI is 15.53 MiB.
 
 Search understands bare words and phrases plus `from:`, `to:`, `cc:`, `subject:`, `tag:`,
-`folder:`, `is:unread|flagged|draft|replied`, `has:attachment`, `before:`/`after:`, and `-`
-negation. Diacritics fold, and CJK is indexed with a trigram route (with a `LIKE` fallback for one-
+`folder:`, `is:unread|flagged|draft|replied`, `is:automated`, `is:encrypted`, `has:attachment`,
+`before:`/`after:`, and `-` negation. Diacritics fold, and CJK is indexed with a trigram route (with a `LIKE` fallback for one-
 and two-character terms). `--meaning` additionally ranks by what a message is about rather than
 which words it used, if you installed a model — see [Known gaps](#known-gaps) for its real state.
 

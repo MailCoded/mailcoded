@@ -21,6 +21,11 @@ public abstract record SearchPredicate
     public sealed record IsReplied : SearchPredicate;
     public sealed record HasAttachment : SearchPredicate;
 
+    /// <summary>Known values only: an unknown signal matches neither this nor its negation.</summary>
+    public sealed record IsAutomated : SearchPredicate;
+
+    public sealed record IsEncrypted : SearchPredicate;
+
     /// <summary>Strictly earlier than the given instant.</summary>
     public sealed record BeforeDate(DateTimeOffset DateUtc) : SearchPredicate;
 

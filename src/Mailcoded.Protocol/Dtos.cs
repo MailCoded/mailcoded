@@ -41,6 +41,12 @@ public sealed record EnvelopeDto
 
     public long Size { get; init; }
 
+    /// <summary>Machine-generated mail (list, bulk, auto-reply, report, noreply sender); absent means unknown, not false. Sender-controlled, so not a trust signal.</summary>
+    public bool? Automated { get; init; }
+
+    /// <summary>PGP/MIME, S/MIME envelope or inline PGP armor (never decrypted); inline armor is seen only after the body is fetched. Absent means unknown.</summary>
+    public bool? Encrypted { get; init; }
+
     /// <summary>True once the body has been fetched and indexed; false means <c>message.get</c> will hit the network.</summary>
     public bool BodyFetched { get; init; }
 

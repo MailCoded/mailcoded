@@ -13,7 +13,16 @@ public sealed partial class SqliteStore
         string bodyText,
         BlobId? blobId = null,
         bool? hasAttachments = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default) =>
+        SetBodyTextAsync(messageId, bodyText, blobId, hasAttachments, default, ct);
+
+    public Task SetBodyTextAsync(
+        LocalMessageId messageId,
+        string bodyText,
+        BlobId? blobId,
+        bool? hasAttachments,
+        SignalValues signals,
+        CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(bodyText);
 
@@ -53,11 +62,14 @@ public sealed partial class SqliteStore
             session
                 .Prepare(
                     "UPDATE messages SET body_fetched = 1, blob_id = COALESCE($blob, blob_id), "
-                    + "has_attachments = COALESCE($hasatt, has_attachments) WHERE id = $id",
-                    "$blob", "$hasatt", "$id")
+                    + "has_attachments = COALESCE($hasatt, has_attachments), automated = COALESCE($automated, automated), "
+                    + "encrypted = COALESCE($encrypted, encrypted) WHERE id = $id",
+                    "$blob", "$hasatt", "$automated", "$encrypted", "$id")
                 .SetIntOrNull(0, blobId is { } blob ? (long?)blob.Value : null)
                 .SetIntOrNull(1, hasAttachments is { } attachments ? (long?)(attachments ? 1 : 0) : null)
-                .SetInt(2, messageId.Value)
+                .SetBoolOrNull(2, signals.Automated)
+                .SetBoolOrNull(3, signals.Encrypted)
+                .SetInt(4, messageId.Value)
                 .Execute();
 
             if (!string.Equals(oldBody, bodyText, StringComparison.Ordinal))
@@ -75,6 +87,18 @@ public sealed partial class SqliteStore
             return true;
         }, ct);
     }
+
+    /// <summary>Records signals derived from a whole parsed message. A null argument leaves the stored value alone.</summary>
+    public Task<bool> SetSignalsAsync(LocalMessageId messageId, SignalValues signals, CancellationToken ct = default) =>
+        WriteAsync(context => context.Session
+            .Prepare(
+                "UPDATE messages SET automated = COALESCE($automated, automated), encrypted = COALESCE($encrypted, encrypted) "
+                + "WHERE id = $id",
+                "$automated", "$encrypted", "$id")
+            .SetBoolOrNull(0, signals.Automated)
+            .SetBoolOrNull(1, signals.Encrypted)
+            .SetInt(2, messageId.Value)
+            .Execute() > 0, ct);
 
     public string? GetBodyText(LocalMessageId messageId, CancellationToken ct = default) =>
         Read<string?>(session => session

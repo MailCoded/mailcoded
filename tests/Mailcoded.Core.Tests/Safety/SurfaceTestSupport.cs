@@ -213,7 +213,9 @@ internal static class StoreSeeder
         string bodyText,
         long size,
         CancellationToken ct,
-        byte[]? raw = null)
+        byte[]? raw = null,
+        bool? automated = null,
+        bool? encrypted = null)
     {
         ArgumentNullException.ThrowIfNull(store);
 
@@ -232,6 +234,8 @@ internal static class StoreSeeder
                     To = to,
                     DateUtc = dateUtc,
                     Size = size,
+                    Automated = automated,
+                    Encrypted = encrypted,
                 },
             ],
             Mailcoded.Core.Domain.Threading.ReferencesThreader.Instance,

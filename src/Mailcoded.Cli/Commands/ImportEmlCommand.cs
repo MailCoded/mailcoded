@@ -149,7 +149,13 @@ internal static class ImportEmlCommand
             if (messageId is not { } id) continue;
 
             await host.Store
-                .SetBodyTextAsync(id, item.Message.BodyText, item.Blob.Id, item.Message.HasAttachments, ct)
+                .SetBodyTextAsync(
+                    id,
+                    item.Message.BodyText,
+                    item.Blob.Id,
+                    item.Message.HasAttachments,
+                    new SignalValues(item.Message.Automated, item.Message.Encrypted),
+                    ct)
                 .ConfigureAwait(false);
             stored++;
         }
@@ -177,6 +183,9 @@ internal static class ImportEmlCommand
             DateUtc = item.Message.DateUtc,
             Size = item.Size,
             HasAttachments = item.Message.HasAttachments,
+            Headers = item.Message.SignalHeaders,
+            Automated = item.Message.Automated,
+            Encrypted = item.Message.Encrypted,
         };
     }
 

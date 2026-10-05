@@ -61,6 +61,8 @@ internal static class SearchCommand
                 JsonFields.WriteText(writer, "from", hit.From);
                 JsonFields.WriteText(writer, "subject", hit.Subject);
                 JsonFields.WriteFlags(writer, "flags", hit.Flags);
+                JsonFields.WriteBool(writer, "automated", hit.Automated);
+                JsonFields.WriteBool(writer, "encrypted", hit.Encrypted);
                 JsonFields.WriteText(writer, "snippet", hit.Snippet);
                 writer.WriteEndObject();
             }
