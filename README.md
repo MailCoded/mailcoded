@@ -72,14 +72,14 @@ dotnet publish src/Mailcoded.Daemon -c Release -r linux-x64 /p:PublishAot=true
 ```
 
 It is **not a single binary**, and nothing here should call it one. Sizes come from the publish
-output rather than an estimate, measured 2026-09-12 on linux-x64:
+output rather than an estimate, measured 2026-10-06 on linux-x64:
 
 | Binary | Size | Build |
 |---|---|---|
-| `mailcoded-daemon` | **16.25 MiB** | Native AOT, zero trim or AOT warnings |
-| `mailcoded` (CLI) | **15.53 MiB** | Native AOT, zero trim or AOT warnings |
-| `mailcoded-tui` | **5.90 MiB** | Native AOT, zero trim or AOT warnings |
-| `mailcoded-mcp` | **12.69 MiB** | framework-dependent; needs the .NET runtime |
+| `mailcoded-daemon` | **17.47 MiB** | Native AOT, zero trim or AOT warnings |
+| `mailcoded` (CLI) | **16.69 MiB** | Native AOT, zero trim or AOT warnings |
+| `mailcoded-tui` | **6.17 MiB** | Native AOT, zero trim or AOT warnings |
+| `mailcoded-mcp` | **13.14 MiB** | framework-dependent; needs the .NET runtime |
 
 The MCP adapter is the odd one out because its SDK is not annotated for trimming, so it cannot be
 compiled AOT. Each AOT binary ships alongside `libe_sqlite3.so` (1.40 MiB) and will not start
@@ -118,7 +118,7 @@ mailcoded --db /tmp/mail.db tui
 
 `mailcoded tui` starts `mailcoded-tui`, which spawns `mailcoded-daemon` and talks to it over
 JSON-RPC rather than opening the store itself. It is the worked example behind `docs/rpc.md`: it
-compiles against `Mailcoded.Protocol` alone, which is why it is 5.90 MiB where the CLI is 15.53 MiB.
+compiles against `Mailcoded.Protocol` alone, which is why it is 6.17 MiB where the CLI is 16.69 MiB.
 
 Search understands bare words and phrases plus `from:`, `to:`, `cc:`, `subject:`, `tag:`,
 `folder:`/`in:`, `is:unread|flagged|draft|replied`, `is:automated`, `is:encrypted`, `is:verified`, `has:attachment`,
@@ -376,12 +376,13 @@ Stated plainly, because these are the things you would otherwise discover on day
   1 Oct 2026 — is planned for v0.2, along with Gmail OAuth2.
 - **No native Gmail API provider.** It would need Google's HTTPS endpoints, which the network rule does not allow
   (mail protocols and the Microsoft identity endpoints only). Gmail works over IMAP with an app password.
-- **Recent features are verified by unit tests, not against a live server.** Signals, folder hierarchy,
-  sync progress, sender identities, server-side drafts (including the `UID MOVE` into Sent), correspondent
-  suggestions, `unsubscribe`, attachment text and the interactive IMAP connection have fakes and unit
-  tests; the Docker tests for them are written but have never run. Only Gmail has a built-in trusted
-  `Authentication-Results` server id, so `is:verified` matches nothing on another provider until you
-  configure one (`mailcoded account trust`).
+- **Recent features have met one real server, Dovecot, and no commercial provider.** Signals, sync
+  progress, sender identities, server-side drafts (including the `UID MOVE` into Sent), correspondent
+  suggestions, List-Unsubscribe headers, attachment text and the interactive IMAP connection pass unit
+  tests and a Docker suite against Dovecot and smtp4dev. None has run against Gmail, Microsoft or any
+  other provider, and folder hierarchy has not met a server whose delimiter is not `/`. Only Gmail has a
+  built-in trusted `Authentication-Results` server id, so `is:verified` matches nothing on another
+  provider until you configure one (`mailcoded account trust`).
 - **Two read paths are slower than their targets at 100,000 messages**: a very common search word and the
   thread view. That is one run on a development machine, not reference hardware, and not a benchmark claim.
 - **The VS Code extension is unreleased and lives in a separate repository.** It reads mail there —

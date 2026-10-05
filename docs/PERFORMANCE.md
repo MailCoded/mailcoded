@@ -186,7 +186,7 @@ p95 gate above remains a target until the bench harness runs.
 
 The encoder is written out in C# rather than taken as a dependency, for size: ONNX Runtime's
 `libonnxruntime.so` is 28,985,152 bytes — 27.64 MiB. The size gate measures each shipped file on
-its own, so that library does not eat into the daemon's 3.75 MiB of headroom: it **fails the 20 MB
+its own, so that library does not eat into the daemon's 2.53 MiB of headroom: it **fails the 20 MB
 gate outright**, at 1.4x the limit, before anything it is shipped beside is considered. The one
 figure here that
 *is* a measurement, because it is a byte count of a published binary rather than a timing, is the

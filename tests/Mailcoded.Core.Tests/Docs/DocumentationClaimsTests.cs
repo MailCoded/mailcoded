@@ -85,12 +85,13 @@ public sealed class DocumentationClaimsTests
     }
 
     [Fact]
-    public void Verification_record_keeps_unrun_integration_tests_out_of_the_verified_claims()
+    public void Verification_record_scopes_the_integration_run_to_the_servers_it_used()
     {
         var text = Read("docs", "verification.md");
         var notVerified = text[text.IndexOf("## NOT verified", StringComparison.Ordinal)..];
 
-        Assert.Contains("written but have never run", notVerified, StringComparison.Ordinal);
+        Assert.Contains("**20 passed, 0 failed, 0 skipped**", text, StringComparison.Ordinal);
+        Assert.Contains("against any server but Dovecot", notVerified, StringComparison.Ordinal);
         Assert.DoesNotContain("1377 passed", text, StringComparison.Ordinal);
     }
 }

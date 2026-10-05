@@ -424,15 +424,16 @@ Everything below, plus the daemon surface it touches, is described in §3.1, §5
 - [x] `dotnet build Mailcoded.slnx` with `TreatWarningsAsErrors` is clean and the whole unit suite is green (counts in `docs/verification.md`).
 - [x] Protocol DTO changes regenerate `packages/protocol/src/generated.ts` and the generator's `--check` reports it up to date; every new RPC behaviour has a golden transcript pair.
 - [x] The Native AOT daemon published with zero IL2xxx/IL3xxx warnings on the tree after each of the signals, unsubscribe, backup, sync-progress, identities, server-drafts, correspondents and attachment-text work.
-- [ ] A Native AOT publish of the final tree, with the 20 MiB size gate: not yet recorded. Sizes in the docs are re-measured separately and are not asserted here.
-- [ ] The Docker integration tests for the new behaviour (15 test methods in nine files) pass: written, never run; no Docker was available.
+- [x] A Native AOT publish of the final source (daemon, CLI, TUI) has zero IL2xxx/IL3xxx or other warnings, passes the 20 MiB size gate and the stdio smoke test, and the AOT CLI returns the same search results as the JIT build over all 56 fixtures (sizes in `docs/DEPENDENCIES.md`).
+- [x] The Docker integration tests for the new behaviour (15 test methods in nine files) pass against Dovecot and smtp4dev, together with the original five: 20 of 20.
 - [ ] The macOS and Windows CI legs run the new code: not run.
 
 *Message signals*
 - [x] `is:automated`, `is:encrypted` and `is:verified` parse, compile and match as documented, including the unknown-matches-neither rule for `automated` and `encrypted` and the broad `-is:verified`; bounded header handling is covered by adversarial tests (control characters, duplicate and oversized headers, hostile display names, quoted and mid-line PGP armor).
 - [x] `Authentication-Results` is parsed to RFC 8601 rules and a result counts only from an instance whose authserv-id the Account trusts and that names the single From domain; forged, planted, commented, quoted and conflicting headers never yield a pass in the tests; the trust list changes only behind a terminal confirmation or `MAILCODED_ALLOW_TRUST_CHANGE=1` with `--yes`; imported mail is never verified.
 - [x] Category Tags are assigned once at first insert, never pushed as keywords, never taken from a server keyword, and a Tag the user removed stays removed.
-- [ ] Signals fetched from a real IMAP server (`HEADER.FIELDS` alongside the envelope items): covered by an integration test that has not run. Only Gmail ships a built-in authserv-id; every other provider needs the human to configure one.
+- [x] Signals fetched from a real IMAP server (`HEADER.FIELDS` alongside the envelope items), against Dovecot: `is:automated`, `is:encrypted`, and an `is:verified` that only a trusted authserv-id can produce.
+- [ ] Signals against any provider but Dovecot: not run. Only Gmail ships a built-in authserv-id; every other provider needs the human to configure one.
 
 *Search*
 - [x] Trash- and Junk-role Folders are left out unless the query names a Folder, says `in:anywhere`, or the call is Folder-scoped, on every search route including the semantic and relaxed retries.
@@ -442,7 +443,8 @@ Everything below, plus the daemon surface it touches, is described in §3.1, §5
 *Attachment text*
 - [x] Text-like attachments and `.docx` are read for text with the BCL alone; zip bombs, lying central directories, entry-count patches, path-traversal names, XXE, entity chains, DOCTYPE, truncated and corrupted archives are refused or bounded in the tests, and a failed attachment never fails a fetch or sync.
 - [x] The `.docx` path is measured against an `XmlReader` alternative and the hand scanner is kept (`docs/DEPENDENCIES.md`).
-- [ ] Extraction and the background backfill against a real mailbox: not run. The parsers of untrusted input (`WordXmlTextScanner`, `DocxTextExtractor`, `AttachmentTextExtractor`) are flagged for human review.
+- [x] Extraction on a fetched body and through the background backfill, against Dovecot: `.docx` and CSV attachment text becomes searchable.
+- [ ] A human review of the parsers of untrusted input (`WordXmlTextScanner`, `DocxTextExtractor`, `AttachmentTextExtractor`): not done; they are flagged for it.
 
 *Store backup*
 - [x] `backup` and `backup-verify` (and `store.backup`, `store.backupVerify`) produce and check a manifest-described copy; each tampered, missing, extra or linked file is reported, a copy restored by hand opens, and a destination inside a workspace Folder, the live store or a symbolic link is refused.
@@ -451,9 +453,10 @@ Everything below, plus the daemon surface it touches, is described in §3.1, §5
 
 *Sync progress and connections*
 - [x] `notify.sync.progress` is throttled per Account, closes every indicator it opened with one `final`, carries no subject, address or body, and is opt-in; the CLI line and the TUI status line are unit-tested.
-- [ ] Progress numbers against a real server, and an interactive terminal run of the CLI line and the TUI: not run.
+- [x] Progress against a real server (Dovecot): folder, account and watched syncs report and close their indicators, and a sync that does not ask gets none.
+- [ ] An interactive terminal run of the CLI progress line and the TUI: not run.
 - [x] The interactive connection lane answers a fetch while a streaming sync holds the primary connection (router tests with the real command queue), falls back and backs off when a second connection is refused, and stays inside the per-Account budget.
-- [ ] The lane against a real server (`ImapProvider` routing has no unit seam): not run.
+- [x] The lane against a real server (Dovecot): a body fetch and a Flag push complete while a sync holds the primary connection, and wait for it without the lane.
 
 *Folders*
 - [x] The server delimiter is stored per Folder and the hierarchy (`delimiter`, `leaf`, `depth`, `parentId`) is on the wire, in `folders` and in the TUI sidebar; a `/` inside a segment under another delimiter is refused rather than mis-addressed, and reported once per refresh.
@@ -462,7 +465,7 @@ Everything below, plus the daemon surface it touches, is described in §3.1, §5
 *Sending*
 - [x] A draft's From must be the account address or a configured identity, checked once in Core for every route; signatures follow RFC 3676 §4.3 placement; identity changes are gated like `account trust`.
 - [x] A server draft is saved only when the Account opted in (gated like `account trust`), is never deleted or flagged for deletion, is moved into Sent with one `UID MOVE` only when every condition holds, and every crash window leaves the draft in place without a second move or a duplicate Sent copy.
-- [ ] Server drafts and the atomic `UID MOVE` against a real server: not run.
+- [x] Server drafts against a real server (Dovecot): visible to another client, moved into Sent by one `UID MOVE`, and left in place with the Sent copy appended after a UIDVALIDITY change.
 - [x] `unsubscribe` drafts only a strictly parsed single-recipient `mailto:`, still goes through preview, token, allowlist and rate cap, and no code path fetches an HTTP URL.
 - [x] Correspondent suggestions are learned from outgoing mail only, once per sent message, never from Bcc or received mail, and are ranked deterministically.
 

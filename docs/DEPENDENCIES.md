@@ -103,7 +103,7 @@ Per-entity ordinal maps live next to the entity.
 
 ## Binary size
 
-**Baselines per RID.** .NET 10 AOT hello-world ~1.1-1.5 MB. e_sqlite3 native ~1.3-1.5 MB (linux-x64/win-x64), ~2.3 MB (macOS universal). Sockets/TLS +2-4 MB. MimeKit/MailKit managed after trimming +3-6 MB (no published measurement — estimate). Realistic total **~9-17 MB uncompressed per RID** (the 2026-09-12 daemon measured 16.25 MiB), Linux at the high end because of app-local ICU.
+**Baselines per RID.** .NET 10 AOT hello-world ~1.1-1.5 MB. e_sqlite3 native ~1.3-1.5 MB (linux-x64/win-x64), ~2.3 MB (macOS universal). Sockets/TLS +2-4 MB. MimeKit/MailKit managed after trimming +3-6 MB (no published measurement — estimate). Realistic total **~9-17 MB uncompressed per RID** (the 2026-10-06 daemon measured 17.47 MiB), Linux at the high end because of app-local ICU.
 
 **Attachment text extraction (BCL only).** Reading a Word `.docx` adds no package: it uses
 `System.IO.Compression.ZipArchive` and a scanner written for the one XML vocabulary involved
@@ -158,22 +158,22 @@ sizes quoted below. `InvariantGlobalization=false` is **required** — MIME need
 
 **CI size gate:** applied to each shipped file, never to their sum — warn > 12 MB, fail > 20 MB uncompressed; warn > 6 MB, fail > 10 MB compressed. The total is reported, not gated. Archive `.mstat` and publish a size-trend chart. Tighten after the first real measurement with sizoscope (`dotnet tool install sizoscope --global`; artifacts land in `obj/Release/net10.0/<rid>/native/`).
 
-**Measured 2026-09-12**, publishing exactly what `scripts/install.sh` ships and sizing it with
+**Measured 2026-10-06**, publishing exactly what `scripts/install.sh` ships and sizing it with
 `scripts/size-gate.sh`.
 
-*Native AOT, linux-x64* — `mailcoded-daemon` **16.25 MiB**, `mailcoded` (CLI) **15.53 MiB**,
-`mailcoded-tui` **5.90 MiB**, plus the `libe_sqlite3.so` **1.40 MiB** each of them loads. All three
+*Native AOT, linux-x64* — `mailcoded-daemon` **17.47 MiB**, `mailcoded` (CLI) **16.69 MiB**,
+`mailcoded-tui` **6.17 MiB**, plus the `libe_sqlite3.so` **1.40 MiB** each of them loads. All three
 are under the 20 MB gate; the daemon and the CLI are over the 12 MB warning line and the TUI is
-not. Gzipped they are 7.53 / 7.28 / 2.73 MiB, so the first two are also past the 6 MB compressed
+not. Gzipped they are 8.07 / 7.79 / 2.83 MiB, so the first two are also past the 6 MB compressed
 warning — though `size-gate.sh` never says so for them, because its checks are ordered and the
 uncompressed warning fires first. **Zero** IL2xxx/IL3xxx trim or AOT warnings. **Rule 3's headroom
-is 3.75 MiB, on `mailcoded-daemon`** — the largest AOT binary, and so the one a new native
+is 2.53 MiB, on `mailcoded-daemon`** — the largest AOT binary, and so the one a new native
 dependency has to fit beside.
 
 *Framework-dependent* — `mailcoded-mcp` is not compiled AOT. Its project sets `PublishAot=false`
 and disables the trim and AOT analyzers, because the MCP SDK is annotated for neither, so a "zero
 trim warnings" claim about it would be vacuous rather than measured. It is published
-`--self-contained false` and needs the .NET runtime present. `mailcoded-mcp` **12.69 MiB** in
+`--self-contained false` and needs the .NET runtime present. `mailcoded-mcp` **13.14 MiB** in
 total, nearly all of it managed assemblies behind a 0.10 MiB launcher.
 
 Publish it **with `-r`** even though it is framework-dependent. Without one, the output carries a
@@ -181,14 +181,15 @@ Publish it **with `-r`** even though it is framework-dependent. Without one, the
 Android, iOS and wasm natives inside a linux-x64 artifact. The per-file gate cannot see that,
 because no single file in the tree is large.
 
-The AOT CLI was then exercised end to end: all 37 MIME fixtures import, and FTS, CJK-trigram,
-short-CJK `LIKE` and metadata-only search all return the same results as the JIT build. MimeKit and
-SQLitePCLRaw both survive trimming intact.
+The AOT CLI was then exercised end to end: all 56 MIME fixtures import, and full-text, metadata,
+`is:automated`, `is:encrypted`, `is:verified`, `auto.*` Tag and `attachment:` searches all return the
+same results as the JIT build. MimeKit, SQLitePCLRaw and the `.docx` path (ZipArchive) survive
+trimming intact.
 
 **Microsoft.Identity.Client (MSAL) is AOT-clean, and costs about 3 MB.** Measured when it landed,
 with the OAuth device-code path actually referenced: **zero** IL2xxx/IL3xxx warnings, and the
 linux-x64 Release AOT CLI grew by roughly 3 MB. The absolute figures from that run are superseded
-by the 2026-09-12 measurement above; the delta is what the decision rested on. If the daemon later
+by the measurement above; the delta is what the decision rested on. If the daemon later
 approaches the gate, the lever is to move OAuth behind a capability the MCP adapter does not carry,
 not to drop the dependency — token refresh is not optional once an account uses OAuth.
 

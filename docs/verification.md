@@ -5,8 +5,9 @@ What has actually been exercised, and what has not. This file exists because
 "verified" have to be separable. Nothing here is a performance claim; the one set of timings recorded
 below is a development-machine measurement, labelled as such, and is not a reference-hardware result.
 
-Environment: NixOS on WSL2, .NET SDK 10.0.302, linux-x64. Docker was **not** available for the
-earlier rows; an earlier run had it, and the original five Dovecot/smtp4dev tests ran then (see below).
+Environment: NixOS on WSL2, .NET SDK 10.0.302, linux-x64. Docker was **not** available for most of the
+earlier rows; one earlier run had it, and the original five Dovecot/smtp4dev tests ran then. On 2026-10-06
+Docker was available for the final source, and the whole integration suite ran (see below).
 
 An adversarial review (six independent lenses, then a skeptic per finding instructed to refute it)
 produced 16 confirmed defects, all since fixed with regression tests. A second review, of the work that
@@ -21,29 +22,33 @@ growing tree, and each was checked when it landed, so a row below says which tre
   0 errors), the whole unit suite (counts in the table), the TypeScript protocol check (`--check`, up
   to date), and `mailcoded import-eml fixtures/eml` on a fresh store (56 files, 56 imported, 0 failures).
   The store schema is at `user_version` 17 (migrations 009 to 017 were added since the oldest rows).
-- On the tree at the time each feature landed, not repeated on the final tree: a Native AOT publish of
-  the daemon (zero IL2xxx/IL3xxx warnings after each of the signals, unsubscribe, backup, sync progress,
-  identities, server drafts, correspondents and attachment text work; the review's fixes and the
-  documentation pass were **not** published), the golden transcript diff, and the AOT binaries driven
-  over stdio or from the shell (rows below).
+- On the final source, 2026-10-06 (the documentation pass after it changed only docs and tests): a
+  Native AOT publish of the daemon, the CLI and the TUI plus the framework-dependent `mailcoded-mcp`,
+  the size gate, `scripts/aot-smoke.sh`, the AOT CLI against all 56 fixtures, and the whole Docker
+  integration suite (rows below).
+- On the tree at the time each feature landed: a Native AOT publish of the daemon after each of the
+  signals, unsubscribe, backup, sync progress, identities, server drafts, correspondents and attachment
+  text work, the golden transcript diff, and the AOT binaries driven over stdio or from the shell (rows
+  below).
 - Every other row below ran on an earlier tree, at `user_version` 8, with 37 fixtures, and says nothing
-  about code written since. No Docker, no pty run and no Windows or macOS leg happened in any of it.
+  about code written since. No pty run and no Windows or macOS leg happened in any of it.
 
 ## Verified by running it
 
 | Area | What was run | Result |
 |---|---|---|
 | Build | `dotnet build Mailcoded.slnx` with `TreatWarningsAsErrors=true` | clean, 0 warnings |
-| Unit suite | `tests/Mailcoded.Core.Tests` (xunit.v3), final tree | **3524 passed, 0 failed, 1 skipped (the env-gated 100k performance test)** |
+| Unit suite | `tests/Mailcoded.Core.Tests` (xunit.v3), final tree | **3523 passed, 0 failed, 1 skipped (the env-gated 100k performance test)** |
 | Architecture tests | NetArchTest rules from ARCHITECTURE §12.7 | green, incl. the no-removal-verb rule |
-| Native AOT | `dotnet publish -r linux-x64 -p:PublishAot=true` | `mailcoded-daemon` 16.25 MiB and `mailcoded` 15.53 MiB, **zero IL2xxx/IL3xxx warnings**; both under the 20 MB fail gate, both over the 12 MB warning |
-| Native AOT, M2a features | `dotnet publish -r linux-x64 -p:PublishAot=true` of the daemon, once per feature, on the tree at that moment (and the CLI and TUI for some) | zero IL2xxx/IL3xxx or other warnings every time; the last publish was before the review's fixes, so the final tree is **not** covered. Sizes are not recorded here: DEPENDENCIES.md has the current figures |
+| Native AOT, final source | `dotnet publish -r linux-x64 -p:PublishAot=true` of the daemon, CLI and TUI, and `--self-contained false` for `mailcoded-mcp`, 2026-10-06 | `mailcoded-daemon` 17.47 MiB, `mailcoded` 16.69 MiB and `mailcoded-tui` 6.17 MiB, **zero IL2xxx/IL3xxx or other warnings**; all under the 20 MB fail gate, the daemon and the CLI over the 12 MB warning; `mailcoded-mcp` 13.14 MiB without `libe_sqlite3.so` |
+| Native AOT, M2a features | `dotnet publish -r linux-x64 -p:PublishAot=true` of the daemon, once per feature, on the tree at that moment (and the CLI and TUI for some) | zero IL2xxx/IL3xxx or other warnings every time; the final source is covered by the row above. Sizes are not recorded here: DEPENDENCIES.md has the current figures |
 | AOT binaries driven, M2a features | the AOT CLI: `account add --trust-authserv-id`, `account trust` (shown, refused without the unlock, changed with it, `--none`), then `import-eml` of fixture 046 and `search is:verified` (0 hits) and `-is:verified` (1 hit). The AOT daemon over stdio: `initialize` advertising `capabilities.backup` and `notify.sync.progress`, `store.backup` into a new folder then `store.backupVerify` (ok), `sync` with `progress: true` on an unknown account (error, no progress), `correspondent.suggest` on a fresh store (1002 for an unknown account) | as stated; the backup folder held `manifest.json` and `store.db`, both mode 0600. Each ran on the tree of its own feature |
 | Protocol types and golden transcripts | TypeScript generator with `--check` after every DTO change; golden request/response pairs for each new RPC behaviour, regenerated and the diff read | up to date; every golden change was a field or method the feature added, or a schema version |
 | Query-plan probes | throwaway scripts, not `tests/Mailcoded.Bench` and not reference hardware: Trash/Junk exclusion on a synthetic 500k-row store (plan unchanged; about 20-25 ms more for a date-ordered FTS term matching 100k rows); `attachment:` over 20,000 attachments (7-32 ms); `is:encrypted` over 300k rows (82 ms before the partial index, 0.02 ms after) | recorded in PERFORMANCE.md; these are measurements of a plan, not benchmark results |
-| Size gate | `scripts/size-gate.sh` over the publish directory | every file counted, incl. `libe_sqlite3.so` (1.40 MiB); a 29 MB decoy library fails the gate |
+| Size gate | `scripts/size-gate.sh` over the publish directory, re-run on the final source 2026-10-06 | every file counted, incl. `libe_sqlite3.so` (1.40 MiB); nothing over the fail line; a 29 MB decoy library fails the gate |
 | Encoder AOT cost | byte count of the published daemon with and without the encoder reachable | **+158,000 bytes** (0.9%); 3.5x the design's 45,144 B estimate |
 | AOT runtime | the AOT **CLI** (earlier tree) imported all 37 fixtures and ran FTS, CJK-trigram, short-CJK `LIKE` and metadata search | identical results to the JIT build — MimeKit and SQLitePCLRaw survive trimming |
+| AOT runtime, final source | the AOT **CLI** imported all 56 fixtures and ran full-text, metadata, `has:attachment`, `in:anywhere`, `is:automated`, `is:encrypted`, `is:verified` and their negations, `auto.*` Tag and `attachment:` searches, 2026-10-06 | identical results to the JIT build, including the `.docx` path through ZipArchive |
 | Daemon stdio | `scripts/aot-smoke.sh` plus a pipelined 4-request session | `initialize`, `account.list`, `folder.list`, `stats`, `health`, `shutdown` all answered; framing correct |
 | FTS5 assertion | startup check against `PRAGMA compile_options` | present; a fresh store opened at `user_version` 8 then (now 17, asserted by unit tests) |
 | MIME corpus | `mailcoded import-eml fixtures/eml`, final tree, JIT CLI | 56/56 imported, **0 failures** (37/37 on the earlier tree) |
@@ -52,8 +57,9 @@ growing tree, and each was checked when it landed, so a row below says which tre
 | Semantic refusal | `search` with `semantic: true` and no model | **1008** with category `unsupported` (golden transcript) |
 | Backfill vs bulk ingest | unit test opening a bulk-ingest window | the worker stands down and writes nothing inside the window; a write issued inside it would join that window's transaction and be rolled back with it (found by test, fixed) |
 | Dovecot / smtp4dev | the original five tests in `tests/Mailcoded.Integration` via Testcontainers, on an earlier tree | **5 passed, 0 skipped**: add-account/sync/search/tag/send round trip; crash after SMTP 250 reconciles from Sent; stuck send is investigated, never resent; UIDVALIDITY change re-enumerates without duplicating blobs; external APPEND produces `notify.mail.added` within 5 s |
+| Dovecot / smtp4dev, final source | the whole `tests/Mailcoded.Integration` suite via Testcontainers (`dovecot/dovecot:2.3.21`, `rnwood/smtp4dev:3.6.1`), 2026-10-06 | **20 passed, 0 failed, 0 skipped**: the original five, plus signals derived from the envelope fetch (`is:automated`, `is:encrypted`); `is:verified` only through a trusted authserv-id, with forged, foreign, commented and absent headers left unverified; stored List-Unsubscribe headers; `notify.sync.progress` for folder, account and watched syncs, and none when not asked; sending as an identity with its signature, a stranger refused; a server draft visible to another client and moved into Sent by one `UID MOVE`, and left in place with the Sent copy appended after a UIDVALIDITY change; a send and its synced Sent copy counted once as a Correspondent, received mail teaching nobody; a body fetch and a Flag push completing over the interactive connection while a sync holds the primary; `.docx` and CSV attachment text searchable after a fetch and through the backfill. On the first run one test failed on its own expected ordering (an ordinal sort puts `Foreign id` before `Forged below a fail`); the test was corrected and the whole suite then passed |
 | Search | FTS terms, phrases, diacritics, CJK ≥3 chars (trigram), CJK 1–2 chars (`LIKE`), `from:`, `subject:`, `tag:`, `is:unread`, `is:flagged`, `has:attachment`, `before:`/`after:`, negation (earlier tree) | correct hits, correct reported route |
-| Search, newer operators | `attachment:` (text-like attachments and `.docx`), `in:trash`/`in:anywhere`, Trash and Junk left out by default, `is:automated`, `is:verified`, `is:encrypted` | **unit tests only**; no Docker or daemon session exercised them |
+| Search, newer operators | `attachment:` (text-like attachments and `.docx`), `in:trash`/`in:anywhere`, Trash and Junk left out by default, `is:automated`, `is:verified`, `is:encrypted` | unit tests for all of them; the AOT CLI over the 56 fixtures for `attachment:`, `in:anywhere` and the `is:` signals; the Docker suite against Dovecot for `is:automated`, `is:encrypted`, `is:verified` and `attachment:`. The Trash and Junk default ran in unit tests only |
 | Malformed query | `search 'from: AND AND "unclosed'` | `ok: true` with a populated `errors` array — never throws |
 | IMAP sync | first sync against a minimal local IMAP server | plan `invalidate`, 3 envelopes ingested, 3 batches |
 | Re-sync | second sync, same server | `added: 0`, row count unchanged, 96 ms — idempotent |
@@ -135,7 +141,7 @@ criteria whose check is named in the rows above, and says why each unticked one 
 | **M0** Scaffold | criteria met on linux-x64 | the macOS and Windows CI legs have not run |
 | **M1** Store + MIME | met | — |
 | **M2** IMAP sync + send | mostly met | Dovecot and smtp4dev ran for the original 5 tests: the QRESYNC/CONDSTORE arms and the 5k-message timing are still unrun |
-| **M2a** Owner-added feature set | met at unit level | every Dovecot and integration check: 15 test methods in nine files were written and never run; nothing exercised signals, hierarchy, progress, identities, server drafts, `unsubscribe`, attachment text or the interactive IMAP connection against a real server; the final tree has no AOT publish or size-gate result recorded here. The native Gmail REST provider was not built |
+| **M2a** Owner-added feature set | met on linux-x64: unit suite, Native AOT with the size gate, and the Docker suite against Dovecot | a server whose Folder delimiter is not `/`; any provider but Dovecot (Gmail, Microsoft, Yahoo, Fastmail, iCloud); an interactive terminal run of the TUI and the CLI progress line; backup at scale; the Windows and macOS legs. The native Gmail REST provider was not built |
 | **M3** Daemon + secrets + extension skeleton | backend met | the Windows/macOS keyrings are untested; the VS Code extension is a separate repository this record does not cover |
 | **M4** Read/act/compose in the extension | partly, elsewhere | reading, search and the sandboxed reader exist in the extension's own repository; compose and send do not. Nothing here tests it |
 | **M-perf** | harness only | the BenchmarkDotNet suite has never run; `baseline.json` is zeros on purpose. A 100k-message read-path test has run once on a development machine (below), which is not reference hardware |
@@ -150,16 +156,11 @@ criteria whose check is named in the rows above, and says why each unticked one 
   reference hardware. `baseline.json` is committed with zeros on purpose. Every number in
   PERFORMANCE §15.2 is a target, not a measurement. The 100k development-machine run above is the
   only timing on record, and two of its paths are above target.
-- **The newer integration tests.** `tests/Mailcoded.Integration` holds 15 more test methods in eight
-  files (message signals, sync progress, sender identities, server drafts, correspondents,
-  List-Unsubscribe, the interactive IMAP lane, attachment text). They are written but have never run: no Docker was
-  available, so they prove nothing yet, and the MailKit-facing code they cover (folder hierarchy, the interactive lane,
-  `APPENDUID` handling, server-draft `UID MOVE`, envelope signals) is checked by unit tests against fakes only.
-- **Anything the M2a features do against a real server.** Header acquisition (`HEADER.FIELDS` beside the
-  envelope items, so `automated` and `dmarc` on synced mail), the folder tree on a server whose
-  delimiter is not `/`, the numbers `notify.sync.progress` reports during a real sync, `APPENDUID`
-  handling, the server draft's `UID MOVE` into Sent, and the interactive IMAP connection. `ImapProvider`
-  routing and `MoveAtomicAsync` have no unit seam, so only the unrun Docker tests would cover them.
+
+- **The M2a features against any server but Dovecot.** The Docker suite ran them against Dovecot
+  2.3.21 and smtp4dev 3.6.1 only. Header acquisition, `APPENDUID` handling, the server draft's
+  `UID MOVE` and the interactive connection have not met Gmail, Microsoft, Yahoo, Fastmail or iCloud,
+  and no test covers a server whose Folder delimiter is not `/`.
 - **`is:verified` on any provider but Gmail.** Only `imap.gmail.com` ships a trusted authserv-id
   (`mx.google.com`), taken from knowledge of that provider and not checked against a live message. Nothing
   was run against Microsoft, Yahoo, Fastmail or iCloud mail.
@@ -172,7 +173,7 @@ criteria whose check is named in the rows above, and says why each unticked one 
 - **A human review of the untrusted-input parsers.** `.docx` extraction (`WordXmlTextScanner`,
   `DocxTextExtractor`, `AttachmentTextExtractor`) and `Authentication-Results` parsing have adversarial
   unit tests, not an outside review or fuzzing run.
-- **The final tree under Native AOT.** See the AOT rows: the last publish predates the review's fixes.
+
 - **A native Gmail REST provider.** Not built; the network rule forbids the HTTPS calls it would need.
 - **QRESYNC and CONDSTORE delta paths.** The local test server advertises neither, so only the
   full-diff arm has executed. The planner's delta arms are covered by unit tests, not by a server.

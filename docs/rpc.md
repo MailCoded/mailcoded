@@ -1126,7 +1126,7 @@ behaviour sends `true`. The generated TypeScript types show both as optional boo
 
 It references `Mailcoded.Protocol` and nothing else: not the engine, not MailKit, not SQLite. An
 architecture test enforces that, and the size difference is the evidence:
-`mailcoded-tui` is 5.90 MiB where `mailcoded` is 15.53 MiB, both Native AOT, measured 2026-09-12.
+`mailcoded-tui` is 6.17 MiB where `mailcoded` is 16.69 MiB, both Native AOT, measured 2026-10-06.
 Whatever a third-party client needs is therefore in `Mailcoded.Protocol`, because the TUI compiles
 without anything else.
 
