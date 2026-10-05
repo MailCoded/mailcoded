@@ -49,7 +49,7 @@ public sealed class DocumentationTests
     }
 
     /// <summary>DEPENDENCIES is the normative size doc; every other document must quote what it
-    /// records for the same binary, and a frozen literal would go stale on the next measurement.</summary>
+    /// records for the same binary.</summary>
     [Fact]
     public void Readme_claims_no_single_binary_and_every_doc_quotes_the_measured_sizes()
     {
@@ -64,8 +64,8 @@ public sealed class DocumentationTests
 
         var quoted = new[]
         {
-            ("mailcoded-daemon", new[] { "README.md", "docs/manual/01-install.md" }),
-            ("mailcoded", new[] { "README.md", "docs/rpc.md", "docs/manual/01-install.md" }),
+            ("mailcoded-daemon", new[] { "README.md", "docs/manual/01-install.md", "docs/verification.md" }),
+            ("mailcoded", new[] { "README.md", "docs/rpc.md", "docs/manual/01-install.md", "docs/verification.md" }),
             ("mailcoded-tui", new[] { "README.md", "docs/rpc.md", "docs/manual/01-install.md" }),
             ("mailcoded-mcp", new[] { "README.md", "docs/manual/01-install.md" }),
         };
@@ -80,8 +80,8 @@ public sealed class DocumentationTests
         }
     }
 
-    /// <summary>The first size *after* the name, not merely one nearby: every document writes
-    /// "`name` size", and a window test passes even when two binaries' sizes are swapped.</summary>
+    /// <summary>Scoped to the line: a line naming a binary and a size is making that claim, while
+    /// prose that merely mentions the project is not.</summary>
     private static void AssertAttributes(
         string document,
         string path,
@@ -89,24 +89,27 @@ public sealed class DocumentationTests
         string size,
         IReadOnlyCollection<string> everySize)
     {
-        const int SameSentence = 160;
         var stated = false;
 
         foreach (Match mention in Regex.Matches(document, Regex.Escape(binary) + "(?![-\\w])"))
         {
+            var after = mention.Index + mention.Length;
+            var lineEnd = document.IndexOf('\n', after);
+            if (lineEnd < 0) lineEnd = document.Length;
+
+            var rest = document[after..lineEnd];
             var nearest = string.Empty;
             var distance = int.MaxValue;
-            var after = mention.Index + mention.Length;
 
             foreach (var candidate in everySize)
             {
-                var at = document.IndexOf(candidate, after, StringComparison.Ordinal);
-                if (at < 0 || at - after >= distance) continue;
-                distance = at - after;
+                var at = rest.IndexOf(candidate, StringComparison.Ordinal);
+                if (at < 0 || at >= distance) continue;
+                distance = at;
                 nearest = candidate;
             }
 
-            if (distance > SameSentence) continue;
+            if (distance == int.MaxValue) continue;
 
             Assert.True(
                 string.Equals(nearest, size, StringComparison.Ordinal),

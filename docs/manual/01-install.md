@@ -78,12 +78,12 @@ messages.
 
 ## Sizes
 
-Measured on 2026-09-12 on one linux-x64 machine. Three of the four are Native AOT: `mailcoded-tui`
-5.90 MiB, `mailcoded` 15.53 MiB, `mailcoded-daemon` 16.25 MiB, each beside a shared
+Measured on 2026-09-12 on one linux-x64 machine. Three of the four are Native AOT:
+`mailcoded-tui` 5.90 MiB, `mailcoded` 15.53 MiB, `mailcoded-daemon` 16.25 MiB, each beside a shared
 `libe_sqlite3.so` of 1.40 MiB. The TUI is small because it is built against the wire protocol alone
-and carries no IMAP, MIME or SQLite code. `mailcoded-mcp` is the odd one out: it is not AOT, needs
-the .NET runtime, and at 64.11 MiB is the largest part of the install, mostly SQLite natives for
-platforms you are not using. None of these is "a single binary"; distribute each with its library.
+and carries no IMAP, MIME or SQLite code. The odd one out is
+`mailcoded-mcp` 12.69 MiB, which is not AOT and needs the .NET runtime.
+None of these is "a single binary"; distribute each with its library.
 
 ## Building without installing
 

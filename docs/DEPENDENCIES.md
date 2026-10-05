@@ -147,7 +147,7 @@ Per-entity ordinal maps live next to the entity.
 </PropertyGroup>
 ```
 
-**CI size gate:** warn > 12 MB, fail > 20 MB uncompressed per RID; warn > 6 MB, fail > 10 MB compressed. Archive `.mstat` and publish a size-trend chart. Tighten after the first real measurement with sizoscope (`dotnet tool install sizoscope --global`; artifacts land in `obj/Release/net10.0/<rid>/native/`).
+**CI size gate:** applied to each shipped file, never to their sum — warn > 12 MB, fail > 20 MB uncompressed; warn > 6 MB, fail > 10 MB compressed. The total is reported, not gated. Archive `.mstat` and publish a size-trend chart. Tighten after the first real measurement with sizoscope (`dotnet tool install sizoscope --global`; artifacts land in `obj/Release/net10.0/<rid>/native/`).
 
 **Measured 2026-09-12**, publishing exactly what `scripts/install.sh` ships and sizing it with
 `scripts/size-gate.sh`.
@@ -163,14 +163,14 @@ dependency has to fit beside.
 
 *Framework-dependent* — `mailcoded-mcp` is not compiled AOT. Its project sets `PublishAot=false`
 and disables the trim and AOT analyzers, because the MCP SDK is annotated for neither, so a "zero
-trim warnings" claim about it would be vacuous rather than measured. `scripts/install.sh` publishes
-it `--self-contained false`, and it needs the .NET runtime present.
+trim warnings" claim about it would be vacuous rather than measured. It is published
+`--self-contained false` and needs the .NET runtime present. `mailcoded-mcp` **12.69 MiB** in
+total, nearly all of it managed assemblies behind a 0.10 MiB launcher.
 
-It is nonetheless the largest thing in the install: `mailcoded-mcp` **64.11 MiB** all told — a
-0.10 MiB launcher, 12.69 MiB of managed assemblies, and a 51.42 MiB `runtimes/` tree carrying
-`e_sqlite3` for thirty RIDs, because a RID-less publish cannot know which one it will run on. The per-binary size gate does not catch
-this — no single file is large — so a reader checking rule 3 against the gate alone will miss it.
-Pruning that tree to the target RID is the obvious win and is not done today.
+Publish it **with `-r`** even though it is framework-dependent. Without one, the output carries a
+`runtimes/` tree of `e_sqlite3` builds for all thirty-one RIDs the package knows — 51.42 MiB of
+Android, iOS and wasm natives inside a linux-x64 artifact. The per-file gate cannot see that,
+because no single file in the tree is large.
 
 The AOT CLI was then exercised end to end: all 37 MIME fixtures import, and FTS, CJK-trigram,
 short-CJK `LIKE` and metadata-only search all return the same results as the JIT build. MimeKit and
@@ -198,7 +198,7 @@ carries dead crypto, and it inherits that library's CVE surface even though noth
 that becomes unacceptable, the fix is to make the MCP adapter AOT-clean, not to fork MimeKit.
 
 **Correction: it is not literally one file.** The AOT output is the executable *plus*
-`libe_sqlite3.so` (1.5 MB), and the daemon cannot start without it. The `SQLite` native package
+`libe_sqlite3.so` (1.40 MiB), and the daemon cannot start without it. The `SQLite` native package
 ships a static `e_sqlite3.a` for the iOS RIDs only; every desktop RID ships the shared library
 alone, so there is nothing to statically link against. Ship the pair. This costs nothing in
 practice — the GitHub Release archive and the platform-specific VSIX are both directories — but

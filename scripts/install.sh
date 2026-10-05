@@ -96,11 +96,10 @@ if [ "$AOT" -eq 1 ]; then
       --no-restore -o "$staging" >/dev/null
   done
   # The MCP adapter is not AOT: the SDK is not on the AOT-clean list (docs/DEPENDENCIES.md).
-  # No -r here — a framework-dependent publish needs no RID, and asking for one requires a
-  # RID-specific restore the solution does not do.
+  # -r prunes runtimes/, which otherwise carries e_sqlite3 for every RID, and needs its own restore.
   echo "== publishing Mailcoded.Mcp (framework-dependent)"
-  dotnet publish src/Mailcoded.Mcp/Mailcoded.Mcp.csproj -c Release \
-    --self-contained false --no-restore -o "$staging" >/dev/null
+  dotnet publish src/Mailcoded.Mcp/Mailcoded.Mcp.csproj -c Release -r "$RID" \
+    --self-contained false -o "$staging" >/dev/null
 else
   # PublishAot implies PublishTrimmed, and trimming a framework-dependent app is an SDK error
   # (NETSDK1102). Turning AOT off here is what --no-aot means.

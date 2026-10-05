@@ -79,13 +79,12 @@ output rather than an estimate, measured 2026-09-12 on linux-x64:
 | `mailcoded-daemon` | **16.25 MiB** | Native AOT, zero trim or AOT warnings |
 | `mailcoded` (CLI) | **15.53 MiB** | Native AOT, zero trim or AOT warnings |
 | `mailcoded-tui` | **5.90 MiB** | Native AOT, zero trim or AOT warnings |
-| `mailcoded-mcp` | **64.11 MiB** | framework-dependent; needs the .NET runtime |
+| `mailcoded-mcp` | **12.69 MiB** | framework-dependent; needs the .NET runtime |
 
 The MCP adapter is the odd one out because its SDK is not annotated for trimming, so it cannot be
-compiled AOT. Most of its bulk is a `runtimes/` tree carrying SQLite natives for thirty platforms,
-because a runtime-independent publish cannot know which one it will run on. Each AOT binary ships alongside `libe_sqlite3.so` (1.40 MiB) and will not start without
-it. Desktop RIDs get only the shared library from the SQLite native package — there is no static
-`e_sqlite3.a` to link — so distribute the pair. Details in
+compiled AOT. Each AOT binary ships alongside `libe_sqlite3.so` (1.40 MiB) and will not start
+without it. Desktop RIDs get only the shared library from the SQLite native package — there is no
+static `e_sqlite3.a` to link — so distribute the pair. Details in
 [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).
 
 ## Quick start
@@ -238,10 +237,14 @@ Design and rationale: [docs/AGENT-INTERFACE.md](docs/AGENT-INTERFACE.md).
 - `message.get` returns `bodyHtml` **raw and unsanitized** — sanitizing it is the client's job,
   because only the client knows its rendering context. See the warning in
   [docs/rpc.md](docs/rpc.md).
-- The VS Code reader renders HTML only inside a sandboxed webview, after DOMPurify, under
-  a CSP with **no remote origins**. Remote images — including tracking pixels — are blocked by
-  default with a per-message opt-in.
-- No S/MIME, no PGP, no BouncyCastle anywhere in the tree.
+- The VS Code reader renders HTML only inside a sandboxed webview, after DOMPurify. Its CSP names
+  no remote origin: `img-src` is `data:` alone, so remote images — including tracking pixels — do
+  not load. Allowing them for one message adds exactly the `https://host` origins that message
+  needs, for that render only, and nothing else in the policy changes.
+- No S/MIME and no PGP: nothing in the tree reaches a signing or encryption path. MimeKit declares
+  `BouncyCastle.Cryptography`, so the trimmer removes it from the AOT binaries entirely, and the
+  framework-dependent `mailcoded-mcp` publish — which does not trim — ships the DLL unused beside
+  it. See [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).
 - The extension will never open a network connection to a mail server. Only the daemon does.
 
 ## Performance

@@ -18,7 +18,7 @@ produced 16 confirmed defects, all since fixed with regression tests. The store 
 | Build | `dotnet build Mailcoded.slnx` with `TreatWarningsAsErrors=true` | clean, 0 warnings |
 | Unit suite | `tests/Mailcoded.Core.Tests` (xunit.v3) | **1377 passed, 0 failed** |
 | Architecture tests | NetArchTest rules from ARCHITECTURE §12.7 | green, incl. the no-removal-verb rule |
-| Native AOT | `dotnet publish -r linux-x64 -p:PublishAot=true`, daemon and CLI | 16.25 MiB / 15.53 MiB, **zero IL2xxx/IL3xxx warnings**; both under the 20 MB fail gate, both over the 12 MB warning |
+| Native AOT | `dotnet publish -r linux-x64 -p:PublishAot=true` | `mailcoded-daemon` 16.25 MiB and `mailcoded` 15.53 MiB, **zero IL2xxx/IL3xxx warnings**; both under the 20 MB fail gate, both over the 12 MB warning |
 | Size gate | `scripts/size-gate.sh` over the publish directory | every file counted, incl. `libe_sqlite3.so` (1.40 MiB); a 29 MB decoy library fails the gate |
 | Encoder AOT cost | byte count of the published daemon with and without the encoder reachable | **+158,000 bytes** (0.9%); 3.5x the design's 45,144 B estimate |
 | AOT runtime | the AOT **CLI** imported all 37 fixtures and ran FTS, CJK-trigram, short-CJK `LIKE` and metadata search | identical results to the JIT build — MimeKit and SQLitePCLRaw survive trimming |
@@ -90,6 +90,8 @@ hardware, or the other two OS legs, none of which were available here.
 - **QRESYNC and CONDSTORE delta paths.** The local test server advertises neither, so only the
   full-diff arm has executed. The planner's delta arms are covered by unit tests, not by a server.
 - **`MOVE`**, and the 5k-message sync timing.
+- **The published `mailcoded-mcp` artifact.** Its tools are unit-tested, but CI only compiles the
+  adapter — nothing starts the published binary, so a failure that survives compilation would ship.
 - **The Windows and macOS keyring backends.** Only `EncryptedFileStore` and the libsecret
   *unavailable* path ran here. The macOS and libsecret interop needs a smoke test on real hardware.
 - **Search-by-meaning quality.** The pipeline runs end to end (above), but only against a model

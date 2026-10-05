@@ -63,13 +63,12 @@ jobs:
           -c Release -r ${{ matrix.rid }} -p:PublishAot=true
           -o artifacts/${{ matrix.rid }}
 
-      # Not AOT, and not -r: the MCP SDK is not trim/AOT annotated, so the project disables both
-      # analyzers. Forcing -p:PublishAot=true here overrode that and produced a binary nothing
-      # checked. Matches scripts/install.sh.
+      # The MCP SDK is not trim/AOT annotated, so this host publishes framework-dependent.
+      # -r still matters: without it the publish carries runtimes/ for every RID.
       - name: Publish MCP adapter (framework-dependent)
         run: >
           dotnet publish src/Mailcoded.Mcp/Mailcoded.Mcp.csproj
-          -c Release --self-contained false
+          -c Release -r ${{ matrix.rid }} --self-contained false
           -o artifacts/${{ matrix.rid }}
 
       - name: Publish TUI
