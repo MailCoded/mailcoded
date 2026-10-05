@@ -63,7 +63,7 @@ Backend first (M0–M2); the extension consumes released daemon binaries from M3
 - Maildir export/import (POSIX `:`, Windows `!`), optional notmuch interop on POSIX.
 
 ### 3.3 Explicitly out of scope (v0.x)
-POP3, JMAP (v0.3+), calendars/contacts (the Correspondent suggestion list in §3.1 is derived from sent mail and is not an address book), PGP, S/MIME (also excluded from the AOT path), HTML compose, attachment upload in composer, mobile/web clients, IMAP server mode, message-rules engine, attachment-content indexing (disclose this gap in the README as roadmap).
+POP3, JMAP (v0.3+), calendars/contacts (the Correspondent suggestion list in §3.1 is derived from sent mail and is not an address book), PGP, S/MIME (out of scope for v0.x; decrypted content must never reach an agent or the store, see `docs/AGENT-INTERFACE.md` §13.6), HTML compose, attachment upload in composer, mobile/web clients, IMAP server mode, message-rules engine, attachment-content indexing (disclose this gap in the README as roadmap).
 
 **The extension never opens network connections to mail servers.** Only the daemon does.
 
@@ -301,7 +301,7 @@ Error codes are stable and numeric (`1000` auth, `1001` network, `1002` not-foun
 
 ### 5.8 Native AOT rules **[DECIDED]**
 
-`PublishAot=true`, `InvariantGlobalization=false` (MIME charsets), `PredefinedCulturesOnly=true`, `InvariantTimezone=false`, `StripSymbols=true`. **No S/MIME/PGP/BouncyCastle** — the known AOT gap and out of scope anyway. STJ source generators only. Any new package must pass the AOT CI job. Full size-tuned property block in `docs/DEPENDENCIES.md`.
+`PublishAot=true`, `InvariantGlobalization=false` (MIME charsets), `PredefinedCulturesOnly=true`, `InvariantTimezone=false`, `StripSymbols=true`. **No S/MIME/PGP/BouncyCastle** — out of scope for v0.x and unsafe for the agent threat model (§3.3); BouncyCastle would also break the size gate and the AOT build. STJ source generators only. Any new package must pass the AOT CI job. Full size-tuned property block in `docs/DEPENDENCIES.md`.
 
 ### 5.9 Windows & Maildir specifics
 

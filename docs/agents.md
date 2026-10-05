@@ -110,7 +110,9 @@ Unknown is a real state. Mail synced before these signals existed carries `null`
 field (MCP) until its body is fetched or read again, and such a message matches neither
 `is:automated` nor `-is:automated`. An agent that needs "everything that is not known to be
 automated" must run the positive query as well and subtract. `encrypted: true` means the body is
-ciphertext or an opaque S/MIME blob; there is no decryption, so do not expect text from it.
+ciphertext or an opaque S/MIME blob; there is no decryption, so do not expect text from it. Do not
+try to decrypt it either, with `gpg` or any other tool, and do not ask for a key or passphrase: report
+that the message is encrypted and leave it to the person, who can read it in their own mail client.
 
 ### Category Tags
 

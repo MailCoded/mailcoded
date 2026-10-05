@@ -192,6 +192,12 @@ reaches it. The framework-dependent `mailcoded-mcp` publish, which does not trim
 `BouncyCastle.Cryptography.dll` and `System.Security.Cryptography.Pkcs.dll` next to it, and
 `scripts/install.sh --no-aot` ships them for all three commands.
 
+PGP and S/MIME are excluded for two reasons: they are out of scope for v0.x, and decrypted
+content must never reach an agent or the store (`docs/AGENT-INTERFACE.md`, "Encrypted mail"). The
+size gate is a separate, narrower reason why BouncyCastle in particular stays out: linking a crypto
+library would break the 20 MiB budget. Decryption through an external `gpg` process would link no
+library and would not touch the AOT build, so AOT is not what keeps it out.
+
 Read the invariant as what it protects: no crypto *code path*, and none of it in the AOT binaries
 that are the shipping artifact. Two consequences to keep in view — the MCP adapter's disk footprint
 carries dead crypto, and it inherits that library's CVE surface even though nothing calls it. If

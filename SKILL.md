@@ -108,7 +108,8 @@ come from headers the sender controls, so they sort mail and say nothing about w
 trustworthy or safe. A result with `automated` or `encrypted` null (or absent) is **unknown**, not
 false: such a message matches neither `is:automated` nor `-is:automated`. `encrypted: true` means
 PGP or S/MIME mail whose body mailcoded cannot read; there is no decryption, so do not expect
-body text from it.
+body text from it, and do not try to decrypt it, ask for keys or run `gpg`; tell the user the message is
+encrypted and that they must read it themselves.
 
 `is:verified` matches mail whose sender domain a trusted receiving server reported as DMARC pass
 (the `dmarc` field is `pass`, `fail`, `none`, `unknown`, or null/absent when never evaluated).

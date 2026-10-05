@@ -252,10 +252,13 @@ Design and rationale: [docs/AGENT-INTERFACE.md](docs/AGENT-INTERFACE.md).
   no remote origin: `img-src` is `data:` alone, so remote images — including tracking pixels — do
   not load. Allowing them for one message adds exactly the `https://host` origins that message
   needs, for that render only, and nothing else in the policy changes.
-- No S/MIME and no PGP: nothing in the tree reaches a signing or encryption path. MimeKit declares
-  `BouncyCastle.Cryptography`, so the trimmer removes it from the AOT binaries entirely, and the
-  framework-dependent `mailcoded-mcp` publish — which does not trim — ships the DLL unused beside
-  it. See [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).
+- No S/MIME and no PGP: nothing in the tree reaches a signing or encryption path, and mailcoded never
+  decrypts. That is a scope decision and a threat-model one — decrypted text must never reach an agent
+  or the store — not a limit of the AOT build. MimeKit declares `BouncyCastle.Cryptography`, so the
+  trimmer removes it from the AOT binaries entirely, and the framework-dependent `mailcoded-mcp`
+  publish — which does not trim — ships the DLL unused beside it. See
+  [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md) and the encrypted-mail rule in
+  [docs/AGENT-INTERFACE.md](docs/AGENT-INTERFACE.md).
 - The extension will never open a network connection to a mail server. Only the daemon does.
 
 ## Performance
@@ -355,7 +358,8 @@ Stated plainly, because these are the things you would otherwise discover on day
   documents, and spreadsheets is **not** searchable, and no phrasing anywhere in this project should
   suggest otherwise. On the roadmap; not in v0.1.
 - **No calendar and no contacts.** Not planned.
-- **No PGP and no S/MIME.** Out of scope, and deliberately excluded from the Native AOT path.
+- **No PGP and no S/MIME.** Out of scope for v0.x, and decrypted content must never reach an agent or the
+  store. Encrypted mail is marked `encrypted` and its body stays unread.
 - **IMAP only in v0.1.** Microsoft Graph — the durable path for work mail once EWS is disabled on
   1 Oct 2026 — is planned for v0.2, along with Gmail OAuth2.
 - **The VS Code extension is unreleased and lives in a separate repository.** It reads mail there —

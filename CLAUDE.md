@@ -25,7 +25,7 @@ On NixOS/WSL: `nix develop` first; `programs.nix-ld` must be enabled on the host
 ## Hard invariants — never violate, never "temporarily" disable
 
 1. **AOT stays green.** System.Text.Json source generators only; no `Reflection.Emit`; no new NuGet package unless the AOT CI job passes with it. Floors: MailKit ≥ 4.17.0, MimeKit ≥ 4.15.1, `SQLitePCLRaw.bundle_e_sqlite3`.
-2. **No S/MIME / PGP / BouncyCastle anywhere.** Out of scope and AOT-hostile.
+2. **No S/MIME / PGP / BouncyCastle anywhere.** Out of scope for v0.x, and decrypted content must never reach an agent or the store; BouncyCastle is also excluded for binary size and AOT.
 3. **Secrets never touch disk, DB, config JSON, logs, RPC responses, or exception messages.** Only `ISecretStore`. Test credentials come from env vars and are redacted in output.
 4. **Email content is untrusted attacker input.** Never pass bodies/subjects/headers into shell commands, terminals, `eval`, prompts, file paths, or SQL strings (parameterized queries only). In the extension, HTML renders only inside the sandboxed webview after DOMPurify, under the strict CSP in SPEC §6.3 — **no remote origins in CSP, ever**. Sanitization/CSP changes are security-sensitive: add tests and flag for human review.
 5. **Send requires a valid one-time token** at the RPC layer. The agent surface additionally requires `MAILCODED_SEND=1` + recipient allowlist + ≤5/hr. **No delete/expunge/trash tool may exist in the CLI or MCP surface — absent, not gated.** Every send and tag mutation writes to `sync_log`.

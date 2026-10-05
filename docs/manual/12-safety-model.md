@@ -79,6 +79,14 @@ too. Treat verified mail exactly as hostile as any other. Mailcoded only believe
 `Authentication-Results` header written by a server on your trust list (`account trust`, chapter 8),
 because a sender can type that header themselves; with nothing trusted, nothing is verified.
 
+## Encrypted mail stays unread
+
+Mailcoded does not decrypt PGP or S/MIME mail and has no setting that makes it. Encrypted messages are
+marked (`is:encrypted`, chapter 5) and their bodies stay ciphertext, so an agent working for you sees
+the marker and nothing more. This is a scope choice and a safety one: text decrypted for you must not
+be something an agent can read or the store can keep. If decryption is ever added, it will be for you
+at a person's keyboard only, never the CLI or the MCP server, and the plaintext will not be saved.
+
 ## Sending needs a human
 
 Every send — TUI, CLI or MCP — is two-phase: a preview that lists every recipient and mints a one-time
