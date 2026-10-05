@@ -56,6 +56,8 @@ CREATE INDEX ix_msg_date     ON messages(date_utc DESC, id DESC);
 -- is:encrypted filter the date-ordered scan the way has:attachment does, and a partial index would cost
 -- space in proportion to how much mail is automated. Add one only against a measurement at 500k rows.
 -- messages.dmarc (nullable text, migration 010) is likewise unindexed: is:verified filters the same scan.
+-- Category Tags (auto.*) are ordinary rows in tags: one extra insert per categorised message, inside the
+-- ingest transaction. tag:auto.* uses ix_tags_tag. No new column or index.
 ```
 
 `msg_fts_cjk` must keep FTS5's **default `detail='full'`**. The trigram tokenizer compiles a

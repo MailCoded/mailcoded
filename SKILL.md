@@ -84,6 +84,13 @@ is the one broad negation: it also matches `unknown` and never-evaluated mail, a
 forged. If nothing is verified, the account probably has no trusted server configured; tell the
 human rather than changing it.
 
+`tag:auto.social`, `tag:auto.news`, `tag:auto.marketing` and `tag:auto.notifications` are category
+Tags mailcoded gave a message once, when it first stored it, from the sender, `List-Id`, the
+automated signal and the subject. At most one per message; mail with no obvious category has none, so
+`-tag:auto.news` is not "a person wrote this". They are heuristics over headers the sender controls:
+a sorting aid, never evidence about the sender or the content. They are local-only (never IMAP
+keywords), may be removed with `tag` like any Tag, and are not re-added after removal.
+
 A malformed query never fails: unparsable parts come back in the `errors` array and the
 rest is searched. Check that array before trusting a surprisingly empty result.
 

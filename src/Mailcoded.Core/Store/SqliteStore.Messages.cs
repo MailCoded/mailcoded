@@ -1,6 +1,8 @@
 using System.Globalization;
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Domain.Signals;
 using Mailcoded.Core.Domain.Sync;
+using Mailcoded.Core.Domain.Tags;
 using Mailcoded.Core.Domain.Threading;
 using Mailcoded.Core.Providers;
 using Microsoft.Data.Sqlite;
@@ -537,6 +539,7 @@ public sealed partial class SqliteStore
                 InvalidateReusedUid(
                     session, accountId, folderId, existingId, envelope.Uid,
                     oldSubject, oldFrom, oldTo, ftsWritten, context.Clock.UtcNow);
+                AssignAutoCategory(session, existingId, envelope, replace: true);
             }
 
             session.Prepare(UpdateMessage,
@@ -616,8 +619,35 @@ public sealed partial class SqliteStore
         if (deferFts) MarkFtsDeferred(session, insertedId);
         else Fts.Insert(session, insertedId, subject, string.Empty, from, to);
 
+        AssignAutoCategory(session, insertedId, envelope, replace: false);
+
         context.AddFolderDelta(folderId, 1, unread);
         return true;
+    }
+
+    /// <summary>Called only when a row starts holding a Message (first insert, or a reused UID), never on a refresh, so a category the user removed is not given back.</summary>
+    private static void AssignAutoCategory(DbSession session, long messageId, RemoteEnvelope envelope, bool replace)
+    {
+        if (replace)
+        {
+            foreach (var tag in AutoCategoryTags.All)
+            {
+                session
+                    .Prepare("DELETE FROM tags WHERE message_id = $id AND tag = $tag", "$id", "$tag")
+                    .SetInt(0, messageId)
+                    .SetText(1, tag.Value)
+                    .Execute();
+            }
+        }
+
+        var category = AutoCategoryClassifier.Classify(envelope.From, envelope.Headers?.ListId, envelope.Automated, envelope.Subject);
+        if (category is not { } assigned) return;
+
+        session
+            .Prepare("INSERT INTO tags (message_id, tag) VALUES ($id,$tag) ON CONFLICT DO NOTHING", "$id", "$tag")
+            .SetInt(0, messageId)
+            .SetText(1, AutoCategoryTags.TagFor(assigned).Value)
+            .Execute();
     }
 
     /// <summary>Whether this folder holds a row a local move left without a server UID. One probe per

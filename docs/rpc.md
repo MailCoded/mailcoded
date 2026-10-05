@@ -263,6 +263,9 @@ recipients, body), `"quoted phrases"`, `from:`, `to:`, `cc:`, `subject:`, `tag:`
 `is:unread|flagged|draft|replied`, `is:automated`, `is:encrypted`, `is:verified`, `has:attachment`,
 `before:YYYY-MM-DD`, `after:YYYY-MM-DD`, and `-` negation.
 
+`tag:auto.social`, `tag:auto.news`, `tag:auto.marketing` and `tag:auto.notifications` find the built-in
+category Tags (see `tags.set`); there is no separate operator.
+
 `is:automated` and `is:encrypted` match only a **known** value. A message whose signal is unknown
 (`automated` / `encrypted` absent on its `EnvelopeDto`) matches neither the positive nor the negated
 form, so `-is:automated` means "known not to be automated", never "not known to be".
@@ -387,6 +390,16 @@ whole call (**1001**) rather than leaving a change the next sync would silently 
 `sync_log` row.
 
 Tag and Flag are distinct vocabularies. Neither is ever called a "label".
+
+**Category Tags.** When a message row is first created (sync, bulk ingest or `import-eml`),
+mailcoded may add exactly one of `auto.social`, `auto.news`, `auto.marketing`,
+`auto.notifications`, chosen by fixed built-in rules over the From address, `List-Id`, the
+automated signal and the subject. The prefix `auto.` is reserved and local-only: such Tags are never
+pushed as IMAP keywords, a server keyword with that prefix is ignored, and removing one here pushes
+nothing. They are assigned once and never re-added after a removal or a later sync; a message with
+no obvious category has none, and mail stored before this existed is not backfilled. A re-enumerated
+folder (UIDVALIDITY change) or a reused UID is a new Message and is categorised again. The inputs are
+sender-controlled, so a category is a sorting aid only. No RPC method configures the rules.
 
 ### `message.move`
 `{ "messageId": 4213, "toFolderId": 7 }` → `{}`
@@ -659,7 +672,8 @@ shell agent to branch:
   none.
 - `flags` are server IMAP flags: `unread | flagged | answered | draft | deleted | recent`.
   Unknown names from a server are ignored, not rejected.
-- `tags` are local notmuch-style Tags. The two vocabularies are distinct and never merged.
+- `tags` are local notmuch-style Tags, including any `auto.*` category Tag (see `tags.set`). The two
+  vocabularies are distinct and never merged.
 - `subject`, `from`, `to`, `cc`, `snippet` are decoded but **untrusted attacker input**.
 - `automated` is true when headers or MIME structure mark the message as machine-generated:
   `List-Id` or `List-Unsubscribe` present, `Precedence` of `bulk`, `list` or `junk`,

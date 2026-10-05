@@ -122,6 +122,9 @@ Search understands bare words and phrases plus `from:`, `to:`, `cc:`, `subject:`
 `before:`/`after:`, and `-` negation. Diacritics fold, and CJK is indexed with a trigram route (with a `LIKE` fallback for one-
 and two-character terms). `--meaning` additionally ranks by what a message is about rather than
 which words it used, if you installed a model — see [Known gaps](#known-gaps) for its real state.
+New mail may also get one local category Tag (`auto.social`, `auto.news`, `auto.marketing` or
+`auto.notifications`) from fixed built-in rules, assigned once and never pushed to the server;
+find them with `tag:auto.news`.
 
 Add a real account:
 

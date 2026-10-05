@@ -591,7 +591,7 @@ public sealed class SyncEngine
             if (messageId is not { } id) continue;
 
             var localTagsKnown = known.TryGetValue(observation.Uid.Value, out var existed) && existed;
-            IReadOnlyList<Tag> localTags = localTagsKnown ? _store.GetTags(id, ct) : [];
+            var localTags = _store.GetTags(id, ct);
 
             var merge = TagFlagMap.Merge(new TagMergeInput
             {

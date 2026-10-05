@@ -17,6 +17,32 @@ IMAP flag; set `triaged` and it stays on your machine. Nothing is ever called a 
 A Tag name is at most 128 characters of printable ASCII, with no whitespace and none of
 `" ' ( ) * : ; , \ /`, and is lower-cased.
 
+### Category Tags
+
+When a message first arrives, mailcoded may give it one **category Tag**, chosen by a fixed built-in
+rule set. There are four, all under the reserved prefix `auto.`:
+
+| Tag | What it is for |
+|---|---|
+| `auto.social` | mail from a social network (friend requests, mentions, digests) |
+| `auto.news` | newsletters and digests: a newsletter platform, or an automated message that calls itself one |
+| `auto.marketing` | promotions from a campaign mail service, or automated mail with sale-style subject lines |
+| `auto.notifications` | notifications from developer and workplace tools, or an automated `notifications@`/`alerts@` sender |
+
+They are ordinary Tags in every other way: `search tag:auto.news`, `-tag:auto.social`, `read` lists them
+with the rest, and you may add or remove them with `tag`. What is different:
+
+- **Assigned once.** The Tag is added when mailcoded first stores the message, never on a later sync.
+  If you remove it, it stays removed. Mail already in your store when this arrived is not categorised
+  retroactively, and mail without an obvious category gets none (a message never gets more than one).
+- **Local only.** Category Tags never go to the server as IMAP keywords, and a server keyword with the
+  `auto.` prefix is ignored.
+- **A guess, not a fact.** The rules look at the From address, `List-Id`, whether the message is
+  automated, and the subject; the sender controls all of them. Treat a category as a sorting aid. It
+  is not configurable, and there is no way to add your own rules.
+- If the server renumbers a folder (UIDVALIDITY changes), every message in it is stored again as new,
+  so it is categorised again, as are all your other Tags lost with the old rows.
+
 ## `tag`
 
     mailcoded tag <id> +tag -tag [...] [--local]

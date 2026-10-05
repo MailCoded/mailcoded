@@ -64,6 +64,7 @@ that identifies a person. `example.com`, `example.org`, `example.net` and the re
 | 046 | `Authentication-Results` from `mx.example.net` reporting `dmarc=pass header.from=example.com` (an Account that trusts that authserv-id sees it verified) |
 | 047 | a failing instance from `mx.example.net` on top, with two sender-planted passing instances below it (same and foreign authserv-id): the topmost trusted instance decides |
 | 048 | self-declared results only: a pass hidden in a comment, a foreign authserv-id, and a pass inside a quoted string |
+| 049 | promotional mail: List-Unsubscribe and a "flash sale" subject from a sender on no built-in domain list (categorised by its subject) |
 
 Edge case 14 (a 100 MB+ attachment) is deliberately **not** a file here. It is exercised
 by a synthetic stream in `tests/Mailcoded.Core.Tests`, because committing the payload

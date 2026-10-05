@@ -224,7 +224,7 @@ CREATE TABLE sync_log (
 
 FTS5 tables and the full index list are in `docs/PERFORMANCE.md` §3 — use those definitions verbatim.
 
-**Rules.** Tag↔flag mapping is bidirectional: `\Seen`↔absence of `unread`, `\Flagged`↔`flagged`, `\Answered`↔`replied`, `\Draft`↔`draft`. Custom IMAP keywords map to same-name tags. Threading v0.1 uses normalized `References`/`In-Reply-To` root, falling back to normalized subject + participants, behind `IThreader`. Migrations are embedded, forward-only, keyed on `PRAGMA user_version`.
+**Rules.** Tag↔flag mapping is bidirectional: `\Seen`↔absence of `unread`, `\Flagged`↔`flagged`, `\Answered`↔`replied`, `\Draft`↔`draft`. Custom IMAP keywords map to same-name tags, except the reserved local-only `auto.` prefix: the four built-in category Tags (`auto.social`, `auto.news`, `auto.marketing`, `auto.notifications`) are assigned once at first insert from fixed rules, never pushed as keywords and never taken from one. Threading v0.1 uses normalized `References`/`In-Reply-To` root, falling back to normalized subject + participants, behind `IThreader`. Migrations are embedded, forward-only, keyed on `PRAGMA user_version`.
 
 ### 5.4 Provider abstraction
 

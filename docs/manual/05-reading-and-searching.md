@@ -21,7 +21,7 @@ Full-text over subject, sender, recipients and body, plus structured predicates.
 | `inv*` | words beginning `inv` |
 | `from:acme`, `to:bob@example.com`, `cc:team` | the address or name contains |
 | `subject:invoice` | the subject contains |
-| `tag:triaged` | carries the local Tag |
+| `tag:triaged` | carries the local Tag; `tag:auto.news` finds a built-in category (chapter 6) |
 | `folder:INBOX`, `in:INBOX` | in that folder |
 | `is:unread`, `is:read`, `is:flagged`, `is:unflagged`, `is:draft`, `is:replied` | server Flags; `seen`, `starred` and `answered` are accepted synonyms |
 | `is:automated` | machine-generated: list or bulk mail, an auto-reply, a delivery or read report, a `noreply`-style sender |

@@ -15,10 +15,10 @@ public static class TagFlagMap
     public const MessageFlags MappedFlags =
         MessageFlags.Unread | MessageFlags.Flagged | MessageFlags.Answered | MessageFlags.Draft;
 
-    /// <summary>Tags describing local structure; pushing them as IMAP keywords would litter the server.</summary>
+    /// <summary>Tags describing local structure; pushing them as IMAP keywords would litter the server. The reserved <c>auto.</c> category Tags are local-only too.</summary>
     public static readonly IReadOnlyList<Tag> LocalOnlyTags = [Tag.Inbox];
 
-    public static bool IsLocalOnly(Tag tag) => tag.Value is "inbox";
+    public static bool IsLocalOnly(Tag tag) => tag.Value is "inbox" || AutoCategoryTags.IsReserved(tag);
 
     /// <summary>The system flag a tag stands for, or null when the tag is a custom keyword.</summary>
     public static MessageFlags? SystemFlagFor(Tag tag) => tag.Value switch
@@ -197,7 +197,7 @@ public static class TagFlagMap
 
         var serverCustom = new HashSet<Tag>();
         foreach (var k in input.ServerKeywords)
-            if (TryTagForKeyword(k, out var t)) serverCustom.Add(t);
+            if (TryTagForKeyword(k, out var t) && !AutoCategoryTags.IsReserved(t)) serverCustom.Add(t);
 
         var localCustom = new HashSet<Tag>();
         foreach (var t in input.LocalTags)
@@ -210,6 +210,8 @@ public static class TagFlagMap
         if (!input.LocalTagsKnown)
         {
             resolvedCustom = serverCustom;
+            foreach (var t in localCustom)
+                if (AutoCategoryTags.IsReserved(t)) resolvedCustom.Add(t);
         }
         else if (!input.ServerAcceptsCustomKeywords)
         {

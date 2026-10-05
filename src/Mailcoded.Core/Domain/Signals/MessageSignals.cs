@@ -68,17 +68,20 @@ public static class MessageSignals
         return local is not null && IsRobotLocalPart(local);
     }
 
-    public static bool IsRobotLocalPart(string localPart)
+    public static bool IsRobotLocalPart(string localPart) => HasLocalPartPrefix(localPart, RobotLocalParts);
+
+    /// <summary>True when the local part, minus any +tag, is one of the names or starts with one followed by <c>- _ . =</c>.</summary>
+    internal static bool HasLocalPartPrefix(string localPart, string[] names)
     {
         var local = localPart.Trim().Trim('"').ToLowerInvariant();
 
         var plus = local.IndexOf('+');
         if (plus >= 0) local = local[..plus];
 
-        foreach (var robot in RobotLocalParts)
+        foreach (var name in names)
         {
-            if (!local.StartsWith(robot, StringComparison.Ordinal)) continue;
-            if (local.Length == robot.Length || local[robot.Length] is '-' or '_' or '.' or '=') return true;
+            if (!local.StartsWith(name, StringComparison.Ordinal)) continue;
+            if (local.Length == name.Length || local[name.Length] is '-' or '_' or '.' or '=') return true;
         }
 
         return false;
@@ -146,6 +149,19 @@ public static class MessageSignals
 
         var at = spec.LastIndexOf('@');
         return at <= 0 ? null : spec[..at];
+    }
+
+    /// <summary>The lower-cased domain of the first address in a From display string, without a trailing dot; null when there is none.</summary>
+    public static string? FirstDomain(string? from)
+    {
+        var spec = FirstAddrSpec(from);
+        if (spec is null) return null;
+
+        var at = spec.LastIndexOf('@');
+        if (at <= 0 || at == spec.Length - 1) return null;
+
+        var domain = spec[(at + 1)..].Trim().TrimEnd('.').ToLowerInvariant();
+        return domain.Length == 0 ? null : domain;
     }
 
     private static string? FirstAddrSpec(string? from)

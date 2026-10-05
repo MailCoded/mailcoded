@@ -116,7 +116,7 @@ QUERY SYNTAX
   to:bob@example.com    recipient contains
   cc:team               Cc contains
   subject:invoice       subject contains
-  tag:triaged           has the local Tag
+  tag:triaged           has the local Tag (tag:auto.news etc. are built-in categories)
   folder:INBOX          in that folder
   is:unread             also is:flagged, is:draft, is:replied
   is:automated          list/bulk mail, auto-replies, reports, noreply senders
@@ -198,6 +198,10 @@ OPTIONS
 
 VOCABULARY
   Tag is local to this machine. Flag is the server's. They are never called labels.
+
+CATEGORY TAGS
+  auto.social, auto.news, auto.marketing and auto.notifications are given once, when a
+  message is first stored, and never go to the server. Removing one keeps it removed.
 
 WARNING ABOUT --local
   The server wins on Flags. A local-only change to unread/flagged/replied/draft is
