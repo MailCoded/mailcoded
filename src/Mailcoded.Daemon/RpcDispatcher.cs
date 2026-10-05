@@ -486,6 +486,7 @@ internal sealed class RpcDispatcher
                 Attachments = WireMapper.ToDtos(view.Attachments),
                 BodyFetched = view.BodyFetched,
                 ParseWarnings = view.ParseWarnings,
+                Unsubscribe = WireMapper.ToUnsubscribeDto(view.Envelope.Unsubscribe),
             },
             ProtocolJsonContext.Default.MessageGetResult);
     }

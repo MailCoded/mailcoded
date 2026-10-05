@@ -83,6 +83,7 @@ internal static class ReadCommand
             JsonFields.WriteBool(writer, "automated", view.Envelope.Automated);
             JsonFields.WriteBool(writer, "encrypted", view.Envelope.Encrypted);
             JsonFields.WriteText(writer, "dmarc", view.Envelope.Dmarc?.ToWire());
+            JsonFields.WriteUnsubscribe(writer, "unsubscribe", UnsubscribeStorage.Decode(view.Envelope.Unsubscribe));
             writer.WriteBoolean("body_fetched", view.BodyFetched);
             writer.WriteBoolean("fetched_now", view.FetchedNow);
             writer.WriteString("body_format", "plaintext");

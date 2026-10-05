@@ -105,6 +105,9 @@ mailcoded --db /tmp/mail.db search 'from:acme has:attachment' --json --limit 20
 # 3. Read one message. Plaintext, always. The id comes from a search hit.
 mailcoded --db /tmp/mail.db read 4213 --plaintext
 
+# 3b. Leave a mailing list: drafts the sender's mailto unsubscribe, never sends, never opens a link.
+mailcoded --db /tmp/mail.db unsubscribe 4213
+
 # 4. Where things stand.
 mailcoded --db /tmp/mail.db stats --json
 mailcoded --db /tmp/mail.db health --json

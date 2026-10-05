@@ -56,6 +56,8 @@ CREATE INDEX ix_msg_date     ON messages(date_utc DESC, id DESC);
 -- is:encrypted filter the date-ordered scan the way has:attachment does, and a partial index would cost
 -- space in proportion to how much mail is automated. Add one only against a measurement at 500k rows.
 -- messages.dmarc (nullable text, migration 010) is likewise unindexed: is:verified filters the same scan.
+-- messages.unsubscribe (nullable text, migration 011, at most 4,000 chars and NULL or empty for most mail) is
+-- read only by id and is not searchable, so it has no index and no query path of its own.
 -- Category Tags (auto.*) are ordinary rows in tags: one extra insert per categorised message, inside the
 -- ingest transaction. tag:auto.* uses ix_tags_tag. No new column or index.
 ```

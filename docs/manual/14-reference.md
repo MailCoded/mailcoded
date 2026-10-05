@@ -100,6 +100,7 @@ key-bar entry · shift for the terminal's own selection.
 | `stats`, `health` | counters; state |
 | `tui` | the terminal client |
 | `draft`, `reply <id>` | build a draft |
+| `unsubscribe <id>` | draft the sender's mailto unsubscribe; never opens a link |
 | `send-preview <draft>` | preview, and mint the token |
 | `send-draft <draft> --confirm-token <t>` | send |
 | `outbox` | queued, sending, sent, failed |

@@ -16,6 +16,7 @@ internal static class CliAuditEvents
     public const string Stats = "cli_stats";
     public const string Health = "cli_health";
     public const string Import = "cli_import";
+    public const string Unsubscribe = "cli_unsubscribe";
 }
 
 /// <summary>The verb table. There is no delete, expunge, trash or purge entry, and never will be.</summary>
@@ -44,6 +45,10 @@ internal static class CommandTable
                 ["to", "cc", "bcc", "subject", "body-file", "from", "reply-to", "in-reply-to", "account"],
                 ["body-stdin"]),
             DraftCommand.RunAsync),
+
+        new CliCommandDefinition("unsubscribe",
+            new VerbSpec([], ["no-fetch"]),
+            UnsubscribeCommand.RunAsync),
 
         new CliCommandDefinition("send-preview",
             new VerbSpec([], []),

@@ -86,6 +86,31 @@ public sealed record MessageGetResult
 
     /// <summary>Stable parser warning slugs, e.g. <c>missing-date</c>. Never echo mail content.</summary>
     public IReadOnlyList<string> ParseWarnings { get; init; } = [];
+
+    /// <summary>What the sender's List-Unsubscribe headers offer. Absent when nothing usable is known. Never fetched by the daemon.</summary>
+    public UnsubscribeDto? Unsubscribe { get; init; }
+}
+
+/// <summary>Sender-controlled unsubscribe options. A client may draft the mailto through the normal two-phase send; the daemon never opens a URL.</summary>
+public sealed record UnsubscribeDto
+{
+    public UnsubscribeMailtoDto? Mailto { get; init; }
+
+    /// <summary>http and https URLs for a human to open, at most four. Untrusted; never fetched.</summary>
+    public IReadOnlyList<string> Web { get; init; } = [];
+
+    /// <summary>The sender advertises RFC 8058 one-click POST. The daemon refuses to perform it.</summary>
+    public bool OneClick { get; init; }
+}
+
+/// <summary>A mailto unsubscribe target: one address and the subject and body hfields; every other hfield is dropped.</summary>
+public sealed record UnsubscribeMailtoDto
+{
+    public required string Address { get; init; }
+
+    public string? Subject { get; init; }
+
+    public string? Body { get; init; }
 }
 
 /// <summary><c>attachment.get</c> — one attachment's bytes, base64 encoded.</summary>

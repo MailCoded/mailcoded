@@ -177,6 +177,9 @@ message, `--max-chars` (1 to 1000000, default 20000) and `--skip-chars` page thr
 Anything in a message that could drive your terminal — escape sequences, invisible and
 direction-changing characters — is neutralised before it is printed (chapter 12).
 
+With `--json`, a message whose sender offers a way to unsubscribe carries an `unsubscribe` object
+(`null` when it offers none); chapter 6 explains it and the `unsubscribe` verb.
+
 ## `thread`
 
     mailcoded thread <id|threadKey> [--limit 200]

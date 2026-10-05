@@ -123,8 +123,24 @@ internal sealed class MailTools
                 BodyFetched = view.BodyFetched,
                 BodyText = view.BodyText,
                 ParseWarnings = view.ParseWarnings,
+                Unsubscribe = ToUnsubscribe(row.Unsubscribe),
             },
             McpJsonContext.Default.ReadResultDto);
+    }
+
+    private static UnsubscribeResultDto? ToUnsubscribe(string? stored)
+    {
+        if (UnsubscribeStorage.Decode(stored) is not { IsEmpty: false } options) return null;
+
+        return new UnsubscribeResultDto
+        {
+            Mailto = options.Mailto is { } mailto
+                ? new UnsubscribeMailtoResultDto { Address = mailto.Address, Subject = mailto.Subject, Body = mailto.Body }
+                : null,
+            Web = options.Web,
+            OneClick = options.OneClick,
+            Note = options.Web.Count > 0 ? ListUnsubscribeParser.WebNotice : null,
+        };
     }
 
     public Task<string> ThreadAsync(ToolArgs args, CancellationToken ct)

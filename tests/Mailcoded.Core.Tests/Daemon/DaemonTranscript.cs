@@ -131,7 +131,12 @@ internal sealed class DaemonTranscript : IAsyncDisposable
             ct: ct,
             automated: true,
             encrypted: false,
-            dmarc: DmarcResult.Fail).ConfigureAwait(false);
+            dmarc: DmarcResult.Fail,
+            headers: new SignalHeaders
+            {
+                ListUnsubscribe = "<mailto:leave@example.net?subject=unsubscribe>, <https://lists.example.net/u/abc>",
+                ListUnsubscribePost = "List-Unsubscribe=One-Click",
+            }).ConfigureAwait(false);
 
         await StoreSeeder.AddMessageAsync(
             host.Store,

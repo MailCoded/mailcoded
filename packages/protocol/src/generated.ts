@@ -388,6 +388,11 @@ export interface MessageGetResult {
   bodyFetched: boolean;
   /** Stable parser warning slugs, e.g. `missing-date`. Never echo mail content. */
   parseWarnings: readonly string[];
+  /**
+   * What the sender's List-Unsubscribe headers offer. Absent when nothing usable is known.
+   * Never fetched by the daemon.
+   */
+  unsubscribe?: UnsubscribeDto;
 }
 
 /** `message.move` — move to another folder. There is no delete or expunge method. */
@@ -687,6 +692,28 @@ export interface ThreadGetParams {
 export interface ThreadGetResult {
   messages: readonly EnvelopeDto[];
   truncated: boolean;
+}
+
+/**
+ * Sender-controlled unsubscribe options. A client may draft the mailto through the normal
+ * two-phase send; the daemon never opens a URL.
+ */
+export interface UnsubscribeDto {
+  mailto?: UnsubscribeMailtoDto;
+  /** http and https URLs for a human to open, at most four. Untrusted; never fetched. */
+  web: readonly string[];
+  /** The sender advertises RFC 8058 one-click POST. The daemon refuses to perform it. */
+  oneClick: boolean;
+}
+
+/**
+ * A mailto unsubscribe target: one address and the subject and body hfields; every other hfield
+ * is dropped.
+ */
+export interface UnsubscribeMailtoDto {
+  address: string;
+  subject?: string;
+  body?: string;
 }
 
 /** `watch.subscribe` — start delivering notifications for an account. */

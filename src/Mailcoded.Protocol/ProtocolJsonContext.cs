@@ -53,6 +53,8 @@ namespace Mailcoded.Protocol;
 [JsonSerializable(typeof(ThreadGetResult))]
 [JsonSerializable(typeof(MessageGetParams))]
 [JsonSerializable(typeof(MessageGetResult))]
+[JsonSerializable(typeof(UnsubscribeDto))]
+[JsonSerializable(typeof(UnsubscribeMailtoDto))]
 [JsonSerializable(typeof(AttachmentGetParams))]
 [JsonSerializable(typeof(AttachmentGetResult))]
 [JsonSerializable(typeof(TagsSetParams))]

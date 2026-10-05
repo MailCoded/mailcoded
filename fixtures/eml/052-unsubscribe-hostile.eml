@@ -1,0 +1,15 @@
+From: Totally Legit <offers@promo.example.net>
+To: bob@example.org
+Subject: Act now
+Date: Tue, 21 Jan 2025 09:00:00 +0000
+Message-ID: <052-unsub-hostile@promo.example.net>
+List-Unsubscribe: <mailto:a@example.net,b@example.net>,
+ <mailto:c@example.net?subject=Hi%0D%0ABcc:victim@example.org>,
+ <mailto:d@example.net?to=e@example.net&cc=f@example.net&bcc=g@example.net&from=h@example.net&subject=Leave%20list&body=bye>,
+ <https://user@evil.example.com/u>, <javascript:alert(1)>, <ftp://example.net/u>,
+ <https://promo.example.net\@evil.example.com/u>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Click everything.

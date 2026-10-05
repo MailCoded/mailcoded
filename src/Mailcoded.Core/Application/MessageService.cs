@@ -514,7 +514,15 @@ public sealed class MessageService
             return envelope;
         }
 
-        var signals = ParsedSignals.ValuesOf(parsed, _store.GetAccount(envelope.AccountId, ct));
+        var account = _store.GetAccount(envelope.AccountId, ct);
+        var parsedSignals = ParsedSignals.ValuesOf(parsed, account);
+
+        // Only what was unknown is filled: a recorded DMARC "unknown" or "imported" must not be re-evaluated by a read.
+        var signals = new SignalValues(
+            envelope.Automated is null ? parsedSignals.Automated : null,
+            envelope.Encrypted is null ? parsedSignals.Encrypted : null,
+            NeedsDmarc(envelope, account) ? parsedSignals.Dmarc : null,
+            envelope.Unsubscribe is null ? parsedSignals.Unsubscribe : null);
         if (signals.IsUnknown) return envelope;
 
         await _store.SetSignalsAsync(envelope.Id, signals, ct).ConfigureAwait(false);
@@ -524,14 +532,19 @@ public sealed class MessageService
             Automated = signals.Automated ?? envelope.Automated,
             Encrypted = signals.Encrypted ?? envelope.Encrypted,
             Dmarc = signals.Dmarc ?? envelope.Dmarc,
+            Unsubscribe = signals.Unsubscribe ?? envelope.Unsubscribe,
         };
     }
 
-    // Without a trusted authserv-id a re-parse cannot change an unevaluated DMARC result.
     private bool NeedsSignalBackfill(EnvelopeRow envelope, CancellationToken ct) =>
         envelope.Automated is null
         || envelope.Encrypted is null
-        || (envelope.Dmarc is null && _store.GetAccount(envelope.AccountId, ct)?.EffectiveAuthservTrust().IsEmpty == false);
+        || envelope.Unsubscribe is null
+        || NeedsDmarc(envelope, _store.GetAccount(envelope.AccountId, ct));
+
+    // Without a trusted authserv-id a re-parse cannot change an unevaluated DMARC result.
+    private static bool NeedsDmarc(EnvelopeRow envelope, AccountConfig? account) =>
+        envelope.Dmarc is null && account?.EffectiveAuthservTrust().IsEmpty == false;
 
     private static FileStream Create(string path) =>
         new(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, FetchBufferSize, useAsync: true);

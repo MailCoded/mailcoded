@@ -14,7 +14,8 @@ public static class ParsedSignals
         return new SignalValues(
             parsed.Automated,
             parsed.Encrypted,
-            SenderAuthentication.Dmarc(parsed.SignalHeaders, parsed.FromHeader, account?.EffectiveAuthservTrust() ?? AuthservTrust.None));
+            SenderAuthentication.Dmarc(parsed.SignalHeaders, parsed.FromHeader, account?.EffectiveAuthservTrust() ?? AuthservTrust.None),
+            UnsubscribeStorage.Encode(parsed.SignalHeaders));
     }
 
     /// <summary>A file the user supplied carries no proof that a trusted server wrote its Authentication-Results, so it is never verified.</summary>
@@ -22,6 +23,6 @@ public static class ParsedSignals
     {
         ArgumentNullException.ThrowIfNull(parsed);
 
-        return new SignalValues(parsed.Automated, parsed.Encrypted, DmarcResult.Imported);
+        return new SignalValues(parsed.Automated, parsed.Encrypted, DmarcResult.Imported, UnsubscribeStorage.Encode(parsed.SignalHeaders));
     }
 }

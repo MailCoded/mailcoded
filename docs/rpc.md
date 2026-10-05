@@ -343,7 +343,8 @@ Every message sharing a thread key, oldest first. An empty or blank `threadKey` 
 →
 ```json
 { "envelope": EnvelopeDto, "bodyText": "…", "bodyHtml": null, "raw": null,
-  "attachments": [AttachmentDto], "bodyFetched": true, "parseWarnings": [] }
+  "attachments": [AttachmentDto], "bodyFetched": true, "parseWarnings": [],
+  "unsubscribe": UnsubscribeDto }
 ```
 
 `format` ∈ `text | html | raw` (default `text`).
@@ -357,6 +358,28 @@ daemon connects to IMAP, fetches the body once, stores and indexes it. Pass `fet
 false` to stay offline.
 
 `parseWarnings` are stable slugs (`missing-date`, …). They never echo mail content.
+
+`unsubscribe` is what the sender's `List-Unsubscribe` (RFC 2369) and `List-Unsubscribe-Post`
+(RFC 8058) headers offer, and is **absent** when nothing usable is known:
+
+```json
+{ "mailto": { "address": "leave@example.org", "subject": "unsubscribe", "body": "…" },
+  "web": ["https://lists.example.org/u/abc"], "oneClick": true }
+```
+
+- It is sender-controlled input, never a trust signal. `mailto` carries one address and at most the
+  `subject` and `body` hfields of the URI (RFC 6068); `to`, `cc`, `bcc`, `from` and every other hfield
+  are dropped, and a URI that is malformed, over its length cap or carries a control character is
+  rejected whole. A client that acts on it composes an ordinary draft with `send.preview`, so the
+  two-phase send and every gate apply; the daemon never sends it by itself.
+- `web` holds at most four `http`/`https` URLs, ASCII only, with no userinfo, for a human to open. **The
+  daemon never fetches or opens them**, and a client must not fetch them on a user's behalf without
+  that user's decision.
+- `oneClick` only reports that the sender advertises RFC 8058 one-click POST (an `https` URL plus
+  `List-Unsubscribe-Post: List-Unsubscribe=One-Click`). **mailcoded refuses to perform it, by
+  design:** the URL is chosen by whoever sent the message, and a POST to it tells that party the
+  address is live. It is also outside the network rule, which allows mail protocols only.
+- It appears on `message.get` only, not on search hits or `thread.get` envelopes.
 
 A message whose raw bytes exceed a structural parse bound — the boundary-delimiter count that caps
 a MIME part-count bomb — is **refused**, with `-32602` and category `protocol`, rather than returned

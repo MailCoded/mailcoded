@@ -63,7 +63,9 @@ hour apply to it (chapter 7). Every attempt is audited, allowed or not.
 ## What it talks to
 
 Your IMAP and SMTP servers. For a Microsoft sign-in, Microsoft's login endpoint. Nothing else: no
-telemetry, no update check, no analytics.
+telemetry, no update check, no analytics. That includes links inside mail: mailcoded never fetches or
+opens a URL from a message, and it refuses RFC 8058 one-click unsubscribe for that reason. An
+unsubscribe by `mailto:` is ordinary outgoing mail and goes through the two-phase send.
 
 ## Where the guarantees stop
 

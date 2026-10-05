@@ -19,6 +19,9 @@ and, when the account trusts an `authserv-id` (chapter 8), to record whether a t
 DMARC pass for the sender. The trust list is read again for every batch, so a change made with
 `account trust` takes effect on the next batch, not the next restart.
 
+`List-Unsubscribe` and `List-Unsubscribe-Post` are stored with the envelope (chapter 6, `unsubscribe`);
+sync never contacts any address in them.
+
 Bodies are not pulled by sync. They are fetched on demand — when you open a message in the TUI, rest
 on it with the preview open, or `read` it — and then kept.
 

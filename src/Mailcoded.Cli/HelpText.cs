@@ -33,6 +33,7 @@ INTERACTIVE
 COMPOSE AND SEND (send is OFF by default)
   draft                     build a message and queue it as a draft
   reply <messageId>         draft a reply, quoted and correctly threaded
+  unsubscribe <messageId>   draft the sender's mailto unsubscribe; never opens a link
   send-preview <draftId>    show what would be sent and mint a one-time token
   send-draft <draftId>      send, consuming --confirm-token
   outbox                    what is queued, sending, sent or stuck
@@ -239,6 +240,35 @@ OUTPUT
 EXAMPLE
   printf 'Thanks — looking now.\n' > /tmp/reply.txt
   mailcoded draft --to a@b.com --subject 'Re: invoice' --body-file /tmp/reply.txt --json
+""";
+
+    private const string Unsubscribe = """
+mailcoded unsubscribe <messageId> [--no-fetch] [--json]
+
+  Reads the message's List-Unsubscribe headers (RFC 2369) and, when they carry a mailto
+  address, queues an ordinary draft to it. It never sends. Run send-preview, then the
+  human authorizes send-draft with the token; every send gate still applies, and an
+  unsubscribe address will normally not be on MAILCODED_APPROVED_RECIPIENTS.
+
+  Web links are printed for a human and are NEVER opened or fetched. RFC 8058 one-click
+  POST is refused by design: the URL is sender-controlled, and a request to it confirms
+  that your address is live. Agents must not open these links either.
+
+OPTIONS
+  --no-fetch   when the headers are not stored yet, do not go to the server for the body
+
+BEHAVIOUR
+  Only the address, subject and body of the mailto URI are honoured. Other hfields (to,
+  cc, bcc, from, ...) are ignored; a malformed or oversized URI, or one with a control
+  character, is rejected. Exit 3 means the message offers no usable option.
+
+OUTPUT
+  "drafted" says whether a draft exists; "draft_id" is its handle. "unsubscribe" holds
+  mailto, web and one_click. "sent" is always false.
+
+EXAMPLES
+  mailcoded unsubscribe 4213
+  mailcoded unsubscribe 4213 --json
 """;
 
     private const string SendPreview = """
@@ -519,6 +549,7 @@ mailcoded version [--json]
         "thread" => Thread,
         "tag" => Tag,
         "draft" => Draft,
+        "unsubscribe" => Unsubscribe,
         "send-preview" => SendPreview,
         "send-draft" => SendDraft,
         "query" => Query,

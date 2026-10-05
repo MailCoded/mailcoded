@@ -29,6 +29,20 @@ internal static class WireMapper
         return DaemonInfo.Deterministic ? DaemonInfo.TranscriptInstant : IsoTime.ToWire(present);
     }
 
+    public static UnsubscribeDto? ToUnsubscribeDto(string? stored)
+    {
+        if (UnsubscribeStorage.Decode(stored) is not { IsEmpty: false } options) return null;
+
+        return new UnsubscribeDto
+        {
+            Mailto = options.Mailto is { } mailto
+                ? new UnsubscribeMailtoDto { Address = mailto.Address, Subject = mailto.Subject, Body = mailto.Body }
+                : null,
+            Web = options.Web,
+            OneClick = options.OneClick,
+        };
+    }
+
     public static EnvelopeDto ToDto(EnvelopeRow row, IReadOnlyList<Tag> tags, string? snippet = null)
     {
         ArgumentNullException.ThrowIfNull(row);

@@ -42,6 +42,7 @@ mailcoded tag <id> +triaged -inbox              # via writer queue + flag sync +
 mailcoded draft --to ... --subject ... --body-file <f>    # writes to Drafts only
 mailcoded send-preview <draftId>                # returns a one-time token
 mailcoded send-draft <draftId> --confirm-token <t>
+mailcoded unsubscribe <id>                      # drafts the sender's mailto unsubscribe; never sends, never opens a link
 mailcoded query --sql '...' --read-only --max-rows 200    # gated, off by default
 mailcoded stats --json
 ```

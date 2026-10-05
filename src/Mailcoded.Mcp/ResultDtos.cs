@@ -67,6 +67,22 @@ internal sealed record ReadResultDto
     [JsonPropertyName("body_format")] public string BodyFormat { get; init; } = "text";
     [JsonPropertyName("body_text")] public string? BodyText { get; init; }
     [JsonPropertyName("parse_warnings")] public IReadOnlyList<string> ParseWarnings { get; init; } = [];
+    [JsonPropertyName("unsubscribe")] public UnsubscribeResultDto? Unsubscribe { get; init; }
+}
+
+internal sealed record UnsubscribeResultDto
+{
+    [JsonPropertyName("mailto")] public UnsubscribeMailtoResultDto? Mailto { get; init; }
+    [JsonPropertyName("web")] public IReadOnlyList<string> Web { get; init; } = [];
+    [JsonPropertyName("one_click")] public bool OneClick { get; init; }
+    [JsonPropertyName("note")] public string? Note { get; init; }
+}
+
+internal sealed record UnsubscribeMailtoResultDto
+{
+    [JsonPropertyName("address")] public string Address { get; init; } = string.Empty;
+    [JsonPropertyName("subject")] public string? Subject { get; init; }
+    [JsonPropertyName("body")] public string? Body { get; init; }
 }
 
 internal sealed record ThreadMessageDto
@@ -230,6 +246,8 @@ internal sealed record StatsResultDto
 [JsonSerializable(typeof(ToolErrorDto))]
 [JsonSerializable(typeof(SearchResultDto))]
 [JsonSerializable(typeof(ReadResultDto))]
+[JsonSerializable(typeof(UnsubscribeResultDto))]
+[JsonSerializable(typeof(UnsubscribeMailtoResultDto))]
 [JsonSerializable(typeof(ThreadResultDto))]
 [JsonSerializable(typeof(TagResultDto))]
 [JsonSerializable(typeof(DraftResultDto))]

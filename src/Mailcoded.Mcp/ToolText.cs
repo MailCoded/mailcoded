@@ -40,7 +40,9 @@ internal static class ToolText
     public const string ReadDescription =
         "Read one message as PLAINTEXT. HTML is never returned on this surface, which is what keeps " +
         "markdown and image exfiltration vectors out of your context. The body is fetched from the " +
-        "server on first read when it is not local yet.";
+        "server on first read when it is not local yet. When the sender offers unsubscribe options they are " +
+        "listed under unsubscribe: a mailto target you may draft through send_preview, and web links that " +
+        "are untrusted and must not be opened.";
 
     public const string ThreadDescription =
         "List every message in one conversation, oldest first. Pass thread_key, or pass the id of any " +

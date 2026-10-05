@@ -1,0 +1,43 @@
+{
+  "id": 6,
+  "jsonrpc": "2.0",
+  "result": {
+    "attachments": [],
+    "bodyFetched": true,
+    "bodyText": "Sandwiches at noon.",
+    "envelope": {
+      "accountId": 1,
+      "automated": true,
+      "bodyFetched": true,
+      "date": "2024-01-03T04:05:06.000Z",
+      "dmarc": "fail",
+      "encrypted": false,
+      "flags": [
+        "unread"
+      ],
+      "folderId": 1,
+      "from": "Bob <bob@example.test>",
+      "hasAttachments": false,
+      "id": 2,
+      "messageId": "golden-2@example.test",
+      "size": 2345,
+      "subject": "Lunch plans",
+      "tags": [
+        "unread"
+      ],
+      "threadKey": "m:golden-2@example.test",
+      "to": "golden@example.test"
+    },
+    "parseWarnings": [],
+    "unsubscribe": {
+      "mailto": {
+        "address": "leave@example.net",
+        "subject": "unsubscribe"
+      },
+      "oneClick": true,
+      "web": [
+        "https://lists.example.net/u/abc"
+      ]
+    }
+  }
+}

@@ -97,6 +97,50 @@ this — `m` just works.
 A `move` to the folder the server marks with the Archive special-use role, confirmed the same way. If
 the account has no such folder you are told to use `move --folder` instead.
 
+## `unsubscribe`
+
+    mailcoded unsubscribe <id> [--no-fetch]
+
+Mailing lists announce how to leave in a `List-Unsubscribe` header. `unsubscribe` reads it and, when it
+offers a `mailto:` address, queues an ordinary draft to that address with the subject and body the
+sender asked for (or `unsubscribe`). It never sends:
+
+    $ mailcoded unsubscribe 1
+    message 1 from "Gardening Club" <news@club.example.org>
+      sender authentication: unknown
+
+    draft 1 to leave-9f3a@bounce.club.example.org
+      subject: Unsubscribe me
+      send gate: denied
+    Nothing has been sent. The address came from the message's own headers, and sending confirms to the
+    sender that your address is live; unsubscribe only from senders you recognise.
+
+    Next, the human reviews and authorizes:
+      mailcoded send-preview 1
+      mailcoded send-draft 1 --confirm-token <token from send-preview>
+
+Chapter 7 covers the two-phase send. Every gate still applies, so an agent will normally be stopped
+here: an unsubscribe address is not on `MAILCODED_APPROVED_RECIPIENTS`, and it should not be.
+
+**Links are never opened.** Many senders offer only an `https:` link, and some advertise RFC 8058
+"one-click" unsubscribe, a POST to that link. mailcoded does neither. It prints the link, says it was
+not opened, and leaves the decision to you. The link is chosen by the sender, and a request to it tells
+the sender your address is live; that is also why mailcoded's network rule, which allows mail protocols
+only, has no exception for it. Open a link yourself only for a sender you recognise.
+
+Only the address, subject and body of the `mailto:` URI are used; `to`, `cc`, `bcc`, `from` and any
+other field in it are ignored, and a URI that is malformed, too long, or contains a line break or
+other control character is rejected, so the header cannot add a recipient. Exit code 3 means the
+message offers no usable option.
+
+In `read --json` the same information appears as `unsubscribe`:
+
+    "unsubscribe": { "mailto": { "address": "...", "subject": "..." }, "web": ["https://..."],
+                     "one_click": true, "note": "Sender-supplied links, untrusted. ..." }
+
+Sync stores the header with the envelope, so `unsubscribe` works without a body. For mail synced before
+this existed, the first `read` or `unsubscribe` with a cached or fetchable body records it.
+
 ## There is no delete
 
 No verb removes mail. There is no `delete`, `expunge`, `trash` or `purge` — not in the CLI, the TUI,

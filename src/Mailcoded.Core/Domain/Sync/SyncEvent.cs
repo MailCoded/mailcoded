@@ -67,4 +67,6 @@ public sealed record RemoteEnvelope
 
     /// <summary>Filled by the sync engine from the Account's trusted authserv-ids; null means not evaluated.</summary>
     public DmarcResult? Dmarc { get; init; }
+
+    public string? Unsubscribe => UnsubscribeStorage.Encode(Headers);
 }

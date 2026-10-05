@@ -76,6 +76,9 @@ public sealed record EnvelopeRow
 
     /// <summary>What a trusted receiving server reported for the From domain; null means not evaluated.</summary>
     public DmarcResult? Dmarc { get; init; }
+
+    /// <summary>The stored List-Unsubscribe headers (see <c>UnsubscribeStorage</c>); null means unknown, empty means none offered.</summary>
+    public string? Unsubscribe { get; init; }
 }
 
 /// <summary>One keyset page. Nothing is lost: every match is reachable by following NextCursor.</summary>
@@ -93,9 +96,9 @@ public sealed record StorePage<T>
 }
 
 /// <summary>Signals derived from a whole parsed message. A null member leaves the stored value alone.</summary>
-public readonly record struct SignalValues(bool? Automated, bool? Encrypted, DmarcResult? Dmarc = null)
+public readonly record struct SignalValues(bool? Automated, bool? Encrypted, DmarcResult? Dmarc = null, string? Unsubscribe = null)
 {
-    public bool IsUnknown => Automated is null && Encrypted is null && Dmarc is null;
+    public bool IsUnknown => Automated is null && Encrypted is null && Dmarc is null && Unsubscribe is null;
 }
 
 public readonly record struct IngestResult(int Inserted, int Updated)

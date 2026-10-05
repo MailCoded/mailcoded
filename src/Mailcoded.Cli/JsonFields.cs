@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Domain.Signals;
 
 namespace Mailcoded.Cli;
 
@@ -25,6 +26,35 @@ internal static class JsonFields
     {
         if (value is null) writer.WriteNull(name);
         else writer.WriteString(name, value);
+    }
+
+    /// <summary>Null when nothing usable is known; the web note rides along so a reader of the JSON is told not to open the links.</summary>
+    public static void WriteUnsubscribe(Utf8JsonWriter writer, string name, UnsubscribeOptions? options)
+    {
+        if (options is null || options.IsEmpty)
+        {
+            writer.WriteNull(name);
+            return;
+        }
+
+        writer.WriteStartObject(name);
+        if (options.Mailto is { } mailto)
+        {
+            writer.WriteStartObject("mailto");
+            writer.WriteString("address", mailto.Address);
+            WriteText(writer, "subject", mailto.Subject);
+            WriteText(writer, "body", mailto.Body);
+            writer.WriteEndObject();
+        }
+        else
+        {
+            writer.WriteNull("mailto");
+        }
+
+        WriteStrings(writer, "web", options.Web);
+        writer.WriteBoolean("one_click", options.OneClick);
+        if (options.Web.Count > 0) writer.WriteString("note", ListUnsubscribeParser.WebNotice);
+        writer.WriteEndObject();
     }
 
     /// <summary>Null stays null: an unknown signal must never read as false.</summary>

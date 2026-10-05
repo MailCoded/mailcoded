@@ -65,6 +65,9 @@ that identifies a person. `example.com`, `example.org`, `example.net` and the re
 | 047 | a failing instance from `mx.example.net` on top, with two sender-planted passing instances below it (same and foreign authserv-id): the topmost trusted instance decides |
 | 048 | self-declared results only: a pass hidden in a comment, a foreign authserv-id, and a pass inside a quoted string |
 | 049 | promotional mail: List-Unsubscribe and a "flash sale" subject from a sender on no built-in domain list (categorised by its subject) |
+| 050 | List-Unsubscribe with only a mailto target: a leading comment, a folded value, percent-encoded subject and body |
+| 051 | List-Unsubscribe with an https URL and an http URL, plus `List-Unsubscribe-Post: List-Unsubscribe=One-Click` |
+| 052 | hostile List-Unsubscribe: multi-recipient and header-injecting mailto entries rejected, a later mailto whose to/cc/bcc/from hfields must be ignored, userinfo and backslash URLs, javascript: and ftp: schemes |
 
 Edge case 14 (a 100 MB+ attachment) is deliberately **not** a file here. It is exercised
 by a synthetic stream in `tests/Mailcoded.Core.Tests`, because committing the payload

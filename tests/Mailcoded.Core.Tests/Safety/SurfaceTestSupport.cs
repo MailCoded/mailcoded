@@ -217,7 +217,8 @@ internal static class StoreSeeder
         byte[]? raw = null,
         bool? automated = null,
         bool? encrypted = null,
-        DmarcResult? dmarc = null)
+        DmarcResult? dmarc = null,
+        SignalHeaders? headers = null)
     {
         ArgumentNullException.ThrowIfNull(store);
 
@@ -239,6 +240,7 @@ internal static class StoreSeeder
                     Automated = automated,
                     Encrypted = encrypted,
                     Dmarc = dmarc,
+                    Headers = headers,
                 },
             ],
             Mailcoded.Core.Domain.Threading.ReferencesThreader.Instance,

@@ -40,6 +40,7 @@ public sealed class GoldenTranscriptTests : IClassFixture<DaemonTranscriptFixtur
     [InlineData("search-in-junk")]
     [InlineData("search-semantic-unsupported")]
     [InlineData("message-get")]
+    [InlineData("message-get-unsubscribe")]
     [InlineData("tags-set-unknown-message")]
     [InlineData("send-without-token")]
     [InlineData("unknown-method")]

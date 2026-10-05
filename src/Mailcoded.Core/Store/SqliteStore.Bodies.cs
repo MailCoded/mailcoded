@@ -63,14 +63,16 @@ public sealed partial class SqliteStore
                 .Prepare(
                     "UPDATE messages SET body_fetched = 1, blob_id = COALESCE($blob, blob_id), "
                     + "has_attachments = COALESCE($hasatt, has_attachments), automated = COALESCE($automated, automated), "
-                    + "encrypted = COALESCE($encrypted, encrypted), dmarc = CASE WHEN dmarc = 'imported' THEN dmarc ELSE COALESCE($dmarc, dmarc) END WHERE id = $id",
-                    "$blob", "$hasatt", "$automated", "$encrypted", "$dmarc", "$id")
+                    + "encrypted = COALESCE($encrypted, encrypted), dmarc = CASE WHEN dmarc = 'imported' THEN dmarc ELSE COALESCE($dmarc, dmarc) END, "
+                    + "unsubscribe = COALESCE($unsubscribe, unsubscribe) WHERE id = $id",
+                    "$blob", "$hasatt", "$automated", "$encrypted", "$dmarc", "$unsubscribe", "$id")
                 .SetIntOrNull(0, blobId is { } blob ? (long?)blob.Value : null)
                 .SetIntOrNull(1, hasAttachments is { } attachments ? (long?)(attachments ? 1 : 0) : null)
                 .SetBoolOrNull(2, signals.Automated)
                 .SetBoolOrNull(3, signals.Encrypted)
                 .SetDmarc(4, signals.Dmarc)
-                .SetInt(5, messageId.Value)
+                .SetText(5, signals.Unsubscribe)
+                .SetInt(6, messageId.Value)
                 .Execute();
 
             if (!string.Equals(oldBody, bodyText, StringComparison.Ordinal))
@@ -94,12 +96,14 @@ public sealed partial class SqliteStore
         WriteAsync(context => context.Session
             .Prepare(
                 "UPDATE messages SET automated = COALESCE($automated, automated), encrypted = COALESCE($encrypted, encrypted), "
-                + "dmarc = CASE WHEN dmarc = 'imported' THEN dmarc ELSE COALESCE($dmarc, dmarc) END WHERE id = $id",
-                "$automated", "$encrypted", "$dmarc", "$id")
+                + "dmarc = CASE WHEN dmarc = 'imported' THEN dmarc ELSE COALESCE($dmarc, dmarc) END, "
+                + "unsubscribe = COALESCE($unsubscribe, unsubscribe) WHERE id = $id",
+                "$automated", "$encrypted", "$dmarc", "$unsubscribe", "$id")
             .SetBoolOrNull(0, signals.Automated)
             .SetBoolOrNull(1, signals.Encrypted)
             .SetDmarc(2, signals.Dmarc)
-            .SetInt(3, messageId.Value)
+            .SetText(3, signals.Unsubscribe)
+            .SetInt(4, messageId.Value)
             .Execute() > 0, ct);
 
     public string? GetBodyText(LocalMessageId messageId, CancellationToken ct = default) =>
