@@ -17,6 +17,7 @@ dotnet run --project src/Mailcoded.Daemon      # stdio, Content-Length framing
 dotnet run --project src/Mailcoded.Cli -- search "tag:unread"
 dotnet publish src/Mailcoded.Daemon -c Release -r linux-x64 /p:PublishAot=true
 dotnet run -c Release --project tests/Mailcoded.Bench   # M-perf gates
+MAILCODED_TEST_PERF=1 dotnet test                       # adds the opt-in 100k-message read-path test (~2 min)
 ```
 
 On NixOS/WSL: `nix develop` first; `programs.nix-ld` must be enabled on the host for the AOT smoke test. If Docker is unavailable, run unit tests only and **say integration tests were skipped** — never fake their results.

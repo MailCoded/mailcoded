@@ -2,7 +2,8 @@
 
 What has actually been exercised, and what has not. This file exists because
 `STRATEGY.md` §5 gates every public claim on a measurement, so "implemented" and
-"verified" have to be separable. Nothing here is a performance claim.
+"verified" have to be separable. Nothing here is a performance claim; the one set of timings recorded
+below is a development-machine measurement, labelled as such, and is not a reference-hardware result.
 
 Environment: NixOS on WSL2, .NET SDK 10.0.302, linux-x64. Docker was **not** available for the
 earlier rows; the most recent run had it, and the Dovecot/smtp4dev suite ran (see below).
@@ -64,6 +65,43 @@ produced 16 confirmed defects, all since fixed with regression tests. The store 
 | Install guard | planted a `store.db` where the payload goes, then reinstalled and uninstalled | both refused and the file survived — `$PREFIX/share/mailcoded` **is** the Linux store path, so the payload lives in `libexec` instead |
 | Symlink resolution | AOT binary symlinked into a directory with no `libe_sqlite3.so` | works (resolves via `/proc/self/exe`); a bare copy without the library fails, which is why the installer symlinks rather than copies |
 
+## Development-machine measurement: 100,000 Messages
+
+Not reference hardware, not the M-perf baseline, and not a launch claim. It was run once, to find out
+whether the read paths hold up at 100k and to give the opt-in test (`MAILCODED_TEST_PERF=1`) a
+starting point for its ceilings.
+
+- **Machine:** Intel Core Ultra 7 165H, 20 logical CPUs, 25 GB RAM, WSL2 on NixOS 26.05, .NET SDK
+  10.0.302 (runtime 10.0.10), linux-x64. Storage was not recorded.
+- **What ran:** `LargeCorpusPerformanceTests`, Release build, one run, idle machine. It seeds the
+  `tests/Mailcoded.Bench` corpus generator (seed 20260101, fingerprint `081ccbce2582`, about 10%
+  CJK) through the bulk ingest path, then times each read path from a warm process. The seed took
+  about 122 s and the database came to 676 MiB; body text is written one transaction per Message
+  after the bulk window closes, and that is most of the 122 s.
+- **Largest Folder:** INBOX, 55% of the corpus (about 55,000 Messages); the thread view scans that Folder, not all 100,000 rows.
+
+| Path | n | p50 | p95 | Target at 500k | Target scaled to 100k | Test ceiling |
+|---|---|---|---|---|---|---|
+| Envelope page, first (50 rows) | 200 | 0.055 ms | 0.115 ms | < 10 ms | 10 ms | 100 ms |
+| Envelope page, deep (50 rows, past row 27,561) | 200 | 0.060 ms | 0.097 ms | < 10 ms | 10 ms | 100 ms |
+| FTS search (five queries, incl. phrase and CJK) | 100 | 50.7 ms | 109.9 ms | < 100 ms p95 | 20 ms | 600 ms |
+| Unread badge (all Folders) | 500 | 0.018 ms | 0.021 ms | < 5 ms | 5 ms | 50 ms |
+| Thread view, page of 50 threads | 100 | 96.1 ms | 105.7 ms | < 20 ms | 4 ms | 240 ms |
+| Thread view, one thread's Messages | 200 | 0.035 ms | 0.051 ms | < 20 ms | 20 ms | 200 ms |
+
+A Debug build gave the same picture (FTS p95 114 ms, thread page p95 107 ms): SQLite dominates.
+
+**Two paths are above their scaled targets, and their test ceilings are widened to match.** The thread
+page's `ROW_NUMBER()` partition has no index to walk, so it sorts every Message in the Folder on every
+call; at 500k that is a cost to expect well past the 20 ms target. FTS over a common term ranks every
+match before taking 50, so its cost grows with the match count. The ceilings (6x and 3x the
+scaled-target ceiling) exist to catch a regression from today's behaviour, not to excuse it. Treat both
+as open performance work. Seek-shaped paths (envelope pages, the unread counter, one thread's
+Messages) are far inside their targets and keep the plain 10x ceiling.
+
+The 500k BenchmarkDotNet suite, the 15% regression gate and any reference-hardware number remain
+unrun.
+
 ## Milestone status against SPEC §9
 
 The SPEC checkboxes are deliberately left unticked: several criteria need Docker, reference
@@ -76,7 +114,7 @@ hardware, or the other two OS legs, none of which were available here.
 | **M2** IMAP sync + send | mostly met | Dovecot and smtp4dev now run (5 tests): the QRESYNC/CONDSTORE arms and the 5k-message timing are still unrun |
 | **M3** Daemon + secrets + extension skeleton | backend met | the Windows/macOS keyrings are untested; the VS Code extension is a separate repository this record does not cover |
 | **M4** Read/act/compose in the extension | partly, elsewhere | reading, search and the sandboxed reader exist in the extension's own repository; compose and send do not. Nothing here tests it |
-| **M-perf** | harness only | benchmarks never run; `baseline.json` is zeros on purpose |
+| **M-perf** | harness only | the BenchmarkDotNet suite has never run; `baseline.json` is zeros on purpose. A 100k-message read-path test has run once on a development machine (below), which is not reference hardware |
 | **M5** Polish + agents + packaging | agent surface met | `vsce`/Open VSX packaging, screenshots, and the release tag are human steps |
 | **M-chaos / M-soak** | not started | no Toxiproxy run, no 24h soak |
 | **M6** Launch | drafts only | a human posts; see `docs/launch.md` |
@@ -86,7 +124,8 @@ hardware, or the other two OS legs, none of which were available here.
 - **M-perf gates.** The harness and the deterministic 500k corpus generator exist and the generator
   is reproducible (same seed → identical digest), but the benchmarks have **not** been run on
   reference hardware. `baseline.json` is committed with zeros on purpose. Every number in
-  PERFORMANCE §15.2 is a target, not a measurement.
+  PERFORMANCE §15.2 is a target, not a measurement. The 100k development-machine run above is the
+  only timing on record, and two of its paths are above target.
 - **QRESYNC and CONDSTORE delta paths.** The local test server advertises neither, so only the
   full-diff arm has executed. The planner's delta arms are covered by unit tests, not by a server.
 - **`MOVE`**, and the 5k-message sync timing.

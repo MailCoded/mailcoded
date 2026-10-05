@@ -65,6 +65,10 @@ no public way to supply body text, so each body is written in its own transactio
 closes. Envelope ingest itself is one bulk window and is fast. Budget roughly 5–10 minutes for the
 first 500k build; later runs reuse the cache.
 
+The corpus sources under `Corpus/` are also compiled into `tests/Mailcoded.Core.Tests` as linked files,
+which seeds the opt-in 100k-message test there (`MAILCODED_TEST_PERF=1`; PERFORMANCE §15.8a). Keep the
+folder free of BenchmarkDotNet references.
+
 ## Running the suite
 
 ```bash

@@ -210,6 +210,26 @@ Benchmarks and gates:
 
 Any regression >15% versus the committed baseline fails the build; re-baselining needs explicit PR approval. Express gates relative to the CI machine's own baseline where absolute ms would be hardware-dependent.
 
+## 15.8a The 100k read-path test
+
+`tests/Mailcoded.Core.Tests/Performance` holds an opt-in test in the normal unit suite. Without
+`MAILCODED_TEST_PERF=1` it is reported as skipped, with the reason printed. With it, the test seeds
+100,000 Messages through the bulk ingest path using the Bench corpus generator (linked source, fixed
+seed), then prints n, p50, p95 and max for the first and a deep envelope page, FTS search, the unread
+badge and the thread view. Seeding takes about two minutes.
+
+Each ceiling is the §15.2 target, scaled to the corpus when the path is a scan (an index seek is not
+scaled), times a safety factor of 10 for a shared machine, with a 10 ms floor. A path measured above
+its scaled target carries a named extra multiple, so the test still trips on a regression without
+pretending the target is met. Every line printed says whether the p95 is within its scaled target.
+These are tripwires; the Bench gates in §15.8 stay the source of truth, and `docs/verification.md`
+holds the one recorded run, labelled as a development-machine measurement.
+
+```bash
+MAILCODED_TEST_PERF=1 tests/Mailcoded.Core.Tests/bin/Debug/net10.0/Mailcoded.Core.Tests \
+  --filter-class Mailcoded.Core.Tests.Performance.LargeCorpusPerformanceTests --output Detailed
+```
+
 ## 15.9 Diagnostics when a budget is missed
 1. `EXPLAIN QUERY PLAN` — confirm the query is index-only (no table access).
 2. Confirm `ANALYZE` has populated `sqlite_stat1`.
