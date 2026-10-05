@@ -211,6 +211,14 @@ without a valid, unexpired, unconsumed token fails with exit 6 (RPC 1003); with 
 gate it fails with exit 4 (RPC 1006); over budget it fails with exit 5 and a
 `retry_after_ms`. There is a ceiling of 5 agent sends per rolling hour regardless.
 
+If the human turned on `account server-drafts` (an agent may not: it needs a terminal confirmation or
+`MAILCODED_ALLOW_SERVER_DRAFTS=1` with `--yes`, and there is no MCP tool), `draft`, `reply` and
+`send_preview` also append the draft to the account's own Drafts folder on the server and report
+`server_draft` (`off`, `saved`, `failed`; a failure never blocks the draft). That needs no send unlock
+because nothing is sent and the copy lands only in the user's own account. After `send-draft`, the result
+says `server_draft: moved` (the draft became the Sent copy, via one MOVE) or `left` (it stays in Drafts, with
+`server_draft_reason`). mailcoded never deletes, flags for deletion or expunges server mail.
+
 **Where the token lives, and what that means.** The token is persisted in the store as a
 salted hash, not held in process memory: `send-preview` reports `confirm_token_scope:
 "store"`. So the pair above is a **real send from the bare CLI** — the token minted by one

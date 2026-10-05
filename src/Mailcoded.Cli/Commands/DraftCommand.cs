@@ -1,5 +1,6 @@
 using System.Text;
 using Mailcoded.Core.Application;
+using Mailcoded.Core.Domain.Outbox;
 using Mailcoded.Core.Domain.Primitives;
 
 namespace Mailcoded.Cli.Commands;
@@ -56,6 +57,7 @@ internal static class DraftCommand
                 InReplyTo = inReplyTo,
                 References = references,
             },
+            host.LazyProvider(account),
             ct).ConfigureAwait(false);
 
         // The token this phase minted is not part of the draft contract; drop it so nothing
@@ -79,6 +81,8 @@ internal static class DraftCommand
             writer.WriteNumber("size_bytes", preview.SizeBytes);
             writer.WriteBoolean("requires_smtputf8", preview.RequiresSmtpUtf8);
             writer.WriteBoolean("confirm_token_issued", false);
+            writer.WriteString("server_draft", preview.ServerDraft.ToWireValue());
+            JsonFields.WriteText(writer, "server_draft_reason", preview.ServerDraftReason.ToWireValue());
 
             writer.WriteStartObject("send");
             writer.WriteBoolean("enabled", preview.Gate.Allowed);
@@ -100,6 +104,8 @@ internal static class DraftCommand
         output.Line($"subject:    {SafeText.Line(preview.Subject, 200)}");
         output.Line($"size:       {preview.SizeBytes} bytes");
         if (preview.SignatureName is { } signed) output.Line($"signature:  {signed}");
+        if (preview.ServerDraft != ServerDraftSave.Off)
+            output.Line($"server:     {ServerDraftText.Describe(preview.ServerDraft, preview.ServerDraftReason)}");
         output.Line($"send gate:  {preview.Gate.Label}");
         output.Line($"next:       mailcoded send-preview {preview.OutboxId}");
         return ExitCodes.Ok;

@@ -162,6 +162,8 @@ internal sealed record SendPreviewResultDto
     [JsonPropertyName("requires_smtputf8")] public bool RequiresSmtpUtf8 { get; init; }
     [JsonPropertyName("digest")] public string Digest { get; init; } = string.Empty;
     [JsonPropertyName("send_gate")] public SendGateDto SendGate { get; init; } = new();
+    [JsonPropertyName("server_draft")] public string ServerDraft { get; init; } = "off";
+    [JsonPropertyName("server_draft_reason")] public string? ServerDraftReason { get; init; }
     [JsonPropertyName("next_step")] public string NextStep { get; init; } = string.Empty;
 }
 
@@ -178,6 +180,8 @@ internal sealed record SendDraftResultDto
     [JsonPropertyName("next_attempt_utc")] public string? NextAttemptUtc { get; init; }
     [JsonPropertyName("appended_to_sent")] public bool AppendedToSent { get; init; }
     [JsonPropertyName("permanently_failed")] public bool PermanentlyFailed { get; init; }
+    [JsonPropertyName("server_draft")] public string ServerDraft { get; init; } = "none";
+    [JsonPropertyName("server_draft_reason")] public string? ServerDraftReason { get; init; }
 }
 
 internal sealed record StatsFolderDto

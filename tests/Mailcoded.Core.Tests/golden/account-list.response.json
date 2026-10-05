@@ -26,6 +26,7 @@
         },
         "provider": "imap",
         "quirks": [],
+        "saveDraftsToServer": false,
         "secretRef": "imap:golden@example.test",
         "signatures": [
           {

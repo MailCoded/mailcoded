@@ -1,5 +1,6 @@
 using System.Globalization;
 using Mailcoded.Core.Application;
+using Mailcoded.Core.Domain.Outbox;
 using Mailcoded.Core.Domain.Identities;
 using Mailcoded.Core.Parsing;
 using Mailcoded.Core.Providers;
@@ -69,6 +70,7 @@ internal static class ReplyCommand
                 InReplyTo = context.InReplyTo,
                 References = context.References,
             },
+            host.LazyProvider(account, provider),
             ct).ConfigureAwait(false);
 
         // A reply is a draft, not an authorization to send.
@@ -85,6 +87,8 @@ internal static class ReplyCommand
             writer.WriteNumber("quoted_chars", context.QuotedBody.Length);
             writer.WriteString("from", preview.From.Value);
             JsonFields.WriteText(writer, "signature", preview.SignatureName);
+            writer.WriteString("server_draft", preview.ServerDraft.ToWireValue());
+            JsonFields.WriteText(writer, "server_draft_reason", preview.ServerDraftReason.ToWireValue());
             if (context.RejectedAddresses.Count > 0)
             {
                 writer.WriteStartArray("dropped_addresses");
@@ -103,6 +107,8 @@ internal static class ReplyCommand
         if (context.Cc.Count > 0) output.Line($"  cc   {string.Join(", ", context.Cc)}");
         if (context.RejectedAddresses.Count > 0)
             output.Line($"  dropped unusable addresses: {string.Join(", ", context.RejectedAddresses)}");
+        if (preview.ServerDraft != ServerDraftSave.Off)
+            output.Line($"  server draft: {ServerDraftText.Describe(preview.ServerDraft, preview.ServerDraftReason)}");
         output.Blank();
         output.Line($"Edit the body before sending, or send as-is:");
         output.Line($"  mailcoded send-preview {preview.OutboxId.ToString(CultureInfo.InvariantCulture)}");

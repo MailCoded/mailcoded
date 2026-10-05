@@ -102,6 +102,7 @@ Every row needs a fixture and a table-driven test against the pure planner.
 | 24 | Message expunged between SEARCH and FETCH | FETCH empty/NO | skip gracefully |
 | 25 | Flag conflict after offline period | MODSEQ diff both sides | **server wins on IMAP flags; local wins on tags** |
 | 26 | APPEND to Sent races server auto-save | duplicate in Sent | dedupe by Message-ID; prefer the server copy |
+| 26a | Draft saved to the server, then the send ends before or during the move into Sent | server draft still in Drafts, or a MOVE of unknown outcome | the move is the only server write after a send and it is never retried: its state (`saved` → `moving` → `moved`/`left`) is written before the command and changed by compare-and-swap, a row found `moving` or still `saved` after its send finished is left as is (`interrupted`) at the next start, a dropped connection mid-move records `move-unconfirmed` and appends no second Sent copy, UIDVALIDITY or UID drift records `uidvalidity-changed` / `draft-gone`. Without MOVE (RFC 6851), on a server that saves Sent itself, or with `--no-append` the draft is left in Drafts. Never STORE `\Deleted`, never EXPUNGE, never COPY-then-flag |
 | 27 | IDLE notification storm (bulk move of 10k) | flood of EXISTS/VANISHED | debounce/coalesce before resync |
 | 28 | SMTP 451 / 421 / 5xx | response code | backoff retry / reconnect / permanent-fail surface |
 | 29 | SMTPUTF8 absent but recipient is EAI | capability check | fail with a clear error; never silently mangle |

@@ -169,6 +169,9 @@ internal sealed class DaemonHost : IAsyncDisposable
         StartBackfill();
 
         var report = await Send.ReconcileStuckSendsAsync(null, null, null, ct).ConfigureAwait(false);
+        if (report.ServerDraftsLeft > 0)
+            Log.Warn($"{report.ServerDraftsLeft} server draft(s) of already-sent mail were left in Drafts after an interrupted send.");
+
         if (report.Outcomes.Count == 0) return;
 
         Log.Warn(

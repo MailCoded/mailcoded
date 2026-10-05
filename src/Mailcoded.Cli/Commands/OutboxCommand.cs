@@ -45,6 +45,8 @@ internal static class OutboxCommand
                 JsonFields.WriteText(writer, "enhanced_status", row.EnhancedStatusCode);
                 JsonFields.WriteDate(writer, "created_utc", row.CreatedUtc);
                 JsonFields.WriteDate(writer, "next_attempt_utc", row.NextAttemptUtc);
+                JsonFields.WriteText(writer, "server_draft", row.ServerDraft?.State.ToWireValue());
+                JsonFields.WriteText(writer, "server_draft_reason", row.ServerDraft?.Reason.ToWireValue());
                 if (row.Envelope is { } envelope)
                 {
                     JsonFields.WriteAddresses(writer, "to", envelope.To);
@@ -80,6 +82,9 @@ internal static class OutboxCommand
 
             if (!string.IsNullOrEmpty(row.SmtpResponse))
                 output.Line($"      server: {SafeText.Line(row.SmtpResponse, 160)}");
+
+            if (row.ServerDraft is { } serverDraft)
+                output.Line($"      server draft: {ServerDraftText.Describe(serverDraft.State, serverDraft.Reason)}");
         }
 
         return Task.FromResult(ExitCodes.Ok);

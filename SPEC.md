@@ -49,6 +49,7 @@ Backend first (M0–M2); the extension consumes released daemon binaries from M3
 - Incremental sync: UIDVALIDITY tracking, QRESYNC/CONDSTORE fast resync, full-fetch fallback, lazy body fetch.
 - FTS5 search, notmuch-compatible tags (`unread`, `flagged`, `replied`, custom). Search leaves out Trash- and Junk-role Folders unless the query names a Folder, says `in:anywhere`, or is scoped to one Folder.
 - Send via SMTP with mandatory confirmation + outbox state machine. A draft's From is the account address or a configured sender identity, checked in Core; plaintext signatures per account, with defaults for new messages and replies.
+- Drafts saved to the server (opt-in per account, off by default): a draft is also appended to the server's Drafts Folder so other mail clients show it. The local draft stays the only source for a send. After a send the server draft is moved into Sent with one MOVE when the server supports it and the account keeps a Sent copy, and otherwise left where it is; mailcoded never deletes, flags for deletion or expunges server mail.
 - Compose suggestions: the people you have written to, learned from outgoing mail only (mailcoded's own sends and messages in Sent-role Folders you wrote), ranked by frequency and recency. Received mail never adds anyone. This is not a contacts feature.
 - JSON-RPC daemon (stdio) + thin one-shot CLI (`mailcoded`, JSON output).
 - Secrets in OS keyring with encrypted-file fallback.

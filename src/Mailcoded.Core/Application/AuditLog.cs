@@ -42,6 +42,11 @@ public static class AuditEvents
     public const string SignatureForgotten = "signature_forgotten";
     public const string SignatureDefaultChanged = "signature_default_changed";
     public const string SenderDenied = "sender_denied";
+    public const string ServerDraftSetting = "server_draft_setting";
+    public const string ServerDraftSaved = "server_draft_saved";
+    public const string ServerDraftSaveFailed = "server_draft_save_failed";
+    public const string ServerDraftMoved = "server_draft_moved";
+    public const string ServerDraftLeft = "server_draft_left";
 }
 
 /// <summary>One audit row before it becomes a <see cref="SyncLogEntry"/>.</summary>

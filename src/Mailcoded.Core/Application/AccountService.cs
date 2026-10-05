@@ -259,6 +259,24 @@ public sealed class AccountService
         return changed;
     }
 
+    /// <summary>Turns saving drafts to the server's Drafts Folder on or off. False when it already was that.</summary>
+    public async Task<bool> SetSaveDraftsToServerAsync(AccountId accountId, bool enabled, CallerContext caller, CancellationToken ct)
+    {
+        var changed = await _store.SetSaveDraftsToServerAsync(accountId, enabled, ct).ConfigureAwait(false);
+
+        if (changed)
+        {
+            await _audit.WarnAsync(
+                AuditEvents.ServerDraftSetting,
+                accountId,
+                caller,
+                AuditText.Fields(("enabled", AuditText.Bool(enabled))),
+                ct).ConfigureAwait(false);
+        }
+
+        return changed;
+    }
+
     /// <summary>Stores a credential under an opaque handle. The value never reaches any other sink.</summary>
     public Task SetSecretAsync(string secretRef, string value, CancellationToken ct)
     {

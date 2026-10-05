@@ -2,8 +2,10 @@ using System.Runtime.ExceptionServices;
 using Mailcoded.Core.Domain.Identities;
 using Mailcoded.Core.Domain.Outbox;
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Domain.Tags;
 using Mailcoded.Core.Parsing;
 using Mailcoded.Core.Providers;
+using Mailcoded.Core.Secrets;
 using Mailcoded.Core.Store;
 
 namespace Mailcoded.Core.Application;
@@ -55,6 +57,25 @@ public sealed record SendOptions
     public static readonly SendOptions Default = new();
 }
 
+/// <summary>Whether the draft also went to the server's Drafts Folder.</summary>
+public enum ServerDraftSave
+{
+    Off,
+    Saved,
+    Failed,
+}
+
+public static class ServerDraftSaveExtensions
+{
+    public static string ToWireValue(this ServerDraftSave save) => save switch
+    {
+        ServerDraftSave.Off => "off",
+        ServerDraftSave.Saved => "saved",
+        ServerDraftSave.Failed => "failed",
+        _ => throw new ArgumentOutOfRangeException(nameof(save)),
+    };
+}
+
 public sealed record SendPreview
 {
     public required long OutboxId { get; init; }
@@ -75,6 +96,11 @@ public sealed record SendPreview
 
     /// <summary>What the send gate would decide right now, so a caller learns before it burns the token.</summary>
     public required SendGateDecision Gate { get; init; }
+
+    public ServerDraftSave ServerDraft { get; init; }
+
+    /// <summary>Why the server copy was not made; <see cref="ServerDraftReason.None"/> unless it failed.</summary>
+    public ServerDraftReason ServerDraftReason { get; init; }
 }
 
 public sealed record SendResult
@@ -93,6 +119,11 @@ public sealed record SendResult
     public bool AppendedToSent { get; init; }
     public bool RequiresReconnect { get; init; }
     public bool PermanentlyFailed { get; init; }
+
+    /// <summary>The server draft's state after this attempt; null when the draft was never saved to the server.</summary>
+    public ServerDraftState? ServerDraft { get; init; }
+
+    public ServerDraftReason ServerDraftReason { get; init; }
 }
 
 public sealed record OutboxReconcileOutcome
@@ -109,6 +140,9 @@ public sealed record OutboxReconcileReport
     public int MarkedSent { get; init; }
     public int Requeued { get; init; }
     public int NeedsInvestigation { get; init; }
+
+    /// <summary>Server drafts whose send finished but whose move did not; they are left where they are, never retried.</summary>
+    public int ServerDraftsLeft { get; init; }
 
     public static readonly OutboxReconcileReport Empty = new();
 }
@@ -161,11 +195,19 @@ public sealed class SendService
         bool confirmedOnly = false) =>
         _store.ListOutbox(state, ct, confirmedOnly);
 
-    /// <summary>Builds the message, creates the outbox row, and mints the one-time confirm token.</summary>
+    public Task<SendPreview> PreviewAsync(
+        CallerContext caller,
+        AccountId accountId,
+        DraftRequest draft,
+        CancellationToken ct) =>
+        PreviewAsync(caller, accountId, draft, null, ct);
+
+    /// <summary>Builds the message, creates the outbox row and mints the confirm token. <paramref name="connect"/> is called only if the Account saves drafts to the server.</summary>
     public async Task<SendPreview> PreviewAsync(
         CallerContext caller,
         AccountId accountId,
         DraftRequest draft,
+        Func<CancellationToken, Task<IMailProvider?>>? connect,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(draft);
@@ -220,6 +262,7 @@ public sealed class SendService
         var grant = await _tokens.IssueAsync(outboxId, messageId, digest, ct).ConfigureAwait(false);
 
         var gate = _policy.EvaluateSend(caller, recipients);
+        var (saved, savedReason) = await SaveServerDraftAsync(accountId, outboxId, raw, connect, ct).ConfigureAwait(false);
 
         await _audit.SendAsync(
             new SendAuditRecord
@@ -255,7 +298,105 @@ public sealed class SendService
             RequiresSmtpUtf8 = MessageBuilder.RequiresSmtpUtf8(spec),
             Digest = digest,
             Gate = gate,
+            ServerDraft = saved,
+            ServerDraftReason = savedReason,
         };
+    }
+
+    private async Task<(ServerDraftSave Save, ServerDraftReason Reason)> SaveServerDraftAsync(
+        AccountId accountId,
+        long outboxId,
+        byte[] raw,
+        Func<CancellationToken, Task<IMailProvider?>>? connect,
+        CancellationToken ct)
+    {
+        if (connect is null || _store.GetAccount(accountId, ct) is not { SaveDraftsToServer: true })
+            return (ServerDraftSave.Off, ServerDraftReason.None);
+
+        var drafts = FindFolder(accountId, FolderRole.Drafts, ct);
+        if (drafts is null) return await SaveFailedAsync(accountId, outboxId, ServerDraftReason.NoDraftsFolder, null, ct).ConfigureAwait(false);
+
+        var target = new FolderRef(drafts.Id, drafts.Path);
+        Uid? uid;
+        IMailProvider provider;
+
+        try
+        {
+            if (await connect(ct).ConfigureAwait(false) is not { } connected)
+                return await SaveFailedAsync(accountId, outboxId, ServerDraftReason.NotConnected, null, ct).ConfigureAwait(false);
+
+            provider = connected;
+            uid = await provider.AppendAsync(target, raw, MessageFlags.Draft, _clock.UtcNow, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is ProviderException or SecretStoreException)
+        {
+            return await SaveFailedAsync(accountId, outboxId, ServerDraftReason.AppendFailed, ex, ct).ConfigureAwait(false);
+        }
+
+        // The copy exists on the server from here on, so it must be on record even if the UID or UIDVALIDITY is unknown.
+        UidValidity validity;
+        try
+        {
+            validity = (await provider.OpenFolderAsync(target, true, ct).ConfigureAwait(false)).UidValidity;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (ProviderException)
+        {
+            validity = UidValidity.Unknown;
+        }
+
+        var trackable = uid is not null && !validity.IsUnknown;
+
+        await _store.RecordServerDraftAsync(
+            outboxId,
+            new ServerDraft
+            {
+                FolderPath = drafts.Path.Value,
+                UidValidity = validity,
+                Uid = uid,
+                State = trackable ? ServerDraftState.Saved : ServerDraftState.Left,
+                Reason = trackable ? ServerDraftReason.None : ServerDraftReason.UidUnknown,
+            },
+            ct).ConfigureAwait(false);
+
+        await _audit.InfoAsync(
+            AuditEvents.ServerDraftSaved,
+            accountId,
+            CallerContext.Internal,
+            AuditText.Fields(
+                ("outbox", AuditText.Number(outboxId)),
+                ("folder", drafts.Path.Value),
+                ("tracked", AuditText.Bool(trackable))),
+            ct).ConfigureAwait(false);
+
+        return (ServerDraftSave.Saved, ServerDraftReason.None);
+    }
+
+    private async Task<(ServerDraftSave Save, ServerDraftReason Reason)> SaveFailedAsync(
+        AccountId accountId,
+        long outboxId,
+        ServerDraftReason reason,
+        Exception? error,
+        CancellationToken ct)
+    {
+        await _audit.WarnAsync(
+            AuditEvents.ServerDraftSaveFailed,
+            accountId,
+            CallerContext.Internal,
+            AuditText.Fields(
+                ("outbox", AuditText.Number(outboxId)),
+                ("reason", reason.ToWireValue()),
+                ("category", error is ProviderException provider ? provider.Category.ToString() : null)),
+            ct).ConfigureAwait(false);
+
+        return (ServerDraftSave.Failed, reason);
     }
 
     /// <summary>Decides a draft's sender and places its signature; the one place that happens, so no adapter can skip it.</summary>
@@ -433,7 +574,11 @@ public sealed class SendService
     {
         var settings = options ?? _defaults;
         var stuck = _store.ListOutbox(OutboxState.Sending, ct);
-        if (stuck.Count == 0) return OutboxReconcileReport.Empty;
+        if (stuck.Count == 0)
+        {
+            var idle = await LeaveInterruptedServerDraftsAsync(ct).ConfigureAwait(false);
+            return idle == 0 ? OutboxReconcileReport.Empty : new OutboxReconcileReport { ServerDraftsLeft = idle };
+        }
 
         var searched = new Dictionary<long, bool>();
         var outcomes = new List<OutboxReconcileOutcome>(stuck.Count);
@@ -531,7 +676,25 @@ public sealed class SendService
             MarkedSent = markedSent,
             Requeued = requeued,
             NeedsInvestigation = investigate,
+            ServerDraftsLeft = await LeaveInterruptedServerDraftsAsync(ct).ConfigureAwait(false),
         };
+    }
+
+    private async Task<int> LeaveInterruptedServerDraftsAsync(CancellationToken ct)
+    {
+        var count = await _store.LeaveInterruptedServerDraftsAsync(ct).ConfigureAwait(false);
+
+        if (count > 0)
+        {
+            await _audit.WarnAsync(
+                AuditEvents.ServerDraftLeft,
+                AccountId.None,
+                CallerContext.Internal,
+                AuditText.Fields(("count", AuditText.Number(count)), ("reason", ServerDraftReason.Interrupted.ToWireValue())),
+                ct).ConfigureAwait(false);
+        }
+
+        return count;
     }
 
     private async Task<DispatchOutcome> DispatchAsync(
@@ -547,13 +710,13 @@ public sealed class SendService
 
         if (message.State == OutboxState.Sent)
         {
-            return new DispatchOutcome(ToResult(message, 250, false, false), null, false);
+            return new DispatchOutcome(ToResult(message, 250, false, false, record.ServerDraft), null, false);
         }
 
         if (message.State == OutboxState.Sending)
         {
             return new DispatchOutcome(
-                ToResult(message, 0, false, false),
+                ToResult(message, 0, false, false, record.ServerDraft),
                 new ProviderException(
                     FailureCategory.Busy,
                     "This message is mid-dispatch; reconcile it against Sent before another attempt."),
@@ -565,7 +728,7 @@ public sealed class SendService
             if (!message.CanRetry)
             {
                 return new DispatchOutcome(
-                    ToResult(message, 0, false, false),
+                    ToResult(message, 0, false, false, record.ServerDraft),
                     new ProviderException(FailureCategory.Permanent, "This message will not be retried automatically."),
                     false);
             }
@@ -604,8 +767,10 @@ public sealed class SendService
         message.MarkSent(accepted);
         await PersistAsync(message, record, ct).ConfigureAwait(false);
 
+        var settled = await SettleServerDraftAsync(provider, record, settings, ct).ConfigureAwait(false);
+
         var appended = false;
-        if (settings.AppendToSent)
+        if (settings.AppendToSent && settled.SentCopyStillNeeded)
             appended = await AppendToSentAsync(provider, record, settings, ct).ConfigureAwait(false);
 
         await _audit.SendAsync(
@@ -624,8 +789,140 @@ public sealed class SendService
             },
             ct).ConfigureAwait(false);
 
-        return new DispatchOutcome(ToResult(message, accepted.Code, appended, false), null, true);
+        return new DispatchOutcome(
+            ToResult(message, accepted.Code, appended, false, settled.State, settled.Reason),
+            null,
+            true);
     }
+
+    /// <summary>One atomic MOVE of the server draft into Sent, or nothing. The state is written as moving first, so a crash never causes a second move or copy.</summary>
+    private async Task<SettledDraft> SettleServerDraftAsync(
+        IMailProvider? provider,
+        OutboxRecord record,
+        SendOptions settings,
+        CancellationToken ct)
+    {
+        if (record.ServerDraft is not { } draft) return new SettledDraft(null, ServerDraftReason.None, true);
+        if (draft.State != ServerDraftState.Saved) return Describe(draft.State, draft.Reason);
+
+        var folders = _store.ListFolders(record.AccountId, ct);
+        FolderSummary? drafts = null;
+        foreach (var folder in folders)
+        {
+            if (string.Equals(folder.Path.Value, draft.FolderPath, StringComparison.Ordinal)) drafts = folder;
+        }
+
+        var sent = FindSentFolder(record.AccountId, ct);
+
+        var plan = ServerDraftPolicy.Plan(new ServerDraftPlanInput
+        {
+            Connected = provider is not null,
+            SupportsMove = provider?.Capabilities.Move == true,
+            AppendToSent = settings.AppendToSent,
+            ServerSavesSent = settings.ServerAutoSavesToSent || provider?.Capabilities.GmailExtensions == true,
+            SentFolderKnown = sent is not null,
+            DraftsFolderKnown = drafts is not null,
+        });
+
+        if (!plan.Move || provider is null || sent is null || drafts is null || draft.Uid is not { } uid)
+        {
+            var reason = plan.Move ? ServerDraftReason.UidUnknown : plan.Reason;
+            return await LeaveServerDraftAsync(record, ServerDraftState.Saved, reason, true, ct).ConfigureAwait(false);
+        }
+
+        if (!await _store.TransitionServerDraftAsync(record.Id, ServerDraftState.Saved, ServerDraftState.Moving, ServerDraftReason.None, ct).ConfigureAwait(false))
+        {
+            var current = _store.GetOutbox(record.Id, ct)?.ServerDraft;
+            return current is null ? new SettledDraft(null, ServerDraftReason.None, true) : Describe(current.State, current.Reason);
+        }
+
+        var sentRef = new FolderRef(sent.Id, sent.Path);
+        ServerDraftSettlement settlement;
+        Uid? movedTo = null;
+
+        try
+        {
+            var result = await provider
+                .MoveAtomicAsync(new FolderRef(drafts.Id, drafts.Path), uid, draft.UidValidity, sentRef, ct)
+                .ConfigureAwait(false);
+
+            settlement = ServerDraftPolicy.SettleMove(result.Status);
+            movedTo = result.NewUid;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (ProviderException ex)
+        {
+            settlement = ServerDraftPolicy.SettleFailure(ex.Category == FailureCategory.Network);
+        }
+
+        await _store.TransitionServerDraftAsync(record.Id, ServerDraftState.Moving, settlement.State, settlement.Reason, ct).ConfigureAwait(false);
+
+        if (settlement.State == ServerDraftState.Moved)
+        {
+            var cleared = await ClearDraftFlagAsync(provider, sentRef, movedTo, ct).ConfigureAwait(false);
+            await _audit.InfoAsync(
+                AuditEvents.ServerDraftMoved,
+                record.AccountId,
+                CallerContext.Internal,
+                AuditText.Fields(
+                    ("outbox", AuditText.Number(record.Id)),
+                    ("folder", sent.Path.Value),
+                    ("flag_cleared", AuditText.Bool(cleared))),
+                ct).ConfigureAwait(false);
+        }
+        else
+        {
+            await AuditLeftAsync(record, settlement.Reason, ct).ConfigureAwait(false);
+        }
+
+        return new SettledDraft(settlement.State, settlement.Reason, settlement.SentCopyStillNeeded);
+    }
+
+    private async Task<SettledDraft> LeaveServerDraftAsync(
+        OutboxRecord record,
+        ServerDraftState from,
+        ServerDraftReason reason,
+        bool sentCopyStillNeeded,
+        CancellationToken ct)
+    {
+        await _store.TransitionServerDraftAsync(record.Id, from, ServerDraftState.Left, reason, ct).ConfigureAwait(false);
+        await AuditLeftAsync(record, reason, ct).ConfigureAwait(false);
+        return new SettledDraft(ServerDraftState.Left, reason, sentCopyStillNeeded);
+    }
+
+    private Task AuditLeftAsync(OutboxRecord record, ServerDraftReason reason, CancellationToken ct) =>
+        _audit.WarnAsync(
+            AuditEvents.ServerDraftLeft,
+            record.AccountId,
+            CallerContext.Internal,
+            AuditText.Fields(("outbox", AuditText.Number(record.Id)), ("reason", reason.ToWireValue())),
+            ct);
+
+    /// <summary>A moved message would otherwise keep showing as a draft in Sent; failing to clear it costs nothing else.</summary>
+    private static async Task<bool> ClearDraftFlagAsync(IMailProvider provider, FolderRef sent, Uid? movedTo, CancellationToken ct)
+    {
+        if (movedTo is not { } uid) return false;
+
+        try
+        {
+            await provider.SetFlagsAsync(sent, uid, new FlagDelta { Remove = MessageFlags.Draft }, ct).ConfigureAwait(false);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (ProviderException)
+        {
+            return false;
+        }
+    }
+
+    private static SettledDraft Describe(ServerDraftState state, ServerDraftReason reason) =>
+        new(state, reason, state == ServerDraftState.Left && reason != ServerDraftReason.MoveUnconfirmed);
 
     private async Task<SendResult> FailAsync(
         CallerContext caller,
@@ -661,7 +958,7 @@ public sealed class SendService
             },
             ct).ConfigureAwait(false);
 
-        return ToResult(message, result.Code, false, requiresReconnect);
+        return ToResult(message, result.Code, false, requiresReconnect, record.ServerDraft);
     }
 
     private async Task<bool> AppendToSentAsync(
@@ -712,10 +1009,13 @@ public sealed class SendService
         return true;
     }
 
-    private FolderSummary? FindSentFolder(AccountId accountId, CancellationToken ct)
+    private FolderSummary? FindSentFolder(AccountId accountId, CancellationToken ct) =>
+        FindFolder(accountId, FolderRole.Sent, ct);
+
+    private FolderSummary? FindFolder(AccountId accountId, FolderRole role, CancellationToken ct)
     {
         foreach (var folder in _store.ListFolders(accountId, ct))
-            if (folder.Role == FolderRole.Sent) return folder;
+            if (folder.Role == role) return folder;
 
         return null;
     }
@@ -807,7 +1107,16 @@ public sealed class SendService
             record.PermanentlyFailed,
             record.MaxAttempts is { } budget && budget > 0 ? budget : OutboxMessage.DefaultMaxAttempts);
 
-    private static SendResult ToResult(OutboxMessage message, int statusCode, bool appended, bool requiresReconnect) =>
+    private static SendResult ToResult(OutboxMessage message, int statusCode, bool appended, bool requiresReconnect, ServerDraft? draft) =>
+        ToResult(message, statusCode, appended, requiresReconnect, draft?.State, draft?.Reason ?? ServerDraftReason.None);
+
+    private static SendResult ToResult(
+        OutboxMessage message,
+        int statusCode,
+        bool appended,
+        bool requiresReconnect,
+        ServerDraftState? serverDraft,
+        ServerDraftReason serverDraftReason) =>
         new()
         {
             OutboxId = message.Id,
@@ -821,6 +1130,8 @@ public sealed class SendService
             AppendedToSent = appended,
             RequiresReconnect = requiresReconnect,
             PermanentlyFailed = message.PermanentlyFailed,
+            ServerDraft = serverDraft,
+            ServerDraftReason = serverDraftReason,
         };
 
     private static EmailAddress ParseAccountAddress(AccountConfig account) =>
@@ -836,6 +1147,8 @@ public sealed class SendService
     }
 
     private readonly record struct SendEnvelope(EmailAddress From, IReadOnlyList<EmailAddress> Recipients);
+
+    private readonly record struct SettledDraft(ServerDraftState? State, ServerDraftReason Reason, bool SentCopyStillNeeded);
 
     private readonly record struct DispatchOutcome(SendResult Result, Exception? Failure, bool Dispatched);
 }

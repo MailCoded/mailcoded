@@ -273,7 +273,9 @@ internal sealed class MailTools
         var accountId = new AccountId(args.RequirePositiveInt64("account_id"));
         var draft = ReadDraft(args);
 
-        var preview = await _host.Send.PreviewAsync(_host.Caller, accountId, draft, ct).ConfigureAwait(false);
+        var preview = await _host.Send
+            .PreviewAsync(_host.Caller, accountId, draft, token => _host.Connections.TryProviderAsync(accountId, token), ct)
+            .ConfigureAwait(false);
 
         return Json(
             new SendPreviewResultDto
@@ -294,6 +296,8 @@ internal sealed class MailTools
                 RequiresSmtpUtf8 = preview.RequiresSmtpUtf8,
                 Digest = preview.Digest,
                 SendGate = ToGate(preview.Gate),
+                ServerDraft = preview.ServerDraft.ToWireValue(),
+                ServerDraftReason = preview.ServerDraftReason.ToWireValue(),
                 NextStep = "Nothing has been sent. Give this preview and confirm_token to the human; only they may authorize send_draft.",
             },
             McpJsonContext.Default.SendPreviewResultDto);
@@ -333,6 +337,8 @@ internal sealed class MailTools
                 NextAttemptUtc = Wire.DateOrNull(result.NextAttemptUtc),
                 AppendedToSent = result.AppendedToSent,
                 PermanentlyFailed = result.PermanentlyFailed,
+                ServerDraft = result.ServerDraft?.ToWireValue() ?? "none",
+                ServerDraftReason = result.ServerDraftReason.ToWireValue(),
             },
             McpJsonContext.Default.SendDraftResultDto);
     }

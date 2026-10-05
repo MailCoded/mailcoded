@@ -11,7 +11,7 @@
       "externalBlobCount": 0,
       "formatVersion": 1,
       "mailcodedVersion": "0.0.0-transcript",
-      "schemaVersion": 13,
+      "schemaVersion": 14,
       "tableCounts": {
         "accounts": 1,
         "blobs": 0,

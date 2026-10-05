@@ -24,6 +24,12 @@ public sealed record SendPreviewResult
     /// <summary>ISO 8601 UTC after which the token is rejected with error 1003.</summary>
     public string? ConfirmTokenExpiresUtc { get; init; }
 
+    /// <summary><c>off|saved|failed</c>: whether the draft was also appended to the server's Drafts Folder. A failure never blocks the draft.</summary>
+    public string ServerDraft { get; init; } = "off";
+
+    /// <summary>Why <see cref="ServerDraft"/> is <c>failed</c>: <c>no-drafts-folder|not-connected|append-failed</c>.</summary>
+    public string? ServerDraftReason { get; init; }
+
     /// <summary>Redacted so a logged result cannot hand the token to whoever reads the log.</summary>
     public override string ToString() =>
         $"SendPreviewResult {{ DraftId = {DraftId}, ConfirmToken = [redacted], Expires = {ConfirmTokenExpiresUtc} }}";
@@ -54,4 +60,13 @@ public sealed record SendResult
 
     /// <summary>Sanitized, length-capped SMTP reply line for the audit record.</summary>
     public string? SmtpResponse { get; init; }
+
+    /// <summary>True when mailcoded appended a separate copy to Sent. False when the server draft was moved there instead.</summary>
+    public bool AppendedToSent { get; init; }
+
+    /// <summary><c>none|saved|moving|moved|left</c>: what became of the server draft. <c>moved</c> is now the Sent copy; <c>left</c> still sits in Drafts.</summary>
+    public string ServerDraft { get; init; } = "none";
+
+    /// <summary>Why the server draft was left; the slugs are listed under <c>send</c> in docs/rpc.md.</summary>
+    public string? ServerDraftReason { get; init; }
 }

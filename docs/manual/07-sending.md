@@ -104,6 +104,38 @@ signed by hand is not signed twice. The signature is part of the draft, so `send
 and the confirm token covers it. The terminal client puts the default signature into the compose
 buffer, where you can edit it. HTML mail and per-message signature files are not supported.
 
+### Drafts on the server (opt-in)
+
+By default a draft exists only in mailcoded's own outbox. Turn on `mailcoded account server-drafts on`
+and each new draft is also appended to the account's Drafts folder on the mail server, flagged as a
+draft, so other mail programs show it. Switching it on needs a terminal confirmation (or
+`MAILCODED_ALLOW_SERVER_DRAFTS=1` with `--yes`); switching it off needs nothing. `draft` and
+`send-preview` report `server_draft`: `off`, `saved`, or `failed` (with `server_draft_reason`). A
+failure, such as an unreachable server or an account with no Drafts folder, never stops the draft: it
+simply exists locally only.
+
+The local draft is still the one that is sent, with the same preview and one-time token. The server copy is
+only a copy: it is never read back, and editing it elsewhere changes nothing about what is sent. It holds
+exactly the bytes that will go out, so it has no Bcc header; blind recipients are kept only in mailcoded's
+outbox. Each `draft` makes its own server copy, and one you abandon stays in Drafts for you to discard in
+your usual mail program, because mailcoded never deletes mail on a server.
+
+After a successful send, mailcoded does the one thing that is safe and otherwise leaves the draft alone:
+
+| Situation | What happens to the server draft | Sent copy |
+|---|---|---|
+| The server supports MOVE (RFC 6851), the account keeps a Sent copy, and the draft is still where it was saved | moved into Sent with one command, and its draft flag cleared | that moved message; nothing is appended |
+| The server has no MOVE | left in Drafts (`no-move-capability`) | appended as usual |
+| Gmail, or any server that saves sent mail itself | left in Drafts (`server-saves-sent`) | the server's own |
+| `--no-append` | left in Drafts (`sent-copy-not-wanted`) | none |
+| The Drafts folder was renumbered, or another client replaced the draft | left in Drafts (`uidvalidity-changed`, `draft-gone`) | appended as usual |
+| The connection dropped during the move | left; it may already have moved (`move-unconfirmed`) | none, so there is never a second one |
+| mailcoded stopped between the send and the move | left (`interrupted`), never retried | as before the crash |
+
+`send-draft` reports the outcome as `server_draft` (`moved` or `left`) and, when left, `server_draft_reason`.
+There is no case in which anything is deleted, flagged for deletion or expunged, and a move is attempted at
+most once. On Gmail the draft stays under Gmail's Drafts after a send; discard it there.
+
 Recipients you have written to before can be completed from the terminal client (`ctrl-n`, chapter 4)
 or listed with `mailcoded correspondents` (chapter 5). Each successful send adds its To and Cc
 recipients to that list, once.
@@ -142,8 +174,9 @@ output can spend it. Do not paste it anywhere it will be kept.
 
     mailcoded send-draft <draftId> --confirm-token <token> [--no-append]
 
-Phase two. By default a copy of the sent message is appended to the account's Sent folder;
-`--no-append` skips that. Refusals, by exit code:
+Phase two. By default a copy of the sent message is appended to the account's Sent folder (or,
+for a draft saved to the server, that draft is moved there; see above); `--no-append` skips that.
+Refusals, by exit code:
 
 | Exit | |
 |---|---|

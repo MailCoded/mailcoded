@@ -95,6 +95,8 @@ internal static class AccountConfigJson
                 }
             }
 
+            if (config.SaveDraftsToServer) writer.WriteBoolean("saveDraftsToServer", true);
+
             writer.WriteEndObject();
         }
 
@@ -155,6 +157,7 @@ internal static class AccountConfigJson
             TrustedAuthservIds = StringArray(root, "trustedAuthservIds"),
             Identities = ReadIdentities(root),
             Signatures = ReadSignatures(root),
+            SaveDraftsToServer = ReadSaveDraftsToServer(root),
         };
     }
 
@@ -171,8 +174,14 @@ internal static class AccountConfigJson
             TrustedAuthservIds = StringArray(root, "trustedAuthservIds"),
             Identities = ReadIdentities(root),
             Signatures = ReadSignatures(root),
+            SaveDraftsToServer = ReadSaveDraftsToServer(root),
         };
     }
+
+    private static bool ReadSaveDraftsToServer(JsonElement root) =>
+        root.ValueKind == JsonValueKind.Object
+        && root.TryGetProperty("saveDraftsToServer", out var flag)
+        && flag.ValueKind == JsonValueKind.True;
 
     private static IReadOnlyList<SenderIdentity> ReadIdentities(JsonElement root)
     {

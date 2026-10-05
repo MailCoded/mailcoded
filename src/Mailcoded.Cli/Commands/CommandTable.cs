@@ -106,6 +106,10 @@ internal static class CommandTable
             new VerbSpec(["account", "file"], ["stdin", "none"]),
             AccountSignatureCommand.RunAsync),
 
+        new CliCommandDefinition("account server-drafts",
+            new VerbSpec(["account"], ["yes"]),
+            AccountServerDraftsCommand.RunAsync),
+
         new CliCommandDefinition("account reauth",
             new VerbSpec(["account", "client-id", "tenant"], []),
             AccountReauthCommand.RunAsync),

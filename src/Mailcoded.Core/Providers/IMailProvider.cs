@@ -41,6 +41,9 @@ public interface IMailProvider : IAsyncDisposable
 
     Task<Uid?> MoveAsync(FolderRef from, Uid uid, FolderRef to, CancellationToken ct);
 
+    /// <summary>UID MOVE and nothing else, never copy-flag-expunge. Reports instead of moving if MOVE is missing, UIDVALIDITY differs from <paramref name="expected"/>, or the UID is gone.</summary>
+    Task<AtomicMoveResult> MoveAtomicAsync(FolderRef from, Uid uid, UidValidity expected, FolderRef to, CancellationToken ct);
+
     /// <summary>Appends a raw RFC822 message, used to place a sent copy in Sent.</summary>
     Task<Uid?> AppendAsync(FolderRef folder, byte[] raw, MessageFlags flags, DateTimeOffset receivedUtc, CancellationToken ct);
 

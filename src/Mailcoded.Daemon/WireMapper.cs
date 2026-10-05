@@ -283,6 +283,7 @@ internal static class WireMapper
                 .ToArray(),
             Signatures = account.Signatures.Items.Select(x => new SignatureDto { Name = x.Name, Text = x.Text }).ToArray(),
             DefaultSignatureNew = account.Signatures.DefaultForNew,
+            SaveDraftsToServer = account.SaveDraftsToServer,
             DefaultSignatureReply = account.Signatures.DefaultForReply,
         };
     }
@@ -355,6 +356,8 @@ internal static class WireMapper
             CreatedUtc = IsoTime.ToWire(row.CreatedUtc),
             NextAttemptUtc = row.NextAttemptUtc is { } next ? IsoTime.ToWire(next) : null,
             Confirmed = row.ConfirmedUtc is not null,
+            ServerDraft = row.ServerDraft?.State.ToWireValue(),
+            ServerDraftReason = row.ServerDraft?.Reason.ToWireValue(),
         };
     }
 

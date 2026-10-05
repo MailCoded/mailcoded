@@ -36,6 +36,7 @@ internal static class AccountListCommand
                 writer.WriteNumber("messages", TotalMessages(folders));
                 writer.WriteNumber("unread", TotalUnread(folders));
                 JsonFields.WriteDate(writer, "last_sync_utc", LastSync(folders));
+                writer.WriteBoolean("save_drafts_to_server", account.SaveDraftsToServer);
                 writer.WriteStartArray("trusted_authserv_ids");
                 foreach (var id in account.EffectiveAuthservTrust().Patterns) writer.WriteStringValue(id);
                 writer.WriteEndArray();
@@ -77,6 +78,7 @@ internal static class AccountListCommand
             var trusted = account.EffectiveAuthservTrust().Patterns;
             output.Line($"    verified  {(trusted.Count == 0 ? "no authserv-id trusted" : "trusts " + string.Join(", ", trusted))}");
 
+            if (account.SaveDraftsToServer) output.Line("    drafts    also saved to the server's Drafts Folder");
             if (account.Identities.Count > 0)
                 output.Line($"    sends as  {string.Join(", ", account.Identities.Select(i => i.Address.Value))}");
             if (!account.Signatures.IsEmpty)

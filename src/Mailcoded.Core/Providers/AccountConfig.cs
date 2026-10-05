@@ -35,6 +35,9 @@ public sealed record AccountConfig
 
     public SignatureBook Signatures { get; init; } = SignatureBook.Empty;
 
+    /// <summary>When true, a draft is also appended to the server's Drafts Folder. Off unless the user turned it on.</summary>
+    public bool SaveDraftsToServer { get; init; }
+
     public Domain.Signals.AuthservTrust EffectiveAuthservTrust() =>
         ProviderPresets.TrustedAuthservIdsForImapHost(Imap.Host).Union(Domain.Signals.AuthservTrust.From(TrustedAuthservIds));
 }

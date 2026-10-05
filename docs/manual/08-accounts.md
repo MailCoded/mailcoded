@@ -8,6 +8,7 @@
     mailcoded account trust   [--account <id|email>] [--authserv-id <id>]... [--none] [--yes]
     mailcoded account identity  <list|add|forget> [<address>] [--name <text>] [--reply-to <addr>] [--yes]
     mailcoded account signature <list|set|forget|default> [<name>] [--file <path> | --stdin] [--none]
+    mailcoded account server-drafts [on|off] [--account <id|email>] [--yes]
     mailcoded account add     ...                              (chapter 2)
     mailcoded account forget  --account <id|email> [--yes]
 
@@ -115,6 +116,23 @@ for confirmation at a terminal, and an unattended run needs `--yes` **and**
 `MAILCODED_ALLOW_IDENTITY_CHANGE=1`. It is absent from the MCP surface, and an agent must not run it.
 `forget` only narrows the list and needs no confirmation. Every change writes an audit row. `setup` and
 `account add` leave an existing account's identities alone.
+
+## `account server-drafts`
+
+    mailcoded account server-drafts            show the setting
+    mailcoded account server-drafts on [--yes]
+    mailcoded account server-drafts off
+
+Whether this account's drafts are also appended to the Drafts folder on the mail server, so your other
+mail programs show them. It is off by default, per account. What it does to a draft and to a send is in
+chapter 7 (*Drafts on the server*): the local draft is still what gets sent, and after a send the server
+draft is moved into Sent when the server supports MOVE and otherwise left in Drafts, never deleted.
+
+Switching it on makes every later draft visible in a place other programs can edit and send from, so `on`
+is gated like `account trust`: it asks for confirmation at a terminal, and an unattended run needs `--yes`
+**and** `MAILCODED_ALLOW_SERVER_DRAFTS=1`. `off` only narrows what happens and needs no confirmation. Every
+change writes an audit row (`server_draft_setting`). It is absent from the MCP surface, and an agent must not
+run it. `account list` shows it, and `setup` and `account add` leave an existing account's choice alone.
 
 ## `account signature`
 

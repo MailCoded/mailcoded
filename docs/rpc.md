@@ -246,6 +246,10 @@ reply start with (absent when none is set). There is no method that changes them
 with `mailcoded account identity` and `mailcoded account signature`, and the daemon reads the
 current values on every call. An older daemon sends none of these fields; treat them as absent.
 
+`saveDraftsToServer` is true when the account also appends each draft to its server's Drafts
+Folder (see `send.preview`). It is off unless the user turned it on with
+`mailcoded account server-drafts`; no RPC method changes it.
+
 ### `folder.list`
 `{ "accountId": 1 }` → `{ "folders": [FolderDto] }`
 
@@ -523,7 +527,8 @@ whose `role` is `trash` is as close as the protocol gets, and that is a normal m
                "bodyTruncated": false, "sizeBytes": 812,
                "messageId": "…", "requiresSmtpUtf8": false, "warnings": [] },
   "confirmToken": "…",
-  "confirmTokenExpiresUtc": "2026-08-30T12:39:56.000Z" }
+  "confirmTokenExpiresUtc": "2026-08-30T12:39:56.000Z",
+  "serverDraft": "off" }
 ```
 
 Phase one of the two-phase send. Builds the message, stores it in the outbox as a draft, and mints
@@ -557,6 +562,16 @@ signature included, and `bodyTruncated` refers to that final body. A client that
 body itself, as an editor does, can instead insert the text from `account.list` and leave all three
 fields unset.
 
+**Server copy of the draft.** On an account that has `saveDraftsToServer` set, the draft is also
+appended to the server's Drafts-role Folder, flagged `\Draft` and `\Seen`, so the user's other mail
+clients show it. `serverDraft` says what happened: `off` (the account does not do this), `saved`, or
+`failed`; with `failed`, `serverDraftReason` is `no-drafts-folder`, `not-connected` or
+`append-failed`. A failure never fails the call: the draft exists locally and can be sent. The local
+draft stays the only thing `send` ever transmits; the server copy is never read back. The appended
+bytes are the ones that will be sent, so they carry no `Bcc` header and blind recipients live only
+in the local outbox. Each preview makes its own server copy, and an abandoned one stays in Drafts
+(mailcoded removes nothing from a server).
+
 **Show the preview to a human. The preview is the supervision.** Do not mint a token and consume
 it in the same automated step.
 
@@ -564,7 +579,8 @@ Never log `confirmToken`.
 
 ### `send`
 `{ "accountId": 1, "draftId": 17, "confirmToken": "…" }` →
-`{ "messageId": "…", "state": "sent", "outboxId": 17, "smtpResponse": "250 2.0.0 OK" }`
+`{ "messageId": "…", "state": "sent", "outboxId": 17, "smtpResponse": "250 2.0.0 OK",
+  "appendedToSent": false, "serverDraft": "moved" }`
 
 Phase two. `state` ∈ `queued | sending | sent | failed`. A row is `queued` from the moment
 `send.preview` builds it, but only a consumed confirm token makes it eligible to be sent: an
@@ -575,6 +591,19 @@ writes a `sync_log` row.
 - A closed Core gate → **1006**. The agent-surface gates are `MAILCODED_SEND=1`, every recipient
   matching `MAILCODED_APPROVED_RECIPIENTS`, and ≤5 sends per rolling hour.
 - `smtpResponse` is sanitized and length-capped for the audit record.
+- `serverDraft` ∈ `none | saved | moving | moved | left` reports the server copy made by
+  `send.preview` (`none`: there is none). After a send is accepted, the draft is **moved** into the
+  Sent Folder with one `UID MOVE` (RFC 6851) and its `\Draft` flag cleared when, and only when,
+  the server advertises MOVE, the account keeps a copy in Sent, the Folder's UIDVALIDITY is still
+  the one recorded and the draft is still at its recorded UID. Then `appendedToSent` is false: the
+  moved draft is the Sent copy, byte for byte what was sent. In every other case the draft is
+  **left** in Drafts for the user to file, `serverDraft` is `left` and `serverDraftReason` says why:
+  `no-move-capability`, `sent-copy-not-wanted`, `server-saves-sent` (Gmail), `no-sent-folder`,
+  `no-drafts-folder`, `not-connected`, `uid-unknown`, `uidvalidity-changed`, `draft-gone` (another
+  client replaced it), `move-refused`, `move-unconfirmed` (the connection dropped mid-move, so no
+  second copy is made) or `interrupted` (a crash between the send and the move). Except for
+  `move-unconfirmed`, `appendedToSent` then follows the usual rule. No outcome deletes, flags
+  `\Deleted` or expunges anything, and a move is never retried.
 
 ### `watch.subscribe`
 `{ "accountId": 1, "folderIds": [12, 13] }` → `{}`
@@ -710,7 +739,9 @@ account has no SMTP configuration. Details are short and redacted, never a crede
 `{ "accountId": 1?, "state": "queued"?, "limit": 200? }` → `{ "entries": [ OutboxEntryDto ] }`
 
 No raw bytes and no body. `confirmed` is false until a confirm token was consumed; such a row is a
-draft the retry loop will never dispatch, however long it sits in `queued`.
+draft the retry loop will never dispatch, however long it sits in `queued`. `serverDraft` and
+`serverDraftReason` take the values documented under `send`; both are absent when the draft was
+never saved to the server.
 
 ### `provider.detect`
 

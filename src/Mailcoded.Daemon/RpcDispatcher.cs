@@ -660,6 +660,7 @@ internal sealed class RpcDispatcher
                 InReplyTo = inReplyTo,
                 References = references,
             },
+            token => host.Providers.TryGetProviderAsync(accountId, token),
             ct).ConfigureAwait(false);
 
         return RpcPayloads.Value(
@@ -671,6 +672,8 @@ internal sealed class RpcDispatcher
                 ConfirmTokenExpiresUtc = DaemonInfo.Deterministic
                     ? null
                     : IsoTime.ToWire(host.Clock.UtcNow.AddMilliseconds(preview.TokenLifetimeMs)),
+                ServerDraft = preview.ServerDraft.ToWireValue(),
+                ServerDraftReason = preview.ServerDraftReason.ToWireValue(),
             },
             ProtocolJsonContext.Default.SendPreviewResult);
     }
@@ -703,6 +706,9 @@ internal sealed class RpcDispatcher
                 State = result.State.ToWireValue(),
                 OutboxId = result.OutboxId,
                 SmtpResponse = AuditText.Sanitize(result.SmtpResponse, 200),
+                AppendedToSent = result.AppendedToSent,
+                ServerDraft = result.ServerDraft?.ToWireValue() ?? "none",
+                ServerDraftReason = result.ServerDraftReason.ToWireValue(),
             },
             ProtocolJsonContext.Default.SendResult);
     }

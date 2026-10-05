@@ -197,4 +197,9 @@ public sealed record OutboxEntryDto
 
     /// <summary>False until a confirm token was consumed; such a row is a draft, never sent.</summary>
     public bool Confirmed { get; init; }
+
+    /// <summary>Same values as the <c>send</c> result's <c>serverDraft</c>; null when the draft was never saved to the server.</summary>
+    public string? ServerDraft { get; init; }
+
+    public string? ServerDraftReason { get; init; }
 }

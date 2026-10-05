@@ -208,6 +208,27 @@ public sealed partial class ImapProvider : IMailProvider
             return copied is { } c && c.Id > 0 ? new Uid(c.Id) : null;
         }, token), ct);
 
+    public Task<AtomicMoveResult> MoveAtomicAsync(FolderRef from, Uid uid, UidValidity expected, FolderRef to, CancellationToken ct) =>
+        queue.RunAsync<AtomicMoveResult>(token => GuardAsync<AtomicMoveResult>("UID MOVE", async inner =>
+        {
+            if (!caps.Move) return AtomicMoveResult.Of(AtomicMoveStatus.Unsupported);
+
+            var client = await RequireLiveClientAsync(inner).ConfigureAwait(false);
+            var source = await ResolveFolderAsync(client, from.Path, inner).ConfigureAwait(false);
+            var destination = await ResolveFolderAsync(client, to.Path, inner).ConfigureAwait(false);
+            await OpenAsync(source, true, inner).ConfigureAwait(false);
+
+            if (source.Access != FolderAccess.ReadWrite) return AtomicMoveResult.Of(AtomicMoveStatus.Unsupported);
+            if (expected.IsUnknown || source.UidValidity != expected.Value) return AtomicMoveResult.Of(AtomicMoveStatus.EpochChanged);
+
+            var id = new UniqueId(uid.Value);
+            var present = await source.FetchAsync(new[] { id }, MessageSummaryItems.UniqueId, inner).ConfigureAwait(false);
+            if (present.Count == 0) return AtomicMoveResult.Of(AtomicMoveStatus.SourceGone);
+
+            var moved = await source.MoveToAsync(id, destination, inner).ConfigureAwait(false);
+            return new AtomicMoveResult(AtomicMoveStatus.Moved, moved is { } m && m.Id > 0 ? new Uid(m.Id) : null);
+        }, token), ct);
+
     /// <summary>Convenience form for small messages; anything large belongs on the streaming overload.</summary>
     public async Task<Uid?> AppendAsync(FolderRef folder, byte[] raw, MailcodedFlags flags, DateTimeOffset receivedUtc, CancellationToken ct)
     {

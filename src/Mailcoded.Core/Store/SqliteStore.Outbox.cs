@@ -9,7 +9,8 @@ public sealed partial class SqliteStore
 {
     private const string OutboxColumns =
         "id, account_id, message_id, state, smtp_response, attempts, next_attempt_utc, created_utc, "
-        + "permanently_failed, enhanced_status, last_attempt_utc, max_attempts, envelope_json, confirmed_utc";
+        + "permanently_failed, enhanced_status, last_attempt_utc, max_attempts, envelope_json, confirmed_utc, "
+        + "server_draft_folder, server_draft_uidvalidity, server_draft_uid, server_draft_state, server_draft_reason";
 
     private const string SelectOutboxMeta = "SELECT " + OutboxColumns + " FROM outbox";
 
@@ -231,9 +232,81 @@ public sealed partial class SqliteStore
             MaxAttempts = maxAttempts is { } budget ? (int?)budget : null,
             Envelope = OutboxEnvelopeJson.Read(Db.Str(reader, 12)),
             ConfirmedUtc = Db.IntOrNull(reader, 13) is { } confirmed ? (DateTimeOffset?)FromUnixMs(confirmed) : null,
-            Raw = includeRaw ? Db.Blob(reader, 14) ?? Array.Empty<byte>() : Array.Empty<byte>(),
+            ServerDraft = ReadServerDraft(reader),
+            Raw = includeRaw ? Db.Blob(reader, 19) ?? Array.Empty<byte>() : Array.Empty<byte>(),
         };
     }
+
+    private static ServerDraft? ReadServerDraft(SqliteDataReader reader)
+    {
+        if (!ServerDraftWire.TryParseState(Db.Str(reader, 17), out var state)) return null;
+        if (Db.Str(reader, 14) is not { Length: > 0 } folder) return null;
+
+        var validity = Db.IntOrNull(reader, 15);
+        var uid = Db.IntOrNull(reader, 16);
+
+        return new ServerDraft
+        {
+            FolderPath = folder,
+            UidValidity = new UidValidity(validity is > 0 and <= uint.MaxValue ? (uint)validity : 0),
+            Uid = uid is { } value && Uid.TryCreate(value, out var parsed) ? parsed : null,
+            State = state,
+            Reason = ServerDraftWire.ParseReason(Db.Str(reader, 18)),
+        };
+    }
+
+    /// <summary>Records the server copy of a draft. Only ever written once, right after the APPEND.</summary>
+    public Task RecordServerDraftAsync(long outboxId, ServerDraft draft, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+
+        return WriteAsync(context =>
+        {
+            context.Session
+                .Prepare(
+                    "UPDATE outbox SET server_draft_folder = $folder, server_draft_uidvalidity = $validity, "
+                    + "server_draft_uid = $uid, server_draft_state = $state, server_draft_reason = $reason "
+                    + "WHERE id = $id AND server_draft_state IS NULL",
+                    "$folder", "$validity", "$uid", "$state", "$reason", "$id")
+                .SetText(0, draft.FolderPath)
+                .SetInt(1, draft.UidValidity.Value)
+                .SetIntOrNull(2, draft.Uid is { } uid ? (long?)uid.Value : null)
+                .SetText(3, draft.State.ToWireValue())
+                .SetText(4, draft.Reason.ToWireValue())
+                .SetInt(5, outboxId)
+                .Execute();
+        }, ct);
+    }
+
+    /// <summary>Compare-and-swap on the server draft's state; exactly one caller wins a transition, so two processes never both move it.</summary>
+    public Task<bool> TransitionServerDraftAsync(
+        long outboxId,
+        ServerDraftState from,
+        ServerDraftState to,
+        ServerDraftReason reason,
+        CancellationToken ct) =>
+        WriteAsync(context =>
+            context.Session
+                .Prepare(
+                    "UPDATE outbox SET server_draft_state = $to, server_draft_reason = $reason "
+                    + "WHERE id = $id AND server_draft_state = $from",
+                    "$to", "$reason", "$id", "$from")
+                .SetText(0, to.ToWireValue())
+                .SetText(1, reason.ToWireValue())
+                .SetInt(2, outboxId)
+                .SetText(3, from.ToWireValue())
+                .Execute() == 1, ct);
+
+    /// <summary>Marks server drafts whose send finished but whose move did not as left; a move in flight may have happened, so none is retried.</summary>
+    public Task<int> LeaveInterruptedServerDraftsAsync(CancellationToken ct) =>
+        WriteAsync(context =>
+            context.Session
+                .Prepare(
+                    "UPDATE outbox SET server_draft_state = 'left', server_draft_reason = $reason "
+                    + "WHERE state = 'sent' AND server_draft_state IN ('saved','moving')",
+                    "$reason")
+                .SetText(0, ServerDraftReason.Interrupted.ToWireValue())
+                .Execute(), ct);
 
     private const string SelectConfirmToken =
         "SELECT salt, token_hash, expires_utc FROM confirm_tokens WHERE outbox_id = $id";

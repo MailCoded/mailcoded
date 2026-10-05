@@ -121,6 +121,9 @@ public sealed record AccountDto
 
     /// <summary>Name of the signature a reply starts with, when one is set.</summary>
     public string? DefaultSignatureReply { get; init; }
+
+    /// <summary>True when a draft is also appended to the server's Drafts Folder. Off unless the user turned it on.</summary>
+    public bool SaveDraftsToServer { get; init; }
 }
 
 public sealed record IdentityDto

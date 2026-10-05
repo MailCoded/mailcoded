@@ -63,6 +63,11 @@ export interface AccountDto {
   defaultSignatureNew?: string;
   /** Name of the signature a reply starts with, when one is set. */
   defaultSignatureReply?: string;
+  /**
+   * True when a draft is also appended to the server's Drafts Folder. Off unless the user
+   * turned it on.
+   */
+  saveDraftsToServer: boolean;
 }
 
 export interface AccountHealthDto {
@@ -528,6 +533,12 @@ export interface OutboxEntryDto {
   nextAttemptUtc?: string;
   /** False until a confirm token was consumed; such a row is a draft, never sent. */
   confirmed: boolean;
+  /**
+   * Same values as the `send` result's `serverDraft`; null when the draft was never saved to
+   * the server.
+   */
+  serverDraft?: string;
+  serverDraftReason?: string;
 }
 
 /** `outbox.list` — what is queued, sending, sent or stuck. Carries no message body. */
@@ -693,6 +704,16 @@ export interface SendPreviewResult {
   confirmToken: string;
   /** ISO 8601 UTC after which the token is rejected with error 1003. */
   confirmTokenExpiresUtc?: string;
+  /**
+   * `off|saved|failed`: whether the draft was also appended to the server's Drafts Folder. A
+   * failure never blocks the draft.
+   */
+  serverDraft: string;
+  /**
+   * Why SendPreviewResult.ServerDraft is `failed`:
+   * `no-drafts-folder|not-connected|append-failed`.
+   */
+  serverDraftReason?: string;
 }
 
 export interface SendResult {
@@ -703,6 +724,18 @@ export interface SendResult {
   outboxId?: number;
   /** Sanitized, length-capped SMTP reply line for the audit record. */
   smtpResponse?: string;
+  /**
+   * True when mailcoded appended a separate copy to Sent. False when the server draft was moved
+   * there instead.
+   */
+  appendedToSent: boolean;
+  /**
+   * `none|saved|moving|moved|left`: what became of the server draft. `moved` is now the Sent
+   * copy; `left` still sits in Drafts.
+   */
+  serverDraft: string;
+  /** Why the server draft was left; the slugs are listed under `send` in docs/rpc.md. */
+  serverDraftReason?: string;
 }
 
 /** `shutdown` — drain and exit. */

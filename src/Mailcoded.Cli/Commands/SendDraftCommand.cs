@@ -36,7 +36,9 @@ internal static class SendDraftCommand
                 $"Draft {draftId} belongs to account {record.AccountId.Value}, which is gone.");
 
         var sender = await host.ConnectSenderAsync(account, ct).ConfigureAwait(false);
-        var provider = append ? await host.ConnectProviderAsync(account, ct).ConfigureAwait(false) : null;
+        var provider = append || record.ServerDraft is { State: ServerDraftState.Saved }
+            ? await host.ConnectProviderAsync(account, ct).ConfigureAwait(false)
+            : null;
 
         var result = await host.Send.SendAsync(
             host.Caller,
@@ -59,6 +61,8 @@ internal static class SendDraftCommand
             writer.WriteNumber("attempts", result.Attempts);
             JsonFields.WriteDate(writer, "next_attempt_utc", result.NextAttemptUtc);
             writer.WriteBoolean("appended_to_sent", result.AppendedToSent);
+            writer.WriteString("server_draft", result.ServerDraft?.ToWireValue() ?? "none");
+            JsonFields.WriteText(writer, "server_draft_reason", result.ServerDraftReason.ToWireValue());
             writer.WriteBoolean("permanently_failed", result.PermanentlyFailed);
             writer.WriteNumber("remaining_sends_in_window", host.Policy.RemainingSendsInWindow());
             output.EndJson(writer);
@@ -68,7 +72,9 @@ internal static class SendDraftCommand
         output.Line($"message_id: {result.MessageId.Value}");
         output.Line($"state:      {result.State.ToWireValue()}");
         output.Line($"smtp:       {result.StatusCode} {SafeText.Line(result.SmtpResponse, 200)}");
-        output.Line($"sent copy:  {(result.AppendedToSent ? "appended to Sent" : "not appended")}");
+        output.Line($"sent copy:  {(result.AppendedToSent ? "appended to Sent" : result.ServerDraft == ServerDraftState.Moved ? "the server draft was moved to Sent" : "not appended")}");
+        if (result.ServerDraft is not null)
+            output.Line($"server draft: {ServerDraftText.Describe(result.ServerDraft, result.ServerDraftReason)}");
         return ExitCodes.Ok;
     }
 }

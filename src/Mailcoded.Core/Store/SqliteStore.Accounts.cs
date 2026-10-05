@@ -150,6 +150,12 @@ public sealed partial class SqliteStore
             ct);
     }
 
+    public Task<bool> SetSaveDraftsToServerAsync(AccountId accountId, bool enabled, CancellationToken ct) =>
+        EditAccountSettingAsync(
+            accountId,
+            current => current.SaveDraftsToServer == enabled ? null : current with { SaveDraftsToServer = enabled },
+            ct);
+
     private Task<bool> EditAccountSettingAsync(AccountId accountId, Func<AccountConfig, AccountConfig?> change, CancellationToken ct) =>
         WriteAsync(context =>
         {

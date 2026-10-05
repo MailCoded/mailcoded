@@ -15,4 +15,5 @@ public static class IntegrationTraits
     public const string Progress = "progress";
     public const string Identities = "identities";
     public const string Correspondents = "correspondents";
+    public const string ServerDrafts = "server-drafts";
 }

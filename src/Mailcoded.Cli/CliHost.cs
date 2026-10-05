@@ -149,6 +149,10 @@ internal sealed class CliHost : IAsyncDisposable
             "This store holds several accounts; pass --account <id|email>. Known: " + string.Join(", ", ids));
     }
 
+    /// <summary>A connection that is made only if something asks for it, reusing <paramref name="existing"/> when there is one.</summary>
+    public Func<CancellationToken, Task<IMailProvider?>> LazyProvider(AccountConfig account, IMailProvider? existing = null) =>
+        async token => existing ?? await ConnectProviderAsync(account, token).ConfigureAwait(false);
+
     public async Task<IMailProvider> ConnectProviderAsync(AccountConfig account, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(account);

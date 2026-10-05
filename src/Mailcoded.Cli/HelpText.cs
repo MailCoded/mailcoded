@@ -46,6 +46,7 @@ ACCOUNT ADMINISTRATION
   account trust             which Authentication-Results authserv-ids this account trusts
   account identity          extra From addresses this account may send as
   account signature         named plaintext signatures and their defaults
+  account server-drafts     also save drafts to the server's Drafts Folder (off by default)
   account add               register an account non-interactively, for scripts
   account forget            remove an account and its cached mail from this machine
 
@@ -106,6 +107,7 @@ ENVIRONMENT
   MAILCODED_ENABLE_SQL=1          unlocks 'query --sql'
   MAILCODED_ALLOW_BACKUP=1        unlocks 'backup' and 'backup-verify' from the agent surface
   MAILCODED_ALLOW_IDENTITY_CHANGE=1  with --yes, lets 'account identity add' run unattended
+  MAILCODED_ALLOW_SERVER_DRAFTS=1    with --yes, lets 'account server-drafts on' run unattended
   MAILCODED_SECRET_BACKEND        auto | file | libsecret | keychain | wincred
   MAILCODED_AGENT_HOST            label recorded in the audit trail
 
@@ -248,7 +250,9 @@ OUTPUT
   "draft_id" is the handle send-preview and send-draft take. "send" reports whether
   the send gate is currently open, so you learn before composing a whole reply chain.
   "signature" names the signature that was inserted, or is null. When it is inserted it
-  follows the body after a "-- " line.
+  follows the body after a "-- " line. "server_draft" is "off" unless the account saves drafts
+  to the server (see 'account server-drafts'); then it is "saved" or "failed", and a failure
+  never stops the local draft.
 
 EXAMPLE
   printf 'Thanks — looking now.\n' > /tmp/reply.txt
@@ -342,7 +346,13 @@ GATES, ALL ENFORCED IN CORE
 
 OPTIONS
   --confirm-token <t>   required
-  --no-append           do not copy the sent message into the Sent folder
+  --no-append           do not copy the sent message into the Sent folder (a server draft is then left alone)
+
+SERVER DRAFT
+  When the draft was also saved to the server, "server_draft" reports what happened to it:
+  "moved" (the draft is now the Sent copy, moved with one MOVE and no separate copy made), or
+  "left" with a "server_draft_reason" (it stays in Drafts for your mail client to file).
+  Nothing is ever deleted: no flag-and-expunge, whatever the server supports.
 
 EXAMPLE
   mailcoded send-draft 17 --confirm-token 9tR... --json
@@ -584,6 +594,38 @@ EXAMPLE
   mailcoded account identity add --account me@example.com sales@example.com --name 'Sales'
 """;
 
+    private const string AccountServerDrafts = """
+mailcoded account server-drafts [on|off] [--account <id|email>] [--yes] [--json]
+
+  Whether this account's drafts are also appended to the server's Drafts Folder, flagged
+  \Draft and \Seen, so your other mail clients show them. Off by default. The local draft,
+  the preview, the one-time token and send-draft work the same either way, and the local
+  copy is the one that is sent. A server that cannot be reached never stops a draft.
+
+  With no action it shows the setting.
+
+AFTER A SEND
+  If the server supports MOVE (RFC 6851), the account keeps a copy in Sent, and the draft is
+  still where it was saved, mailcoded moves it into Sent with one UID MOVE and clears \Draft.
+  No separate copy is appended then. In every other case the draft is left in Drafts and
+  send-draft reports server_draft "left" with the reason. Nothing is ever deleted or expunged.
+  A server that saves sent mail itself (Gmail) always gets "left".
+
+  The server copy is the exact bytes that are sent: it has no Bcc header, so blind
+  recipients exist only in the local outbox.
+
+OPTIONS
+  --account <id|email>  which account (required when the store holds more than one)
+  --yes                 confirm 'on' unattended (needs MAILCODED_ALLOW_SERVER_DRAFTS=1)
+  --json                machine-readable result
+
+  Turning it on needs a terminal confirmation, or MAILCODED_ALLOW_SERVER_DRAFTS=1 together
+  with --yes. Turning it off needs neither. Every change writes an audit row.
+
+EXAMPLE
+  mailcoded account server-drafts on --account me@example.com
+""";
+
     private const string AccountSignature = """
 mailcoded account signature <list|set|forget|default> [<name>] [--account <id|email>] [--file <path>|--stdin] [--none] [--json]
 
@@ -734,6 +776,7 @@ mailcoded version [--json]
         "account trust" => AccountTrust,
         "account identity" => AccountIdentity,
         "account signature" => AccountSignature,
+        "account server-drafts" => AccountServerDrafts,
         "reply" => Reply,
         "account" or "account add" => AccountAdd,
         "import-eml" => ImportEml,

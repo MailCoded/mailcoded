@@ -51,6 +51,7 @@ public sealed class GoldenTranscriptTests : IClassFixture<DaemonTranscriptFixtur
     [InlineData("send-without-token")]
     [InlineData("send-preview-sender-not-allowed")]
     [InlineData("send-preview-unknown-signature")]
+    [InlineData("outbox-list")]
     [InlineData("store-backup-uninitialized")]
     [InlineData("store-backup-verify-uninitialized")]
     [InlineData("unknown-method")]

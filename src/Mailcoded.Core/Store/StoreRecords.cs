@@ -171,6 +171,9 @@ public sealed record OutboxRecord
 
     /// <summary>When a human confirmed this send. Null means it is a preview nobody agreed to.</summary>
     public DateTimeOffset? ConfirmedUtc { get; init; }
+
+    /// <summary>The copy of this draft saved to the server's Drafts Folder, or null when none was.</summary>
+    public ServerDraft? ServerDraft { get; init; }
 }
 
 /// <summary>The addressed envelope of a queued send, including the Bcc list the raw bytes omit.</summary>

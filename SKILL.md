@@ -42,8 +42,12 @@ store, does one thing, prints, and exits. Nothing runs in the background.
    refused with exit 2 and the error name `sender_not_allowed`. Do not run
    `mailcoded account identity add` or set `MAILCODED_ALLOW_IDENTITY_CHANGE`; widening who mail can
    claim to be from is a human decision.
-
-8. **Never make or read a backup unless the human gave you `MAILCODED_ALLOW_BACKUP=1`.**
+9. **Do not turn on server drafts.** `mailcoded account server-drafts on` makes every draft also appear in
+   the user's own Drafts folder on the mail server; it needs a terminal confirmation or
+   `MAILCODED_ALLOW_SERVER_DRAFTS=1`, which is the human's to set. If the human turned it on,
+   `draft` reports `server_draft` (`saved`, `failed` or `off`) and `send-draft` reports whether the draft
+   was `moved` into Sent or `left` in Drafts; neither changes what you do, and nothing is ever deleted.
+10. **Never make or read a backup unless the human gave you `MAILCODED_ALLOW_BACKUP=1`.**
    `mailcoded backup <dir>` writes a plaintext copy of the whole store; without the variable
    it refuses (exit 4). Do not set the variable yourself, do not try another route to a copy of
    `store.db` or the blobs folder, and never restore: there is no restore verb.

@@ -65,6 +65,8 @@ connection test.
 | exit 5, `rate-limited` | five sends this hour already | wait `retry_after_ms` |
 | a recipient refused | not on `MAILCODED_APPROVED_RECIPIENTS` | add it, or send from the TUI |
 | `outbox` shows `failed` with an SMTP reply | the server rejected the message | the reply says why |
+| `server_draft: failed` on `draft` | the draft was not saved to the server (`no-drafts-folder`, `not-connected` or `append-failed`); it exists locally and can be sent | nothing is lost; run `mailcoded sync` so mailcoded knows the Drafts folder, then draft again |
+| `server_draft: left` after `send-draft` | the draft was not moved into Sent; `server_draft_reason` says why (no MOVE, Gmail, `--no-append`, the folder changed, an interruption) | the message was sent; discard or file the leftover draft in your mail program, since mailcoded never deletes server mail |
 
 ### Moving and removing
 

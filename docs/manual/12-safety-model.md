@@ -52,6 +52,17 @@ terminal confirmation, or `MAILCODED_ALLOW_IDENTITY_CHANGE=1` with `--yes`, and 
 tool for it. Your mail server still decides whether it accepts the address. Signatures are not gated;
 their text is in every send preview, and they change neither the sender nor the recipients.
 
+## Drafts on the server
+
+With `account server-drafts on` (chapter 8), `draft`, `reply` and the MCP `send_preview` also put the
+draft in the account's own Drafts folder on your mail server. That needs no send unlock, because it is not
+sending and not exfiltration: the message lands only in your own account, flagged as a draft, and nothing
+leaves it until you send it. What the unlock protects is turning the setting on, since an agent that could
+do that would put its drafts in front of every mail program you use. Each server copy is made from the
+bytes that would be sent, so it has no Bcc header. After a send the copy is moved into Sent with one MOVE
+when the server supports it, and left where it is otherwise. mailcoded never deletes, flags for deletion
+or expunges mail on a server, and a move is tried once.
+
 ## The people you write to
 
 `mailcoded correspondents` and the terminal client's `ctrl-n` offer the people you have written to. The
