@@ -6,6 +6,10 @@ namespace Mailcoded.Cli.Commands;
 
 internal static class FoldersCommand
 {
+    private const int MaxIndentLevels = 12;
+    private const int NameColumns = 60;
+    private const int CountColumns = 38;
+
     public static async Task<int> RunAsync(CliHost host, CommandLine line, CliOutput output, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(host);
@@ -15,6 +19,7 @@ internal static class FoldersCommand
         line.RejectExtraPositional(0);
         var account = host.RequireAccount(line, ct);
         var folders = host.Store.ListFolders(account.Id, ct);
+        var tree = FolderTree.Arrange(folders);
 
         await host.Audit.InfoAsync(
             CliAuditEvents.Folders,
@@ -32,11 +37,18 @@ internal static class FoldersCommand
             JsonFields.WritePaging(writer, null, false);
 
             writer.WriteStartArray("folders");
-            foreach (var folder in folders)
+            foreach (var node in tree)
             {
+                if (node.Folder is not { } folder) continue;
+
                 writer.WriteStartObject();
                 writer.WriteNumber("id", folder.Id.Value);
                 writer.WriteString("name", folder.Path.Value);
+                writer.WriteString("leaf", node.Row.Leaf);
+                writer.WriteNumber("depth", node.Row.Depth);
+                JsonFields.WriteText(writer, "delimiter", folder.Path.IsFlat ? null : folder.Path.Delimiter.ToString());
+                if (node.Row.ParentId is { } parent) writer.WriteNumber("parent_id", parent);
+                else writer.WriteNull("parent_id");
                 JsonFields.WriteText(writer, "role", folder.Role.ToWireValue());
                 writer.WriteNumber("unread", folder.UnreadCount);
                 writer.WriteNumber("total", folder.TotalCount);
@@ -51,11 +63,20 @@ internal static class FoldersCommand
             return ExitCodes.Ok;
         }
 
-        foreach (var folder in folders)
+        foreach (var node in tree)
         {
+            var indent = new string(' ', Math.Min(node.Row.Depth, MaxIndentLevels) * 2);
+            var name = indent + SafeText.Line(node.Row.Leaf, NameColumns - indent.Length);
+
+            if (node.Folder is not { } folder)
+            {
+                output.Line(string.Empty.PadLeft(CountColumns) + name);
+                continue;
+            }
+
             output.Line(string.Create(
                 CultureInfo.InvariantCulture,
-                $"{folder.Id.Value,6}  {folder.UnreadCount,6} unread  {folder.TotalCount,7} total  {SafeText.Line(folder.Path.Value, 60)}"));
+                $"{folder.Id.Value,6}  {folder.UnreadCount,6} unread  {folder.TotalCount,7} total  {name}"));
         }
 
         return ExitCodes.Ok;

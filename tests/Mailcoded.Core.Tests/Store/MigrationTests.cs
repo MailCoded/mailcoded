@@ -1,3 +1,4 @@
+using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Search;
 using Mailcoded.Core.Providers;
 using Mailcoded.Core.Store;
@@ -9,7 +10,7 @@ namespace Mailcoded.Core.Tests.Store;
 
 public sealed class MigrationTests
 {
-    private const int CurrentSchemaVersion = 11;
+    private const int CurrentSchemaVersion = 12;
 
     private const string CjkSubject = "关于下季项目进度的说明";
     private const string CjkBody = "你好，下周的项目进度报告已经完成。请查收。";
@@ -145,6 +146,29 @@ public sealed class MigrationTests
         var indexes = StoreQuery.Strings(store, "SELECT name FROM sqlite_master WHERE type = 'index'", ct);
         Assert.Contains("ix_outbox_due", indexes);
         Assert.DoesNotContain("ix_msg_folder_uid", indexes);
+    }
+
+    [Fact]
+    public async Task UpgradeAddsTheFolderDelimiterAndALegacyFolderReadsAsSlashUntilTheNextList()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var workspace = TempWorkspace.Create();
+        LegacyV1Database.Create(workspace.DatabasePath, CjkSubject, CjkBody, StoreSeed.BaseDate.ToUnixTimeMilliseconds());
+
+        using var store = workspace.OpenStore();
+
+        Assert.Contains("delimiter", StoreQuery.ColumnNames(store, "folders", ct));
+        Assert.Equal(1L, StoreQuery.Scalar(store, "SELECT COUNT(*) FROM folders WHERE delimiter IS NULL", ct));
+
+        var legacy = Assert.Single(store.ListFolders(new AccountId(1), ct));
+        Assert.Equal('/', legacy.Path.Delimiter);
+
+        await store.UpsertFoldersAsync(
+            new AccountId(1),
+            [new RemoteFolder { Path = FolderPath.Create("INBOX", '.'), Role = FolderRole.Inbox }],
+            ct);
+
+        Assert.Equal('.', Assert.Single(store.ListFolders(new AccountId(1), ct)).Path.Delimiter);
     }
 
     private static bool Fts5IsCompiledIn(TempWorkspace workspace)

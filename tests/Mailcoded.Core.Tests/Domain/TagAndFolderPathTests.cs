@@ -168,4 +168,88 @@ public sealed class TagAndFolderPathTests
             + "seen through two servers' delimiters is not '=='. Every folder-identity comparison must use "
             + "NameEquals, which is also the only one that honours the INBOX and Windows case rules.");
     }
+
+    [Theory]
+    [InlineData("Work.Q1/Q2", '.')]
+    [InlineData("a/b", '\\')]
+    [InlineData("INBOX/Sub", '.')]
+    public void A_literal_slash_under_another_delimiter_is_refused_because_it_cannot_be_rebuilt(string raw, char delimiter)
+    {
+        Assert.False(FolderPath.TryCreate(raw, delimiter, out _));
+    }
+
+    [Theory]
+    [InlineData(' ')]
+    [InlineData('\t')]
+    [InlineData('\n')]
+    [InlineData('\r')]
+    [InlineData('\u007f')]
+    [InlineData('\u00e9')]
+    [InlineData('\u202e')]
+    public void An_implausible_delimiter_is_refused(char delimiter)
+    {
+        Assert.False(FolderPath.TryCreate("a" + delimiter + "b", delimiter, out _));
+        Assert.False(FolderPath.TryCreateNormalized("a/b", delimiter, out _));
+    }
+
+    [Theory]
+    [InlineData("INBOX/Work/Sub", '.', "INBOX.Work.Sub")]
+    [InlineData("INBOX/Work/Sub", '/', "INBOX/Work/Sub")]
+    [InlineData("A.B", '\0', "A.B")]
+    [InlineData("a/b", '\0', "a/b")]
+    [InlineData("a/b", '\\', "a\\b")]
+    public void The_server_name_puts_the_servers_own_delimiter_back(string value, char delimiter, string expected)
+    {
+        Assert.True(FolderPath.TryCreateNormalized(value, delimiter, out var path));
+        Assert.Equal(expected, path.ServerName);
+    }
+
+    [Theory]
+    [InlineData("INBOX.Work.Q1", '.')]
+    [InlineData("Work/Q1", '/')]
+    [InlineData("a\\b", '\\')]
+    public void Listing_then_storing_then_reading_back_returns_the_same_server_name(string serverName, char delimiter)
+    {
+        Assert.True(FolderPath.TryCreate(serverName, delimiter, out var listed));
+
+        var restored = FolderPath.DelimiterFromStored(listed.DelimiterText);
+        Assert.True(FolderPath.TryCreateNormalized(listed.Value, restored, out var read));
+
+        Assert.Equal(serverName, read.ServerName);
+        Assert.True(listed.NameEquals(read));
+    }
+
+    [Theory]
+    [InlineData(null, '/')]
+    [InlineData("", '\0')]
+    [InlineData(".", '.')]
+    [InlineData("/", '/')]
+    [InlineData("..", '/')]
+    [InlineData("\n", '/')]
+    [InlineData(" ", '/')]
+    public void A_stored_delimiter_reads_back_and_a_missing_or_damaged_one_means_slash(string? stored, char expected)
+    {
+        Assert.Equal(expected, FolderPath.DelimiterFromStored(stored));
+    }
+
+    [Fact]
+    public void A_flat_namespace_name_is_its_own_leaf_and_only_segment()
+    {
+        var flat = FolderPath.Create("Reports/2026", '\0');
+
+        Assert.True(flat.IsFlat);
+        Assert.Equal("Reports/2026", flat.LeafName);
+        Assert.Equal(["Reports/2026"], flat.Segments());
+    }
+
+    [Fact]
+    public void Segments_drop_empty_levels_and_stop_splitting_at_the_cap()
+    {
+        Assert.Equal(["a", "b"], FolderPath.Create("a//b").Segments());
+
+        var segments = FolderPath.Create(string.Join('/', Enumerable.Repeat("x", 100))).Segments();
+
+        Assert.Equal(FolderPath.MaxSegments, segments.Length);
+        Assert.Contains('/', segments[^1]);
+    }
 }

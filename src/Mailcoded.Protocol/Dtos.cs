@@ -57,7 +57,7 @@ public sealed record EnvelopeDto
     public string? Snippet { get; init; }
 }
 
-/// <summary>A folder as the client renders it. <see cref="FolderDto.Name"/> uses '/' as the hierarchy delimiter.</summary>
+/// <summary>A folder as the client renders it. <see cref="FolderDto.Name"/> has '/' between levels whatever the server's delimiter is.</summary>
 public sealed record FolderDto
 {
     public required long Id { get; init; }
@@ -72,6 +72,18 @@ public sealed record FolderDto
     public int Unread { get; init; }
 
     public int Total { get; init; }
+
+    /// <summary>The server's hierarchy delimiter for this folder, or null when the server has none (a flat namespace).</summary>
+    public string? Delimiter { get; init; }
+
+    /// <summary>The last hierarchy level of <see cref="Name"/>. Absent when the daemon sends no hierarchy fields.</summary>
+    public string? Leaf { get; init; }
+
+    /// <summary>Hierarchy levels above this folder: 0 for a top-level folder and for every folder of a flat namespace.</summary>
+    public int Depth { get; init; }
+
+    /// <summary>The nearest ancestor that is itself a folder; null at the top and when no ancestor is a listed folder.</summary>
+    public long? ParentId { get; init; }
 }
 
 /// <summary>An account without any credential. <see cref="AccountDto.SecretRef"/> is an opaque handle, never a secret.</summary>

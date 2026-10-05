@@ -184,4 +184,62 @@ public sealed class FolderStoreTests
         for (var i = 0; i < uids.Count; i++) values[i] = uids[i].Value;
         return values;
     }
+
+    [Fact]
+    public async Task A_dot_delimited_servers_folders_keep_their_delimiter_and_rebuild_the_server_name()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var temp = TempStore.Create();
+        var account = await StoreSeed.AccountAsync(temp.Store, ct);
+
+        var ids = await temp.Store.UpsertFoldersAsync(
+            account,
+            [
+                new RemoteFolder { Path = FolderPath.Create("INBOX", '.'), Role = FolderRole.Inbox },
+                new RemoteFolder { Path = FolderPath.Create("INBOX.Work.Q1", '.') },
+            ],
+            ct);
+
+        var nested = Require.Ref(temp.Store.GetFolder(ids[1], ct), "the nested folder");
+        Assert.Equal("INBOX/Work/Q1", nested.Path.Value);
+        Assert.Equal('.', nested.Path.Delimiter);
+        Assert.Equal("INBOX.Work.Q1", nested.Path.ServerName);
+
+        var state = Require.Ref(temp.Store.LoadFolderState(ids[1], includeKnownUids: false, ct), "the folder state");
+        Assert.Equal("INBOX.Work.Q1", state.Path.ServerName);
+
+        var found = Require.Ref(temp.Store.FindFolder(account, FolderPath.Create("INBOX/Work/Q1"), ct), "the folder by path");
+        Assert.Equal("INBOX.Work.Q1", found.Path.ServerName);
+    }
+
+    [Fact]
+    public async Task A_flat_namespace_is_stored_as_flat_and_a_slash_in_its_names_stays_part_of_the_name()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var temp = TempStore.Create();
+        var account = await StoreSeed.AccountAsync(temp.Store, ct);
+
+        var ids = await temp.Store.UpsertFoldersAsync(
+            account,
+            [new RemoteFolder { Path = FolderPath.Create("Reports/2026", '\0') }],
+            ct);
+
+        var folder = Require.Ref(temp.Store.GetFolder(ids[0], ct), "the folder");
+        Assert.True(folder.Path.IsFlat);
+        Assert.Equal("Reports/2026", folder.Path.ServerName);
+        Assert.Equal(string.Empty, Assert.Single(StoreQuery.Strings(temp.Store, "SELECT delimiter FROM folders", ct)));
+    }
+
+    [Fact]
+    public async Task A_later_list_that_reports_a_different_delimiter_replaces_the_stored_one()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var temp = TempStore.Create();
+        var account = await StoreSeed.AccountAsync(temp.Store, ct);
+
+        await temp.Store.UpsertFoldersAsync(account, [new RemoteFolder { Path = FolderPath.Create("Work") }], ct);
+        await temp.Store.UpsertFoldersAsync(account, [new RemoteFolder { Path = FolderPath.Create("Work", '.') }], ct);
+
+        Assert.Equal('.', Assert.Single(temp.Store.ListFolders(account, ct)).Path.Delimiter);
+    }
 }

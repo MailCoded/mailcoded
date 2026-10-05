@@ -221,7 +221,16 @@ internal static class ImportEmlCommand
         string? name,
         CancellationToken ct)
     {
-        var path = FolderPath.Create(string.IsNullOrWhiteSpace(name) ? FolderPath.Inbox : name);
+        var existing = host.Store.ListFolders(accountId, ct);
+        var delimiter = existing.Count > 0 ? existing[0].Path.Delimiter : '/';
+        var wanted = string.IsNullOrWhiteSpace(name) ? FolderPath.Inbox : name;
+        if (!FolderPath.TryCreateNormalized(wanted, delimiter, out var path))
+            throw new ArgumentException($"Not a valid folder path: '{wanted}'.", nameof(name));
+
+        // A listed folder keeps the delimiter its server reported; re-upserting it would overwrite that.
+        foreach (var folder in existing)
+            if (folder.Path.NameEquals(path)) return folder.Id;
+
         var role = path.IsInbox ? FolderRole.Inbox : FolderRole.None;
 
         var ids = await host.Store

@@ -97,7 +97,7 @@ key-bar entry · shift for the terminal's own selection.
 | `tag <id> +a -b` | Tags and Flags |
 | `move <id> --folder <f>` | move on the server, confirmed |
 | `archive <id>` | move to Archive, confirmed |
-| `folders` | folders with counts |
+| `folders` | the folder tree with counts |
 | `stats`, `health` | counters; state |
 | `tui` | the terminal client |
 | `draft`, `reply <id>` | build a draft |

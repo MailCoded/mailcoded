@@ -1,0 +1,62 @@
+{
+  "id": 3,
+  "jsonrpc": "2.0",
+  "result": {
+    "folders": [
+      {
+        "accountId": 1,
+        "delimiter": "/",
+        "depth": 0,
+        "id": 1,
+        "leaf": "INBOX",
+        "name": "INBOX",
+        "role": "inbox",
+        "total": 3,
+        "unread": 3
+      },
+      {
+        "accountId": 1,
+        "delimiter": "/",
+        "depth": 0,
+        "id": 2,
+        "leaf": "Junk",
+        "name": "Junk",
+        "role": "junk",
+        "total": 1,
+        "unread": 1
+      },
+      {
+        "accountId": 1,
+        "delimiter": ".",
+        "depth": 0,
+        "id": 5,
+        "leaf": "Work",
+        "name": "Work",
+        "total": 0,
+        "unread": 0
+      },
+      {
+        "accountId": 1,
+        "delimiter": ".",
+        "depth": 2,
+        "id": 3,
+        "leaf": "Acme",
+        "name": "Work/Clients/Acme",
+        "parentId": 5,
+        "total": 0,
+        "unread": 0
+      },
+      {
+        "accountId": 1,
+        "delimiter": ".",
+        "depth": 1,
+        "id": 4,
+        "leaf": "Plans",
+        "name": "Work/Plans",
+        "parentId": 5,
+        "total": 0,
+        "unread": 0
+      }
+    ]
+  }
+}

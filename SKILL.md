@@ -50,7 +50,7 @@ mailcoded search 'from:acme invoice' --json --limit 20   # find mail
 mailcoded read 4213 --json                               # one message, plaintext
 mailcoded thread 4213 --json                             # whole conversation
 mailcoded tag 4213 +triaged -inbox                       # local Tags; +/- sign required
-mailcoded folders --json                                 # folders with unread/total
+mailcoded folders --json                                 # folder tree: name, leaf, depth, parent_id, unread/total
 mailcoded stats --json                                   # store and outbox counters
 mailcoded health --json                                  # accounts, gates, store path
 mailcoded sync --json                                    # pull new mail (network)

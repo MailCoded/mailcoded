@@ -303,7 +303,7 @@ internal sealed class WatchCoordinator : IAsyncDisposable
 
             channel.TryEnqueue(RpcPayloads.Notification(
                 RpcNotifications.FolderUpdated,
-                new FolderUpdatedNotification { AccountId = accountId.Value, Folder = WireMapper.ToDto(folder) },
+                new FolderUpdatedNotification { AccountId = accountId.Value, Folder = WireMapper.ToDto(folder, store.ListFolders(accountId, ct)) },
                 ProtocolJsonContext.Default.FolderUpdatedNotification));
         }
         catch (OperationCanceledException)

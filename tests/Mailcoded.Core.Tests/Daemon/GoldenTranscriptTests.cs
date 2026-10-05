@@ -30,6 +30,7 @@ public sealed class GoldenTranscriptTests : IClassFixture<DaemonTranscriptFixtur
     [Theory]
     [InlineData("initialize")]
     [InlineData("account-list")]
+    [InlineData("folder-list")]
     [InlineData("folder-list-unknown-account")]
     [InlineData("sync-progress-unknown-account")]
     [InlineData("search")]

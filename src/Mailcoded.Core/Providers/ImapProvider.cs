@@ -406,11 +406,7 @@ public sealed partial class ImapProvider : IMailProvider
         return format;
     }
 
-    private static string ToServerPath(FolderPath path)
-    {
-        var delimiter = path.Delimiter;
-        return delimiter is '/' or '\0' ? path.Value : path.Value.Replace('/', delimiter);
-    }
+    private static string ToServerPath(FolderPath path) => path.ServerName;
 
     private static string FolderLabel(FolderPath path) => ProviderErrors.SanitizeDetail(path.Value, 120);
 

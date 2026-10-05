@@ -185,9 +185,31 @@ internal static class WireMapper
         };
     }
 
-    public static FolderDto ToDto(FolderSummary folder)
+    public static IReadOnlyList<FolderDto> ToDtos(IReadOnlyList<FolderSummary> folders)
+    {
+        ArgumentNullException.ThrowIfNull(folders);
+
+        var dtos = new List<FolderDto>(folders.Count);
+        foreach (var node in App.FolderTree.Listed(folders)) dtos.Add(ToDto(node));
+        return dtos;
+    }
+
+    public static FolderDto ToDto(FolderSummary folder, IReadOnlyList<FolderSummary> accountFolders)
     {
         ArgumentNullException.ThrowIfNull(folder);
+        ArgumentNullException.ThrowIfNull(accountFolders);
+
+        foreach (var node in App.FolderTree.Listed(accountFolders))
+            if (node.Folder!.Id == folder.Id) return ToDto(node);
+
+        return ToDto(new App.FolderTreeNode(
+            new Mailcoded.Core.Domain.Folders.FolderTreeRow { Id = folder.Id.Value, Path = folder.Path.Value, Leaf = folder.Path.LeafName, Depth = folder.Path.Segments().Length - 1 },
+            folder));
+    }
+
+    private static FolderDto ToDto(App.FolderTreeNode node)
+    {
+        var folder = node.Folder!;
 
         return new FolderDto
         {
@@ -197,6 +219,10 @@ internal static class WireMapper
             Role = folder.Role.ToWireValue(),
             Unread = folder.UnreadCount,
             Total = folder.TotalCount,
+            Delimiter = folder.Path.IsFlat ? null : folder.Path.Delimiter.ToString(),
+            Leaf = node.Row.Leaf,
+            Depth = node.Row.Depth,
+            ParentId = node.Row.ParentId,
         };
     }
 

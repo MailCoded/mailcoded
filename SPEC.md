@@ -157,6 +157,7 @@ CREATE TABLE folders (
   delta_token TEXT,                  -- Graph deltaLink / JMAP state (v0.2+)
   unread_count INTEGER NOT NULL DEFAULT 0,   -- denormalized; see PERFORMANCE.md
   total_count INTEGER NOT NULL DEFAULT 0,
+  delimiter TEXT,                    -- server hierarchy delimiter; '' = flat (NIL), NULL = not yet listed, read as '/' (migration 012)
   UNIQUE (account_id, name)
 );
 
@@ -271,7 +272,7 @@ JSON-RPC 2.0 over stdio with **`Content-Length` framing (LSP-style)** so `vscode
 | `secret.set` | `{ref, value}` → `{}` — straight to keyring, never logged |
 | `account.add` | `{email, provider, imap{...}, smtp{...}, auth{kind}, secretRef}` → `{accountId}` |
 | `account.list` | `{}` → `{accounts:[...]}` |
-| `folder.list` | `{accountId}` → `{folders:[{id,name,role,unread,total}]}` |
+| `folder.list` | `{accountId}` → `{folders:[{id,name,role,unread,total,delimiter,leaf,depth,parentId}]}`, in tree order |
 | `sync` | `{accountId, folderId?, progress?}` → `{added,updated,expunged,durationMs}` |
 | `search` | `{query, limit?, cursor?}` → `{hits:[EnvelopeDto], nextCursor?, truncated}` |
 | `thread.get` | `{threadKey}` → `{messages:[EnvelopeDto]}` |

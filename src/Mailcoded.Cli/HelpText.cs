@@ -23,7 +23,7 @@ READ AND TRIAGE
   tag <messageId> +a -b     add and remove local Tags; pushes server Flags
   move <messageId>          move to another folder (--folder); needs confirmation
   archive <messageId>       shortcut for moving to the Archive folder
-  folders                   folders of an account with unread/total counts
+  folders                   folder tree of an account with unread/total counts
   stats                     process, store and per-folder counters
   health                    per-account connection, auth and outbox state
 
@@ -355,6 +355,13 @@ mailcoded folders [--account <id>] [--json]
 
   Folders of an account with locally-stored unread and total counts, the folder role and
   the last successful sync. Folder, never mailbox.
+
+  Folders print as a tree: special-use folders first, then by name, children indented under
+  their parent. A parent the server never listed as a folder appears as a line with no id and
+  no counts. In --json the folders stay a flat array in the same order; "name" is the full
+  path with '/' between levels whatever the server's own delimiter, "leaf" its last level,
+  "depth" the number of levels above it, "parent_id" its nearest ancestor that is a folder
+  (null at the top), and "delimiter" the server's delimiter (null for a flat namespace).
 """;
 
     private const string Sync = """

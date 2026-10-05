@@ -95,7 +95,7 @@ Every row needs a fixture and a table-driven test against the pure planner.
 | 17 | CJK not segmented by porter/unicode61 | tokenizer test | dual index: unicode61 (Latin BM25) + trigram (CJK substring); LIKE fallback for <3-char CJK |
 | 18 | Missing/invalid Date, far-future/1970 | parse failure / outlier | fall back to INTERNALDATE; clamp for display |
 | 19 | System clock jump / DST / NTP | monotonic vs wall divergence | **intervals use Stopwatch/TickCount64; wall clock display-only** |
-| 20 | Folder deleted/renamed server-side | LIST diff | reconcile; mark orphaned locals; handle NIL delimiter |
+| 20 | Folder deleted/renamed server-side | LIST diff | reconcile; mark orphaned locals; handle NIL delimiter; the delimiter is stored per Folder so a `.`-delimited server's names round-trip |
 | 21 | Non-ASCII folder names (mUTF-7 vs UTF8=ACCEPT) | capability | MailKit handles mUTF-7; enable UTF8=ACCEPT when advertised |
 | 22 | PERMANENTFLAGS without `\*` | open response | tags become local-only; do NOT loop pushing keywords |
 | 23 | Read-only folder (EXAMINE) | `FolderAccess.ReadOnly` | never attempt flag writes |

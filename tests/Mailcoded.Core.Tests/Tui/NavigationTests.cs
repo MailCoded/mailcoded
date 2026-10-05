@@ -161,6 +161,102 @@ public sealed class NavigationTests
         Assert.False(only.HasChildren);
     }
 
+    [Fact]
+    public void A_name_with_a_slash_in_a_flat_namespace_is_one_row_when_the_daemon_says_depth_zero()
+    {
+        var rows = Navigation.Build(
+            [Account(1, "me@example.test")],
+            Owned(1, Placed(1, 1, "Reports/2026", depth: 0), Placed(2, 1, "Reports", depth: 0)),
+            NothingCollapsed);
+
+        var folders = rows.Where(r => r.Kind == NavKind.Folder).ToList();
+
+        Assert.Equal(["Reports", "Reports/2026"], folders.Select(f => f.Label));
+        Assert.Equal([1, 1], folders.Select(f => f.Depth));
+        Assert.All(folders, f => Assert.False(f.HasChildren));
+    }
+
+    [Fact]
+    public void A_daemon_that_sends_depth_nests_exactly_as_one_that_does_not()
+    {
+        var old = Navigation.Build(
+            [Account(1, "me@example.test")],
+            Owned(1, Folder(1, 1, "Work", null), Folder(2, 1, "Work/Clients/Acme", null)),
+            NothingCollapsed);
+
+        var current = Navigation.Build(
+            [Account(1, "me@example.test")],
+            Owned(1, Placed(1, 1, "Work", depth: 0), Placed(2, 1, "Work/Clients/Acme", depth: 2)),
+            NothingCollapsed);
+
+        Assert.Equal(old.Select(r => (r.Label, r.Depth, r.IsSelectable)), current.Select(r => (r.Label, r.Depth, r.IsSelectable)));
+        Assert.Equal(["me@example.test", "Work", "Clients", "Acme"], current.Select(r => r.Label));
+    }
+
+    [Fact]
+    public void Folders_that_differ_only_by_case_stay_separate_unless_the_platform_folds_case()
+    {
+        var rows = Navigation.Build(
+            [Account(1, "me@example.test")],
+            Owned(1, Folder(1, 1, "Work", null), Folder(2, 1, "work", null)),
+            NothingCollapsed);
+
+        var folders = rows.Where(r => r.Kind == NavKind.Folder).ToList();
+
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Single(folders);
+            return;
+        }
+
+        Assert.Equal(["Work", "work"], folders.Select(f => f.Label));
+        Assert.All(folders, f => Assert.True(f.IsSelectable));
+    }
+
+    [Fact]
+    public void A_child_listed_under_a_lowercase_inbox_nests_under_inbox()
+    {
+        var rows = Navigation.Build(
+            [Account(1, "me@example.test")],
+            Owned(1, Folder(1, 1, "INBOX", "inbox"), Folder(2, 1, "inbox/Receipts", null)),
+            NothingCollapsed);
+
+        Assert.Equal(["me@example.test", "INBOX", "Receipts"], rows.Select(r => r.Label));
+        Assert.Equal([0, 1, 2], rows.Select(r => r.Depth));
+    }
+
+    [Fact]
+    public void A_collapsed_parent_shows_everything_unread_underneath_it()
+    {
+        var folders = Owned(1,
+            Folder(1, 1, "Projects", null, unread: 1, total: 5),
+            Folder(2, 1, "Projects/Alpha", null, unread: 2, total: 10),
+            Folder(3, 1, "Projects/Alpha/Old", null, unread: 4, total: 20));
+
+        var open = Navigation.Build([Account(1, "me@example.test")], folders, NothingCollapsed);
+        var closed = Navigation.Build(
+            [Account(1, "me@example.test")],
+            folders,
+            new HashSet<string>(StringComparer.Ordinal) { Navigation.FolderKey(1, "Projects") });
+
+        Assert.Equal((1, 5), (open[1].Unread, open[1].Total));
+        Assert.Equal((7, 35), (closed[1].Unread, closed[1].Total));
+        Assert.Equal((7, 35), (closed[0].Unread, closed[0].Total));
+    }
+
+    [Fact]
+    public void A_hostile_depth_cannot_make_the_tree_deeper_than_the_cap()
+    {
+        var name = string.Join('/', Enumerable.Repeat("x", 5000));
+
+        var rows = Navigation.Build(
+            [Account(1, "me@example.test")],
+            Owned(1, Folder(1, 1, name, null), Placed(2, 1, name + "/y", depth: 4_000_000)),
+            NothingCollapsed);
+
+        Assert.True(rows.Max(r => r.Depth) <= 33);
+    }
+
     private static Dictionary<long, IReadOnlyList<FolderDto>> Owned(long accountId, params FolderDto[] folders) =>
         new() { [accountId] = folders };
 
@@ -169,4 +265,7 @@ public sealed class NavigationTests
 
     private static FolderDto Folder(long id, long accountId, string name, string? role, int unread = 0, int total = 0) =>
         new() { Id = id, AccountId = accountId, Name = name, Role = role, Unread = unread, Total = total };
+
+    private static FolderDto Placed(long id, long accountId, string name, int depth) =>
+        new() { Id = id, AccountId = accountId, Name = name, Depth = depth, Leaf = name[(name.LastIndexOf('/') + 1)..], Delimiter = "/" };
 }

@@ -14,6 +14,7 @@ Folders, not projects. Do **not** split Core into Domain/Application/Infrastruct
 Mailcoded.Core/
 ├── Domain/                 # references NOTHING beyond the BCL
 │   ├── Primitives/         # value objects (12.2)
+│   ├── Folders/            # FolderHierarchy: tree order, depth, parent (pure)
 │   ├── Sync/               # FolderState, ServerCaps, SyncPlan, SyncEvent, SyncPlanner (pure)
 │   ├── Outbox/             # OutboxMessage aggregate + state machine (12.3)
 │   ├── Tags/               # tag<->flag mapping + conflict rules (pure)
@@ -56,7 +57,7 @@ Plain `readonly record struct` — no Vogen/StronglyTypedId dependency. Validati
 | `ThreadKey` | `string` | non-empty; derivation rules live in `Threading` |
 | `EmailAddress` | `string` | RFC-valid, domain lowercased; the CR/LF-injection gate at compose |
 | `Tag` | `string` | notmuch-safe charset; maps to IMAP keyword or is local-only |
-| `FolderPath` | `string` | normalized delimiter; INBOX-only case-insensitivity |
+| `FolderPath` | `string` | `/`-normalized value plus the server's own delimiter, so the server name can be rebuilt; INBOX-only case-insensitivity |
 | `AccountId`/`FolderId`/`LocalMessageId` | `long` | typed row ids; no accidental cross-table joins |
 
 ## 12.3 The one aggregate: `OutboxMessage`

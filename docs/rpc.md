@@ -243,10 +243,31 @@ diagnostics). It never carries a credential.
 ### `folder.list`
 `{ "accountId": 1 }` → `{ "folders": [FolderDto] }`
 
-`FolderDto`: `{ id, accountId, name, role?, unread, total }`. `name` uses `/` as the hierarchy
-delimiter. `role` ∈ `inbox | sent | drafts | trash | archive | junk | all`, or absent when the
+`FolderDto`: `{ id, accountId, name, role?, unread, total, delimiter?, leaf?, depth, parentId? }`.
+`role` ∈ `inbox | sent | drafts | trash | archive | junk | all`, or absent when the
 folder has no special use. Counts are the locally stored ones — they reflect the last sync, not
 the server this instant.
+
+**Hierarchy.** `name` always puts `/` between levels, whatever delimiter the server uses (a Courier
+or Cyrus-style server that lists `INBOX.Work.Q1` arrives as `INBOX/Work/Q1`). `delimiter` is the
+server's own character, absent when the server has no hierarchy (a flat namespace, where `/` inside
+`name` is part of the name and `depth` is 0). `leaf` is the last level of `name`; `depth` is the
+number of levels above it; `parentId` is the nearest ancestor that is itself a folder, absent at
+the top and when no ancestor is a folder. A parent the server never listed as a selectable
+folder (a `\Noselect` or `\NonExistent` entry, or one only implied by a child's name) is not a
+folder here: it has no id and no row, but its level counts in `depth` and its name is a prefix of
+its children's `name`. A client that wants a node for it builds one from the prefix.
+`leaf`, `depth` and `parentId` are additive: a daemon from before they existed omits `leaf`, and a
+client falls back to splitting `name` on `/`.
+
+**Order.** The array is a tree, depth first. Siblings are ordered special-use folders first
+(inbox, drafts, sent, trash, junk, archive, all), then by name ignoring case, then by case. A
+folder is followed by its descendants, so a client can indent by `depth` without sorting. At most
+32 levels are recognised: deeper names keep the rest of the name in their last level.
+
+A folder's delimiter is learned from the server's LIST and stored with it; folders stored before
+that was recorded read as `/` until the next folder list refreshes them. A server name that contains
+a literal `/` under another delimiter cannot be mapped to `name` and is not listed.
 
 Unknown `accountId` → **1002**.
 
@@ -682,7 +703,8 @@ the client. When `count > messages.length` the batch was coalesced — refresh t
 { "accountId": 1, "folder": FolderDto }
 ```
 
-Counts or state changed; refresh the badge.
+Counts or state changed; refresh the badge. `folder` carries the same hierarchy fields as in
+`folder.list`.
 
 ### `notify.sync.error`
 ```json

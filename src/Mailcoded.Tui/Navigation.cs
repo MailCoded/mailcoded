@@ -27,9 +27,11 @@ internal sealed record NavRow
 }
 
 /// <summary>Flattens accounts and folders into sidebar order: special-use first in the familiar
-/// order, the rest alphabetical, nested on the '/' delimiter the protocol defines.</summary>
+/// order, the rest alphabetical, nested on the '/' the protocol puts between levels of a name.</summary>
 internal static class Navigation
 {
+    private const int MaxLevels = 32;
+
     /// <summary>Inbox, Drafts, Sent, Deleted, Junk, Archive, then everything else. Roles come from
     /// the server's special-use flags, so this order survives a folder called "Papierkorb".</summary>
     private static readonly string[] RoleOrder = ["inbox", "drafts", "sent", "trash", "junk", "archive", "all"];
@@ -104,8 +106,8 @@ internal static class Navigation
                 Folder = node.Folder,
                 HasChildren = node.Children.Count > 0,
                 Expanded = open,
-                Unread = node.Folder?.Unread ?? 0,
-                Total = node.Folder?.Total ?? 0,
+                Unread = open ? node.Folder?.Unread ?? 0 : node.Unread,
+                Total = open ? node.Folder?.Total ?? 0 : node.Total,
             });
 
             if (open) Emit(rows, node.Children, accountId, collapsed, depth + 1);
@@ -115,11 +117,12 @@ internal static class Navigation
     private static List<Node> BuildTree(IReadOnlyList<FolderDto> folders)
     {
         var roots = new List<Node>();
-        var index = new Dictionary<string, Node>(StringComparer.OrdinalIgnoreCase);
+        var index = new Dictionary<string, Node>(
+            OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
 
-        foreach (var folder in folders.OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase))
+        foreach (var folder in folders.OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase).ThenBy(f => f.Name, StringComparer.Ordinal))
         {
-            var segments = folder.Name.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var segments = Segments(folder);
             if (segments.Length == 0) continue;
 
             var path = string.Empty;
@@ -127,7 +130,8 @@ internal static class Navigation
 
             for (var i = 0; i < segments.Length; i++)
             {
-                path = i == 0 ? segments[0] : path + "/" + segments[i];
+                var segment = i == 0 && segments[0].Equals("INBOX", StringComparison.OrdinalIgnoreCase) ? "INBOX" : segments[i];
+                path = i == 0 ? segment : path + "/" + segment;
 
                 if (!index.TryGetValue(path, out var node))
                 {
@@ -146,6 +150,15 @@ internal static class Navigation
 
         Sort(roots);
         return roots;
+    }
+
+    /// <summary>Depth tells how many levels a name has, so a '/' in a flat-namespace name stays a letter; no leaf means the daemon sent no hierarchy.</summary>
+    private static string[] Segments(FolderDto folder)
+    {
+        if (folder.Leaf is null) return folder.Name.Split('/', MaxLevels, StringSplitOptions.RemoveEmptyEntries);
+        if (folder.Depth <= 0) return [folder.Name];
+
+        return folder.Name.Split('/', Math.Min(folder.Depth + 1, MaxLevels), StringSplitOptions.RemoveEmptyEntries);
     }
 
     private static void Sort(List<Node> nodes)
@@ -174,5 +187,10 @@ internal static class Navigation
         public string Label { get; } = label;
         public FolderDto? Folder { get; set; }
         public List<Node> Children { get; } = [];
+
+        /// <summary>This folder and everything under it: what a collapsed row shows so nothing unread hides.</summary>
+        public int Unread => (Folder?.Unread ?? 0) + Children.Sum(c => c.Unread);
+
+        public int Total => (Folder?.Total ?? 0) + Children.Sum(c => c.Total);
     }
 }

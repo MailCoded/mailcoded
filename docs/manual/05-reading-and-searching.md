@@ -207,10 +207,19 @@ only verb that does, and it writes them to a file rather than printing them.
 
     mailcoded folders [--account <id>]
 
-Each folder with its id, the locally stored unread and total counts, and its path; `--json` adds the
-role and the last successful sync.
+Each folder with its id, the locally stored unread and total counts, and its name, as a tree:
+special-use folders first, then the rest by name, children indented under their parent. A parent the
+server never listed as a folder shows as a bare line with no id and no counts.
 
          1      37 unread       37 total  INBOX
+         4       2 unread       90 total  Work
+                                            Clients
+         7       0 unread       12 total      Acme
+
+`--json` keeps a flat array in the same order and adds, for each folder, `leaf` (its last level),
+`depth` (levels above it), `parent_id` (its nearest ancestor that is a folder, else `null`),
+`delimiter` (the server's own, `null` for a flat namespace), the role and the last successful sync.
+`name` always uses `/` between levels, whatever the server uses.
 
 ## `stats` and `health`
 

@@ -44,10 +44,12 @@ first.` Accounts are added with the CLI (chapter 2); the TUI shows whatever exis
 - **Header** — the account that owns the selected folder, and how many accounts there are.
 - **Sidebar** — every account and, under each, its folders: the special-use ones first, in the
   familiar order (Inbox, Drafts, Sent, Trash or Deleted, Junk, Archive, All), then the rest
-  alphabetically, nested on `/`. `-` marks an expanded row, `+` a collapsed one. Counts are
-  `unread/total`; a folder with nothing unread shows only its total, and an account row totals its
-  folders. Roles come from the server's special-use flags, so the order holds for a Trash folder
-  called "Papierkorb".
+  alphabetically, nested under their parent. `-` marks an expanded row, `+` a collapsed one. Counts
+  are `unread/total`; a folder with nothing unread shows only its total, an account row totals its
+  folders, and a collapsed row totals itself and everything under it so no unread mail hides in a
+  closed branch. A parent the server never listed as a folder is a row you can fold but not open.
+  Roles come from the server's special-use flags, so the order holds for a Trash folder called
+  "Papierkorb".
 - **Message list** — three marker cells (`*` unread, `!` flagged, `@` has attachments), the sender,
   the subject, and a date that is `HH:mm` for today and `Mon dd` otherwise. Unread rows are bright and
   read rows dim. It loads 100 at a time; the status line says `n for more` when there are more.

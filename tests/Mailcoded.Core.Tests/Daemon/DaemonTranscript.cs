@@ -182,6 +182,15 @@ internal sealed class DaemonTranscript : IAsyncDisposable
             size: 456,
             ct: ct).ConfigureAwait(false);
 
+        await host.Store.UpsertFoldersAsync(
+            accountId,
+            [
+                new RemoteFolder { Path = FolderPath.Create("Work.Clients.Acme", '.') },
+                new RemoteFolder { Path = FolderPath.Create("Work.Plans", '.') },
+                new RemoteFolder { Path = FolderPath.Create("Work", '.') },
+            ],
+            ct).ConfigureAwait(false);
+
         await host.Store.RecountFolderAsync(folderId, ct).ConfigureAwait(false);
         await host.Store.RecountFolderAsync(junkIds[0], ct).ConfigureAwait(false);
     }

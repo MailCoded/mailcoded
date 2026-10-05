@@ -247,7 +247,10 @@ export interface EnvelopeDto {
   snippet?: string;
 }
 
-/** A folder as the client renders it. FolderDto.Name uses '/' as the hierarchy delimiter. */
+/**
+ * A folder as the client renders it. FolderDto.Name has '/' between levels whatever the
+ * server's delimiter is.
+ */
 export interface FolderDto {
   id: number;
   accountId: number;
@@ -256,6 +259,26 @@ export interface FolderDto {
   role?: string;
   unread: number;
   total: number;
+  /**
+   * The server's hierarchy delimiter for this folder, or null when the server has none (a flat
+   * namespace).
+   */
+  delimiter?: string;
+  /**
+   * The last hierarchy level of FolderDto.Name. Absent when the daemon sends no hierarchy
+   * fields.
+   */
+  leaf?: string;
+  /**
+   * Hierarchy levels above this folder: 0 for a top-level folder and for every folder of a flat
+   * namespace.
+   */
+  depth: number;
+  /**
+   * The nearest ancestor that is itself a folder; null at the top and when no ancestor is a
+   * listed folder.
+   */
+  parentId?: number;
 }
 
 /** `folder.list`. */

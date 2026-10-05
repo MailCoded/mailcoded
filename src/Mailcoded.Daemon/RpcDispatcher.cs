@@ -341,11 +341,9 @@ internal sealed class RpcDispatcher
         var accountId = RequireAccount(request.AccountId, ct);
 
         var folders = host.Store.ListFolders(accountId, ct);
-        var dtos = new List<FolderDto>(folders.Count);
-        foreach (var folder in folders) dtos.Add(WireMapper.ToDto(folder));
 
         return RpcPayloads.Value(
-            new FolderListResult { Folders = dtos },
+            new FolderListResult { Folders = WireMapper.ToDtos(folders) },
             ProtocolJsonContext.Default.FolderListResult);
     }
 

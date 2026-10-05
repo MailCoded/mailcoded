@@ -9,7 +9,7 @@ public sealed partial class SqliteStore
 {
     private const string SelectFolder =
         "SELECT f.id, f.account_id, f.name, f.role, f.uidvalidity, f.uidnext, f.highestmodseq, f.delta_token, "
-        + "f.unread_count, f.total_count, s.last_sync_utc "
+        + "f.unread_count, f.total_count, s.last_sync_utc, f.delimiter "
         + "FROM folders f LEFT JOIN folder_sync_state s ON s.folder_id = f.id";
 
     /// <summary>
@@ -29,10 +29,11 @@ public sealed partial class SqliteStore
             var select = context.Session.Prepare(
                 "SELECT id FROM folders WHERE account_id = $account AND name = $name", "$account", "$name");
             var update = context.Session.Prepare(
-                "UPDATE folders SET role = COALESCE($role, role) WHERE id = $id", "$role", "$id");
+                "UPDATE folders SET role = COALESCE($role, role), delimiter = $delimiter WHERE id = $id",
+                "$role", "$delimiter", "$id");
             var insert = context.Session.Prepare(
-                "INSERT INTO folders (account_id, name, role) VALUES ($account,$name,$role) RETURNING id",
-                "$account", "$name", "$role");
+                "INSERT INTO folders (account_id, name, role, delimiter) VALUES ($account,$name,$role,$delimiter) RETURNING id",
+                "$account", "$name", "$role", "$delimiter");
 
             foreach (var folder in folders)
             {
@@ -45,7 +46,7 @@ public sealed partial class SqliteStore
 
                 if (existing is { } id)
                 {
-                    update.SetText(0, folder.Role.ToWireValue()).SetInt(1, id).Execute();
+                    update.SetText(0, folder.Role.ToWireValue()).SetText(1, folder.Path.DelimiterText).SetInt(2, id).Execute();
                     ids.Add(new FolderId(id));
                     continue;
                 }
@@ -54,6 +55,7 @@ public sealed partial class SqliteStore
                     .SetInt(0, accountId.Value)
                     .SetText(1, folder.Path.Value)
                     .SetText(2, folder.Role.ToWireValue())
+                    .SetText(3, folder.Path.DelimiterText)
                     .ExecuteInt64();
                 ids.Add(new FolderId(inserted));
             }
@@ -111,14 +113,14 @@ public sealed partial class SqliteStore
 
             using (var reader = session.Prepare(
                        "SELECT f.id, f.account_id, f.name, f.uidvalidity, f.highestmodseq, f.total_count, "
-                       + "s.backfill_cursor, s.accepts_custom_keywords, s.last_full_diff_utc "
+                       + "s.backfill_cursor, s.accepts_custom_keywords, s.last_full_diff_utc, f.delimiter "
                        + "FROM folders f LEFT JOIN folder_sync_state s ON s.folder_id = f.id WHERE f.id = $id",
                        "$id")
                    .SetInt(0, id.Value)
                    .ExecuteReader())
             {
                 if (!reader.Read()) return null;
-                if (!FolderPath.TryCreate(reader.GetString(2), '/', out var path)) return null;
+                if (!FolderPath.TryCreateNormalized(reader.GetString(2), FolderPath.DelimiterFromStored(Db.Str(reader, 9)), out var path)) return null;
 
                 var backfill = Db.IntOrNull(reader, 6);
                 state = new FolderState
@@ -287,7 +289,7 @@ public sealed partial class SqliteStore
 
     private static FolderSummary? MapFolder(SqliteDataReader reader)
     {
-        if (!FolderPath.TryCreate(reader.GetString(2), '/', out var path)) return null;
+        if (!FolderPath.TryCreateNormalized(reader.GetString(2), FolderPath.DelimiterFromStored(Db.Str(reader, 11)), out var path)) return null;
 
         var uidNext = Db.IntOrNull(reader, 5);
         return new FolderSummary
