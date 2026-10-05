@@ -38,7 +38,7 @@ internal sealed class RpcDispatcher
     private const int ThreadGetMaxLimit = 2000;
 
     private static readonly string[] SupportedNotifications =
-        [RpcNotifications.MailAdded, RpcNotifications.FolderUpdated, RpcNotifications.SyncError];
+        [RpcNotifications.MailAdded, RpcNotifications.FolderUpdated, RpcNotifications.SyncError, RpcNotifications.SyncProgress];
 
     private readonly DaemonHost host;
     private readonly StderrLog log;
@@ -370,18 +370,25 @@ internal sealed class RpcDispatcher
             .GetProviderAsync(accountId, ct, retryAuthNow: true)
             .ConfigureAwait(false);
 
-        SyncReport report;
+        FolderSummary? folder = null;
         if (request.FolderId is { } folderId)
         {
-            var folder = host.Store.GetFolder(new FolderId(folderId), ct);
+            folder = host.Store.GetFolder(new FolderId(folderId), ct);
             if (folder is null || folder.AccountId != accountId)
                 throw new StoreException(FailureCategory.NotFound, $"No folder with id {folderId} on account {accountId.Value}.");
-
-            report = await host.Sync.SyncFolderAsync(provider, folder.Id, null, ct).ConfigureAwait(false);
         }
-        else
+
+        var run = request.Progress ? host.Progress.Begin() : null;
+        SyncReport report;
+        try
         {
-            report = await host.Sync.SyncAccountAsync(provider, accountId, null, ct).ConfigureAwait(false);
+            report = folder is null
+                ? await host.Sync.SyncAccountAsync(provider, accountId, run, ct).ConfigureAwait(false)
+                : await host.Sync.SyncFolderAsync(provider, folder.Id, run, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            run?.Complete();
         }
 
         return RpcPayloads.Value(

@@ -48,3 +48,29 @@ public sealed record SyncErrorNotification
     /// <summary>ISO 8601 UTC.</summary>
     public required string AtUtc { get; init; }
 }
+
+/// <summary><c>notify.sync.progress</c> — how far a running sync has got. Counts only, never mail content.</summary>
+public sealed record SyncProgressNotification
+{
+    public required long AccountId { get; init; }
+
+    /// <summary>Absent for the <c>folders</c> phase, which spans the account.</summary>
+    public long? FolderId { get; init; }
+
+    public string? FolderName { get; init; }
+
+    /// <summary><c>folders|envelopes|flags</c>; ignore a phase you do not recognise.</summary>
+    public required string Phase { get; init; }
+
+    /// <summary>A snapshot, not a delta. For <c>envelopes</c>, what the folder now holds locally.</summary>
+    public required int Done { get; init; }
+
+    /// <summary>Absent when not known in advance; never less than <see cref="Done"/>.</summary>
+    public int? Total { get; init; }
+
+    /// <summary>The last event for this accountId, folderId and phase in this sync: clear the indicator.</summary>
+    public bool Final { get; init; }
+
+    /// <summary>ISO 8601 UTC.</summary>
+    public required string AtUtc { get; init; }
+}

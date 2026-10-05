@@ -61,20 +61,16 @@ public sealed class SyncEngine
 
             progress?.Report(new SyncProgress
             {
-                Phase = "folder",
-                FolderId = folder.Id,
-                FolderPath = folder.Path.Value,
-                FoldersDone = done,
-                FolderCount = folders.Count,
-                Added = added,
-                Updated = updated,
-                Expunged = expunged,
+                AccountId = accountId,
+                Phase = SyncPhase.Folders,
+                Done = done,
+                Total = folders.Count,
             });
 
             FolderSyncReport report;
             try
             {
-                report = await SyncOneFolderAsync(provider, account, folder, ct).ConfigureAwait(false);
+                report = await SyncOneFolderAsync(provider, account, folder, progress, ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -119,12 +115,11 @@ public sealed class SyncEngine
 
         progress?.Report(new SyncProgress
         {
-            Phase = "done",
-            FoldersDone = done,
-            FolderCount = folders.Count,
-            Added = added,
-            Updated = updated,
-            Expunged = expunged,
+            AccountId = accountId,
+            Phase = SyncPhase.Folders,
+            Done = done,
+            Total = folders.Count,
+            Final = true,
         });
 
         return new SyncReport
@@ -154,15 +149,7 @@ public sealed class SyncEngine
         var account = RequireAccount(folder.AccountId, ct);
 
         var started = _clock.Ticks;
-        progress?.Report(new SyncProgress
-        {
-            Phase = "folder",
-            FolderId = folder.Id,
-            FolderPath = folder.Path.Value,
-            FolderCount = 1,
-        });
-
-        var report = await SyncOneFolderAsync(provider, account, folder, ct).ConfigureAwait(false);
+        var report = await SyncOneFolderAsync(provider, account, folder, progress, ct).ConfigureAwait(false);
 
         return new SyncReport
         {
@@ -248,9 +235,11 @@ public sealed class SyncEngine
         IMailProvider provider,
         AccountConfig account,
         FolderSummary folder,
+        IProgress<SyncProgress>? progress,
         CancellationToken ct)
     {
         var folderRef = new FolderRef(folder.Id, folder.Path);
+        var tracker = new FolderSyncProgress(progress, account.Id, folder);
         var added = 0;
         var updated = 0;
         var expunged = 0;
@@ -311,6 +300,7 @@ public sealed class SyncEngine
             }
 
             planName = PlanName(plan);
+            tracker.Begin(state.KnownMessageCount, info.TotalCount, plan);
 
             if (plan is SyncPlan.UpToDate) break;
 
@@ -333,7 +323,7 @@ public sealed class SyncEngine
                 }
             }
 
-            var run = await RunPlanAsync(provider, account, folder, folderRef, state, info, plan, plannedCursor, ct)
+            var run = await RunPlanAsync(provider, account, folder, folderRef, state, info, plan, plannedCursor, tracker, ct)
                 .ConfigureAwait(false);
 
             if (plan is SyncPlan.FullDiff && !run.RequiresReplan)
@@ -367,6 +357,8 @@ public sealed class SyncEngine
             break;
         }
 
+        tracker.Finish();
+
         return new FolderSyncReport
         {
             FolderId = folder.Id,
@@ -390,6 +382,7 @@ public sealed class SyncEngine
         ServerFolderInfo info,
         SyncPlan plan,
         Uid? plannedCursor,
+        FolderSyncProgress tracker,
         CancellationToken ct)
     {
         var pending = new List<SyncEvent>(256);
@@ -429,6 +422,7 @@ public sealed class SyncEngine
             added += flush.Counts.Added;
             updated += flush.Counts.Updated;
             expunged += flush.Counts.Expunged;
+            tracker.Flushed(flush.Seen, flush.Counts);
 
             if (flush.RequiresReplan)
             {
@@ -464,6 +458,7 @@ public sealed class SyncEngine
             added += final.Counts.Added;
             updated += final.Counts.Updated;
             expunged += final.Counts.Expunged;
+            tracker.Flushed(final.Seen, final.Counts);
             requiresReplan = final.RequiresReplan;
             state = final.Next;
         }
@@ -498,7 +493,7 @@ public sealed class SyncEngine
 
         // The epoch flipped mid-batch: nothing after that point belongs to this mailbox generation,
         // so the events are discarded and the next plan re-reads the stored (old) UIDVALIDITY.
-        if (result.RequiresReplan) return new FlushOutcome(state, default, true);
+        if (result.RequiresReplan) return new FlushOutcome(state, default, default, true);
 
         var added = new List<RemoteEnvelope>();
         var trust = TrustFor(account, ct);
@@ -551,7 +546,7 @@ public sealed class SyncEngine
                 .ConfigureAwait(false);
         }
 
-        return new FlushOutcome(result.Next, counts, false);
+        return new FlushOutcome(result.Next, counts, result.Counts, false);
     }
 
     private AuthservTrust TrustFor(AccountConfig account, CancellationToken ct) =>
@@ -680,7 +675,7 @@ public sealed class SyncEngine
         _ => "up-to-date",
     };
 
-    private readonly record struct FlushOutcome(FolderState Next, SyncCounts Counts, bool RequiresReplan);
+    private readonly record struct FlushOutcome(FolderState Next, SyncCounts Counts, SyncCounts Seen, bool RequiresReplan);
 
     private readonly record struct KeywordObservation(Uid Uid, IReadOnlyList<string> Keywords, MessageFlags Flags);
 

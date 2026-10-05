@@ -65,6 +65,8 @@ internal sealed class AppState
 
     public int BodyWidth { get; set; }
 
+    public SyncIndicators Syncing { get; } = new();
+
     public string Status { get; set; } = string.Empty;
 
     public bool StatusIsError { get; set; }

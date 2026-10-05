@@ -43,6 +43,15 @@ public static class RpcNotifications
     public const string MailAdded = "notify.mail.added";
     public const string FolderUpdated = "notify.folder.updated";
     public const string SyncError = "notify.sync.error";
+    public const string SyncProgress = "notify.sync.progress";
+}
+
+/// <summary>Values of <see cref="SyncProgressNotification.Phase"/>.</summary>
+public static class SyncPhases
+{
+    public const string Folders = "folders";
+    public const string Envelopes = "envelopes";
+    public const string Flags = "flags";
 }
 
 /// <summary>Accepted values of <see cref="MessageGetParams.Format"/>.</summary>

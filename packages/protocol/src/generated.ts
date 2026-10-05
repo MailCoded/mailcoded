@@ -724,6 +724,28 @@ export interface SyncErrorNotification {
 export interface SyncParams {
   accountId: number;
   folderId?: number;
+  /** Send `notify.sync.progress` while this sync runs. */
+  progress?: boolean;
+}
+
+/** `notify.sync.progress` — how far a running sync has got. Counts only, never mail content. */
+export interface SyncProgressNotification {
+  accountId: number;
+  /** Absent for the `folders` phase, which spans the account. */
+  folderId?: number;
+  folderName?: string;
+  /** `folders|envelopes|flags`; ignore a phase you do not recognise. */
+  phase: string;
+  /** A snapshot, not a delta. For `envelopes`, what the folder now holds locally. */
+  done: number;
+  /** Absent when not known in advance; never less than SyncProgressNotification.Done. */
+  total?: number;
+  /**
+   * The last event for this accountId, folderId and phase in this sync: clear the indicator.
+   */
+  final: boolean;
+  /** ISO 8601 UTC. */
+  atUtc: string;
 }
 
 export interface SyncResult {
@@ -901,6 +923,7 @@ export const RpcNotifications = {
   MailAdded: "notify.mail.added",
   FolderUpdated: "notify.folder.updated",
   SyncError: "notify.sync.error",
+  SyncProgress: "notify.sync.progress",
 } as const;
 export type RpcNotificationsValue = (typeof RpcNotifications)[keyof typeof RpcNotifications];
 
@@ -919,6 +942,14 @@ export const SecurityModes = {
   StartTlsWhenAvailable: "startTlsWhenAvailable",
 } as const;
 export type SecurityModesValue = (typeof SecurityModes)[keyof typeof SecurityModes];
+
+/** Values of SyncProgressNotification.Phase. */
+export const SyncPhases = {
+  Folders: "folders",
+  Envelopes: "envelopes",
+  Flags: "flags",
+} as const;
+export type SyncPhasesValue = (typeof SyncPhases)[keyof typeof SyncPhases];
 
 /**
  * Stable numeric JSON-RPC error codes (SPEC §5.6). Values are a wire contract: never renumber
@@ -1002,5 +1033,6 @@ export interface RpcNotificationMap {
   "notify.mail.added": MailAddedNotification;
   "notify.folder.updated": FolderUpdatedNotification;
   "notify.sync.error": SyncErrorNotification;
+  "notify.sync.progress": SyncProgressNotification;
 }
 export type RpcNotificationName = keyof RpcNotificationMap;

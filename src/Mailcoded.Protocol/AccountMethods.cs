@@ -111,6 +111,9 @@ public sealed record SyncParams
     public required long AccountId { get; init; }
 
     public long? FolderId { get; init; }
+
+    /// <summary>Send <c>notify.sync.progress</c> while this sync runs.</summary>
+    public bool Progress { get; init; }
 }
 
 public sealed record SyncResult

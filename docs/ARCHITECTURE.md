@@ -83,7 +83,7 @@ public static class SyncPlanner
 }
 ```
 
-`SyncEngine` (Application) is the imperative shell: execute the plan against `IMailProvider`, feed responses through `Apply`, persist `(next, events)` in one Store transaction.
+`SyncEngine` (Application) is the imperative shell: execute the plan against `IMailProvider`, feed responses through `Apply`, persist `(next, events)` in one Store transaction. Progress is reported through `IProgress<SyncProgress>` at points the engine already has (Folder start, after a committed batch, Folder end), so it adds no branch; `SyncProgressThrottle` owns the per-Account rate and the closing events.
 
 **Consequence:** every row of the RELIABILITY edge-case matrix — UIDVALIDITY flip, `HIGHESTMODSEQ=0`, missing `VANISHED` — becomes a table-driven unit test on pure functions. Model `SyncPlan`/`SyncEvent` as sealed record hierarchies with exhaustive `switch`; migrate to C# discriminated unions when the language ships them.
 

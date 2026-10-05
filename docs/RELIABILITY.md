@@ -113,7 +113,7 @@ Every row needs a fixture and a table-driven test against the pure planner.
 
 ## 14.6 Observability
 
-With `EventSourceSupport=true`, `dotnet-counters` attaches. Build self-monitoring in: a `stats` RPC returning `Environment.WorkingSet64`, `GC.GetGCMemoryInfo()`, `GC.GetTotalAllocatedBytes()`, handle count, open IMAP connections, per-folder last-sync MODSEQ, WAL size, DB size; a `health` RPC returning per-account connection + auth state. Log a compact metrics line periodically to `sync_log`. **Do not pull in the OpenTelemetry SDK** for a single-user desktop daemon.
+With `EventSourceSupport=true`, `dotnet-counters` attaches. Build self-monitoring in: a `stats` RPC returning `Environment.WorkingSet64`, `GC.GetGCMemoryInfo()`, `GC.GetTotalAllocatedBytes()`, handle count, open IMAP connections, per-folder last-sync MODSEQ, WAL size, DB size; a `health` RPC returning per-account connection + auth state. Log a compact metrics line periodically to `sync_log`. **Do not pull in the OpenTelemetry SDK** for a single-user desktop daemon. Sync progress is a notification (`notify.sync.progress`), throttled per Account on monotonic ticks, with a closing event for every indicator it opened even when the sync fails.
 
 ## 14.7 Explicitly NOT handled in v0.1
 POP3-only servers · IMAP LOGIN-REFERRALS / MAILBOX-REFERRALS · MULTIAPPEND, BINARYMIME/CHUNKING upload optimizations · server-side SORT/THREAD (we thread client-side) · S/MIME and PGP crypto (parse without crashing, no decrypt/verify) · ManageSieve / server-side filters · JMAP (Graph is the v0.2 non-IMAP path).

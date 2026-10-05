@@ -31,6 +31,7 @@ public sealed class GoldenTranscriptTests : IClassFixture<DaemonTranscriptFixtur
     [InlineData("initialize")]
     [InlineData("account-list")]
     [InlineData("folder-list-unknown-account")]
+    [InlineData("sync-progress-unknown-account")]
     [InlineData("search")]
     [InlineData("search-is-automated")]
     [InlineData("search-not-automated")]
@@ -96,8 +97,24 @@ public sealed class GoldenTranscriptTests : IClassFixture<DaemonTranscriptFixtur
             || m.Contains("purge", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task Initialize_AdvertisesEveryNotificationTheProtocolNames()
+    {
+        using var document = JsonDocument.Parse(await ResponseAsync("initialize"));
+        var advertised = document.RootElement.GetProperty("result").GetProperty("capabilities")
+            .GetProperty("notifications").EnumerateArray().Select(n => n.GetString()).ToList();
+
+        var named = typeof(RpcNotifications)
+            .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+            .Select(f => (string?)f.GetRawConstantValue())
+            .ToList();
+
+        Assert.Equal(named.Order(StringComparer.Ordinal), advertised.Order(StringComparer.Ordinal));
+    }
+
     [Theory]
     [InlineData("folder-list-unknown-account", (int)RpcErrorCode.NotFound)]
+    [InlineData("sync-progress-unknown-account", (int)RpcErrorCode.NotFound)]
     [InlineData("tags-set-unknown-message", (int)RpcErrorCode.NotFound)]
     [InlineData("send-without-token", (int)RpcErrorCode.ConfirmRequired)]
     [InlineData("store-backup-uninitialized", (int)RpcErrorCode.Forbidden)]

@@ -9,8 +9,8 @@ using Mailcoded.Core.Store;
 namespace Mailcoded.Daemon;
 
 /// <summary>
-/// Turns IMAP IDLE into <c>notify.mail.added</c>, <c>notify.folder.updated</c>, and
-/// <c>notify.sync.error</c> on the stdio channel. A bulk move of ten thousand messages produces one
+/// Turns IMAP IDLE into <c>notify.mail.added</c>, <c>notify.folder.updated</c>,
+/// <c>notify.sync.progress</c>, and <c>notify.sync.error</c> on the stdio channel. A bulk move of ten thousand messages produces one
 /// notification per folder, not ten thousand (edge case 27): while a folder's sync is running,
 /// further IDLE signals only raise a dirty bit that schedules exactly one follow-up pass.
 /// </summary>
@@ -32,6 +32,7 @@ internal sealed class WatchCoordinator : IAsyncDisposable
     private readonly ProviderPool providers;
     private readonly ConnectionRegistry connections;
     private readonly RpcChannel channel;
+    private readonly SyncProgressPublisher progress;
     private readonly IClock clock;
     private readonly StderrLog log;
     private readonly bool watchEnabled;
@@ -50,6 +51,7 @@ internal sealed class WatchCoordinator : IAsyncDisposable
         ProviderPool providers,
         ConnectionRegistry connections,
         RpcChannel channel,
+        SyncProgressPublisher progress,
         IClock clock,
         StderrLog log,
         bool watchEnabled,
@@ -62,6 +64,7 @@ internal sealed class WatchCoordinator : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(providers);
         ArgumentNullException.ThrowIfNull(connections);
         ArgumentNullException.ThrowIfNull(channel);
+        ArgumentNullException.ThrowIfNull(progress);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(log);
 
@@ -71,6 +74,7 @@ internal sealed class WatchCoordinator : IAsyncDisposable
         this.providers = providers;
         this.connections = connections;
         this.channel = channel;
+        this.progress = progress;
         this.clock = clock;
         this.log = log;
         this.watchEnabled = watchEnabled;
@@ -263,7 +267,16 @@ internal sealed class WatchCoordinator : IAsyncDisposable
         try
         {
             var provider = await providers.GetProviderAsync(accountId, ct).ConfigureAwait(false);
-            var report = await sync.SyncFolderAsync(provider, folderId, null, ct).ConfigureAwait(false);
+            var run = progress.Begin();
+            SyncReport report;
+            try
+            {
+                report = await sync.SyncFolderAsync(provider, folderId, run, ct).ConfigureAwait(false);
+            }
+            finally
+            {
+                run.Complete();
+            }
 
             var folder = store.GetFolder(folderId, ct);
             if (folder is null) return;

@@ -58,7 +58,7 @@ first.` Accounts are added with the CLI (chapter 2); the TUI shows whatever exis
   of a second, so scrolling quickly through a list does not fetch every row it passes.
 - **Key bar** — the bindings that apply now. It changes when you open a message, start a search,
   compose, or reach the confirmation screen. Click an entry to press it.
-- **Status line** — what just happened, or a hint. Prompts (search, tags, discard) appear here too.
+- **Status line** — what just happened, or a hint. Prompts (search, tags, discard) appear here too. While a sync runs, its progress sits at the right end (`sync 3/12 folders, INBOX 1200/4800`).
 
 It opens on the Inbox of the first account.
 
@@ -196,6 +196,11 @@ the status line as `sync: <reason>`.
 Anything that goes to the server runs in the background, and the status line says what it is doing:
 `opening`, `syncing Inbox`, `previewing`. If it takes long, the line changes to `Still syncing
 Inbox. Press esc to give up on it.` — `esc` cancels it, and the screen stays usable throughout.
+
+Syncs, yours and the ones the daemon runs on its own, show how far they have got at the right end of
+the status line: the folders walked so far, and for a folder, the Envelopes held locally against the
+count the server reports. It disappears when the sync ends. Giving up on `r` stops waiting for the
+answer; the daemon carries on syncing, and the indicator keeps moving until it finishes.
 
 ## Mouse
 

@@ -5,6 +5,9 @@ namespace Mailcoded.Tui.Views;
 
 internal static class Screen
 {
+    internal const int ActivityMinColumns = 40;
+    internal const int ActivityMaxColumns = 48;
+
     public const int MinFolderWidth = 16;
 
     public static void Draw(TerminalWriter writer, AppState state) => Draw(writer, state, DateTimeOffset.UtcNow);
@@ -126,8 +129,16 @@ internal static class Screen
             ? TerminalText.Cell(state.Status, writer.Columns)
             : TerminalText.Chrome(Hint(state), writer.Columns);
 
-        writer.Row(row, TerminalText.Pad(span, writer.Columns),
+        writer.Row(row, StatusLine(span, state.Syncing.Describe(), writer.Columns),
             state.StatusIsError ? TextStyle.Danger : TextStyle.Inverse);
+    }
+
+    internal static SafeSpan StatusLine(SafeSpan message, string? activity, int columns)
+    {
+        if (activity is null || columns < ActivityMinColumns) return TerminalText.Pad(message, columns);
+
+        var right = TerminalText.Cell(activity, Math.Min(ActivityMaxColumns, columns / 2));
+        return TerminalText.Concat(TerminalText.Pad(message, columns - right.Columns - 1), SafeSpan.Chrome(" "), right);
     }
 
     internal static string Hint(AppState state) => state.Focus switch

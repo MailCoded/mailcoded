@@ -11,6 +11,10 @@ messages. With `--folder` only that folder syncs. Sync is idempotent — re-runn
 interruption replays safely — and the server is the source of truth for mail and Flags, so a sync can
 only ever bring the local copy closer to what the server holds.
 
+On a terminal, `sync` draws one progress line on stderr while it runs, such as
+`sync 3/12 folders, INBOX 12000/48000`, and erases it before the summary. `--json` and `--quiet` turn
+it off, and so does redirecting stderr, so scripts and agents see exactly the output they always did.
+
 Alongside each envelope, sync asks the server for nine headers (`List-Id`, `List-Unsubscribe`,
 `List-Unsubscribe-Post`, `Precedence`, `Auto-Submitted`, `X-Autoreply`, `X-Autorespond`,
 `X-Failed-Recipients`, `Authentication-Results`) in the same request, and reads the message's MIME
@@ -57,7 +61,7 @@ time. A backup holds no credentials, so a restore is followed by `account reauth
 
 When the TUI subscribes, the daemon opens one IDLE connection per watched folder — the account's
 configured watch set, which defaults to INBOX — and turns server signals into notifications: new mail
-(`3 new in INBOX`), folder counts, and errors. A bulk operation on the server produces one
+(`3 new in INBOX`), folder counts, sync progress, and errors. A bulk operation on the server produces one
 notification per folder, not one per message.
 
 An account that cannot authenticate is not watched. If it has no stored credential at all — one

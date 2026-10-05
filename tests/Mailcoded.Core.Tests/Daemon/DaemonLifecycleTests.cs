@@ -188,6 +188,7 @@ public sealed class DaemonLifecycleTests
                 pool,
                 connections,
                 channel,
+                new SyncProgressPublisher(channel, watched.Clock),
                 watched.Clock,
                 log,
                 watchEnabled: true,

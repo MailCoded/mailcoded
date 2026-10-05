@@ -18,7 +18,8 @@ account and no stored credential behind.
    argument, so it cannot land in your shell history. It goes to the OS keyring (chapter 3) — never to
    the database, the config, or a log line.
 4. **Whether to sync now.** The first sync of a large mailbox takes a while. Say no and run
-   `mailcoded sync --account <id>` later if you prefer.
+   `mailcoded sync --account <id>` later if you prefer. While it runs, a progress line shows how far it
+   has got.
 
 `--display-name <label>` gives the account a label. `--json` also prints a machine-readable summary on
 stdout; the prompts go to stderr, so stdout stays clean.

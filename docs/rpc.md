@@ -104,7 +104,8 @@ Reference writer, in any language: serialize to UTF-8 bytes, write
 
 1. Spawn the daemon with `--store`.
 2. Send `initialize` and read the capabilities.
-3. Optionally `watch.subscribe` to start receiving notifications.
+3. Optionally `watch.subscribe` to start receiving notifications (`sync` with `progress: true` sends
+   `notify.sync.progress` without it).
 4. Call methods.
 5. Send `shutdown`, read the response, then close stdin and wait for exit.
 
@@ -137,7 +138,7 @@ Result:
   "protocolVersion": 1,
   "capabilities": {
     "methods": ["initialize", "secret.set", "..."],
-    "notifications": ["notify.mail.added", "notify.folder.updated", "notify.sync.error"],
+    "notifications": ["notify.mail.added", "notify.folder.updated", "notify.sync.error", "notify.sync.progress"],
     "providers": ["imap"],
     "search": true,
     "threading": true,
@@ -176,7 +177,9 @@ Result:
 - `semantic: false` means no embedding model is installed. `search` still works; it just ranks by
   words alone. Asking for `semantic: true` then answers **1008**, because a search that silently
   ignored the request would be a worse answer than a refusal.
-- `watch: false` means this process is not the store owner and will emit no notifications.
+- `watch: false` means this process is not the store owner: it opens no IDLE connection and sends no
+  `notify.mail.added` or `notify.folder.updated`. A `sync` it runs with `progress: true` still reports
+  `notify.sync.progress`.
 - `maxSearchLimit` (200) is a **clamp, not a validation error**: a larger `limit` is silently
   reduced. Page with `nextCursor`.
 - `secretBackend` is the name of the active secret backend (`libsecret`, `keychain`, `wincred`,
@@ -248,10 +251,16 @@ the server this instant.
 Unknown `accountId` → **1002**.
 
 ### `sync`
-`{ "accountId": 1, "folderId": 12 }` → `{ "added": 0, "updated": 0, "expunged": 0, "durationMs": 0 }`
+`{ "accountId": 1, "folderId": 12, "progress": true }` → `{ "added": 0, "updated": 0, "expunged": 0, "durationMs": 0 }`
 
 Omit `folderId` to sync the whole account. Opens a network connection. Idempotent: re-running
 after an interruption replays safely. A `folderId` that belongs to another account → **1002**.
+
+`progress` is optional and defaults to `false`. With `progress: true` the daemon sends
+`notify.sync.progress` while the sync runs: every event precedes the response, and every indicator
+it opened gets a `final` event on success and on failure. A request that fails before the sync
+starts (unknown account or folder, no connection) sends none. An older daemon ignores the field, so
+check `capabilities.notifications` for `notify.sync.progress` before relying on it.
 
 ### `search`
 ```json
@@ -653,7 +662,10 @@ An address with no domain part → **-32602**.
 
 ## 5. Notifications
 
-Server → client, no `id`, no response. They arrive only after `watch.subscribe`.
+Server → client, no `id`, no response. `notify.mail.added`, `notify.folder.updated` and
+`notify.sync.error` arrive only after `watch.subscribe`. `notify.sync.progress` arrives for the syncs
+a subscription triggers and for a `sync` request that sets `progress: true`. Ignore notification
+methods you do not recognise.
 
 ### `notify.mail.added`
 ```json
@@ -682,6 +694,46 @@ Counts or state changed; refresh the badge.
 A background sync or watch failed. `code` is **the same stable numeric code the equivalent request
 error would carry**, so one handler covers both paths. Carries no mail content and no credential.
 `requiresUserAction: true` means backoff alone will not recover.
+
+### `notify.sync.progress`
+```json
+{ "accountId": 1, "folderId": 12, "folderName": "INBOX", "phase": "envelopes",
+  "done": 12000, "total": 48000, "final": false, "atUtc": "2026-08-30T12:34:56.000Z" }
+{ "accountId": 1, "phase": "folders", "done": 12, "total": 12, "final": true,
+  "atUtc": "2026-08-30T12:35:40.000Z" }
+```
+
+How far a running sync has got. Counts only: no subject, no address, no body. `folderName` follows
+the same convention as `notify.mail.added`; `folderId` and `folderName` are absent for `folders`.
+
+| `phase` | Meaning | `done` | `total` |
+|---|---|---|---|
+| `folders` | the walk across the account's Folders | Folders finished in this sync | Folders in this sync |
+| `envelopes` | Envelopes fetched into one Folder | Envelopes the store now holds for the Folder | the server's message count, never below `done` |
+| `flags` | Flags re-read for one Folder | flag changes applied in this sync | the number of known messages on a full diff, otherwise absent |
+
+- An **indicator** is one `accountId`, `folderId` and `phase`. Every event is a snapshot of that
+  indicator, not a delta.
+- `total` is absent when it is not known in advance, and is never less than `done`.
+- `done` for `envelopes` can go **down**: it is what the Folder holds, and the server may have
+  removed messages. A resumed backfill of a large Folder starts above zero, and a call that stops at
+  its window limit ends with a `final` whose `done` is below `total`. That is the honest state, not
+  an error.
+- `final: true` is the last event for that indicator in that sync: clear it. Every indicator that
+  received a non-final event receives exactly one `final`, including when the sync failed or was
+  cancelled; the outcome travels in the response or in `notify.sync.error`. A short sync may send no
+  event at all.
+- At most one burst per Account per 250 ms, measured on a monotonic clock. A burst carries the latest
+  snapshot of each open indicator of one sync. A `final` is never delayed.
+- Ordering: for a `sync` request, all of its progress precedes its response. For a watch-triggered
+  sync, its progress precedes that pass's `notify.mail.added` and `notify.folder.updated`, and a failed
+  pass closes its indicators before `notify.sync.error`.
+- Two syncs of the same Folder can overlap and share an indicator, so you may see it close and
+  reopen.
+- Drop an Account's indicators after 60 s without any progress for it, in case a `final` was lost to
+  a full client queue.
+- Ignore a `phase` you do not recognise.
+- `--one-shot` never sends notifications.
 
 ---
 
@@ -902,6 +954,8 @@ protocol, so a deployment that must stop that needs an OS-level sandbox, not a g
 - [ ] Sanitize `bodyHtml` yourself, in a sandbox, under a CSP with no remote origins.
 - [ ] Never log `confirmToken`, and never mint-and-consume one without a human in between.
 - [ ] Handle `1000` by asking the user, `1001`/`1005` with backoff, and `1002` by refreshing.
+- [ ] Ignore notification methods and `phase` values you do not recognise; clear a progress indicator
+      on its `final`.
 - [ ] Do not look for a delete method. There isn't one.
 
 ## 9. A worked example

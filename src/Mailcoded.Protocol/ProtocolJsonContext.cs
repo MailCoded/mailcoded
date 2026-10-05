@@ -92,6 +92,7 @@ namespace Mailcoded.Protocol;
 [JsonSerializable(typeof(MailAddedNotification))]
 [JsonSerializable(typeof(FolderUpdatedNotification))]
 [JsonSerializable(typeof(SyncErrorNotification))]
+[JsonSerializable(typeof(SyncProgressNotification))]
 
 // Collection forms used on the wire
 [JsonSerializable(typeof(IReadOnlyList<string>))]

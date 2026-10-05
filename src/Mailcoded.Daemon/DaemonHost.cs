@@ -75,6 +75,12 @@ internal sealed class DaemonHost : IAsyncDisposable
 
     private WatchCoordinator? watch;
 
+    /// <summary>Attached with the watch: it needs the same stdout channel.</summary>
+    public SyncProgressPublisher Progress =>
+        progress ?? throw new InvalidOperationException("AttachWatch must run before the RPC surface is served.");
+
+    private SyncProgressPublisher? progress;
+
     private readonly CancellationTokenSource backfillStop = new();
 
     /// <summary>False when another live daemon owns this store: this instance opens no IDLE connection.</summary>
@@ -129,6 +135,8 @@ internal sealed class DaemonHost : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(channel);
 
+        progress = new SyncProgressPublisher(channel, Clock);
+
         watch = new WatchCoordinator(
             Store,
             Accounts,
@@ -136,6 +144,7 @@ internal sealed class DaemonHost : IAsyncDisposable
             Providers,
             Connections,
             channel,
+            progress,
             Clock,
             Log,
             watchEnabled: IsPrimaryInstance,

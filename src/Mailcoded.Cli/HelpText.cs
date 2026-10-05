@@ -362,6 +362,9 @@ mailcoded sync [--account <id>] [--folder <id>] [--json]
 
   Connects to the account's IMAP server and pulls changes. With --folder only that folder
   syncs. Sync is idempotent: re-running it after an interruption replays safely.
+
+  On a terminal it draws one progress line on stderr while it runs and erases it when it
+  ends. --json and --quiet turn that off, and so does redirecting stderr.
 """;
 
     private const string Setup = """

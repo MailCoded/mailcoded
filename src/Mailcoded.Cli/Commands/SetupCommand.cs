@@ -151,7 +151,16 @@ internal static class SetupCommand
             ?? throw new CliUsageException("The account vanished immediately after being added.");
 
         var provider = await host.ConnectProviderAsync(account, ct).ConfigureAwait(false);
-        var report = await host.Sync.SyncAccountAsync(provider, accountId, null, ct).ConfigureAwait(false);
+        var progress = SyncProgressLine.Start(host.Clock, output.Json, line.Flag("quiet"));
+        SyncReport report;
+        try
+        {
+            report = await host.Sync.SyncAccountAsync(provider, accountId, progress?.Progress, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            progress?.Finish();
+        }
 
         Prompt.Say($"Synced {report.Added} new, {report.Updated} updated, across {report.Folders} folders.");
         Prompt.Say();

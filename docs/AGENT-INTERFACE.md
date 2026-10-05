@@ -49,7 +49,7 @@ mailcoded backup <dir>                          # gated, off by default; a full 
 mailcoded backup-verify <dir>                   # gated the same way
 ```
 
-**Conventions.** Exit code 0 = success; distinct nonzero classes for validation / permission / rate-limit / not-found so agents can branch. Stable versioned JSON (`schema_version` field). `--plaintext` default for bodies. Large results paginate with `next_cursor` and an explicit `"truncated": true` marker so oversized output never silently poisons agent context.
+**Conventions.** Exit code 0 = success; distinct nonzero classes for validation / permission / rate-limit / not-found so agents can branch. Stable versioned JSON (`schema_version` field). `--plaintext` default for bodies. Large results paginate with `next_cursor` and an explicit `"truncated": true` marker so oversized output never silently poisons agent context. `sync --json` never draws the human-mode progress line, so its stderr carries the error document and nothing else.
 
 ## 13.4 Layer 2 — SKILL.md (ships in the repo)
 

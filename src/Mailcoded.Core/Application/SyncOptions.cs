@@ -26,17 +26,30 @@ public sealed record SyncOptions
     public static readonly SyncOptions Default = new();
 }
 
-/// <summary>Progress for the initial-sync UI. Counts are cumulative within the current run.</summary>
+public enum SyncPhase
+{
+    Folders,
+    Envelopes,
+    Flags,
+}
+
+/// <summary>One progress snapshot; counts are absolute, so a report that is coalesced away loses nothing.</summary>
 public sealed record SyncProgress
 {
-    public required string Phase { get; init; }
+    public required AccountId AccountId { get; init; }
+
+    public required SyncPhase Phase { get; init; }
+
+    /// <summary><c>FolderId.None</c> for <see cref="SyncPhase.Folders"/>.</summary>
     public FolderId FolderId { get; init; } = FolderId.None;
+
     public string FolderPath { get; init; } = string.Empty;
-    public int FoldersDone { get; init; }
-    public int FolderCount { get; init; }
-    public int Added { get; init; }
-    public int Updated { get; init; }
-    public int Expunged { get; init; }
+
+    public int Done { get; init; }
+
+    public int? Total { get; init; }
+
+    public bool Final { get; init; }
 }
 
 public sealed record FolderSyncReport

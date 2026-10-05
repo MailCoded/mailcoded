@@ -128,6 +128,27 @@ public sealed class DaemonProcess : IAsyncDisposable
         return null;
     }
 
+    /// <summary>Everything queued so far, in arrival order. Frames that carry an id are skipped.</summary>
+    public IReadOnlyList<(string Method, JsonElement Params)> DrainNotifications()
+    {
+        var drained = new List<(string Method, JsonElement Params)>();
+
+        while (_notifications.TryDequeue(out var document))
+        {
+            using (document)
+            {
+                if (!document.RootElement.TryGetProperty("method", out var name)) continue;
+
+                var parameters = document.RootElement.TryGetProperty("params", out var payload)
+                    ? payload.Clone()
+                    : default(JsonElement);
+                drained.Add((name.GetString() ?? string.Empty, parameters));
+            }
+        }
+
+        return drained;
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;

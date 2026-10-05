@@ -272,7 +272,7 @@ JSON-RPC 2.0 over stdio with **`Content-Length` framing (LSP-style)** so `vscode
 | `account.add` | `{email, provider, imap{...}, smtp{...}, auth{kind}, secretRef}` → `{accountId}` |
 | `account.list` | `{}` → `{accounts:[...]}` |
 | `folder.list` | `{accountId}` → `{folders:[{id,name,role,unread,total}]}` |
-| `sync` | `{accountId, folderId?}` → `{added,updated,expunged,durationMs}` |
+| `sync` | `{accountId, folderId?, progress?}` → `{added,updated,expunged,durationMs}` |
 | `search` | `{query, limit?, cursor?}` → `{hits:[EnvelopeDto], nextCursor?, truncated}` |
 | `thread.get` | `{threadKey}` → `{messages:[EnvelopeDto]}` |
 | `message.get` | `{messageId, format:'text'\|'html'\|'raw', fetchIfMissing:true}` → `{envelope, bodyText?, bodyHtml?, attachments:[...]}` — `bodyHtml` is **raw**; sanitization is the client's job |
@@ -281,7 +281,7 @@ JSON-RPC 2.0 over stdio with **`Content-Length` framing (LSP-style)** so `vscode
 | `message.move` | `{messageId, toFolderId}` → `{}` |
 | `send.preview` | `{accountId, draft}` → `{preview, confirmToken}` |
 | `send` | `{accountId, draftId, confirmToken}` → `{messageId}` — **rejects without a valid token**; logs to `sync_log` |
-| `watch.subscribe` | `{accountId}` → `{}`; notifications `notify.mail.added`, `notify.folder.updated`, `notify.sync.error` |
+| `watch.subscribe` | `{accountId}` → `{}`; notifications `notify.mail.added`, `notify.folder.updated`, `notify.sync.error`; `notify.sync.progress` also for `sync` with `progress: true` |
 | `stats` / `health` | `{}` → metrics (see `RELIABILITY.md`) |
 | `provider.detect` | `{email}` → `{preset}` — built-in IMAP/SMTP settings and credential guidance; pure lookup, no network |
 | `store.backup` | `{directory}` → `{backup, secretsIncluded:false}` — a consistent copy of `store.db` (`VACUUM INTO`), the external blob files it points at, and a `manifest.json`; never secrets; gated (CLI needs `MAILCODED_ALLOW_BACKUP=1`, MCP never); audited |

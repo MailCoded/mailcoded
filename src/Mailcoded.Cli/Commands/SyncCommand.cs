@@ -1,4 +1,5 @@
 using System.Globalization;
+using Mailcoded.Core.Application;
 using Mailcoded.Core.Domain.Primitives;
 
 namespace Mailcoded.Cli.Commands;
@@ -18,9 +19,18 @@ internal static class SyncCommand
         var provider = await host.ConnectProviderAsync(account, ct).ConfigureAwait(false);
 
         // SyncEngine writes the sync_started / sync_completed audit rows itself.
-        var report = folderId is { } folder
-            ? await host.Sync.SyncFolderAsync(provider, new FolderId(folder), null, ct).ConfigureAwait(false)
-            : await host.Accounts.InitialSyncAsync(provider, account.Id, null, ct).ConfigureAwait(false);
+        var progress = SyncProgressLine.Start(host.Clock, output.Json, line.Flag("quiet"));
+        SyncReport report;
+        try
+        {
+            report = folderId is { } folder
+                ? await host.Sync.SyncFolderAsync(provider, new FolderId(folder), progress?.Progress, ct).ConfigureAwait(false)
+                : await host.Accounts.InitialSyncAsync(provider, account.Id, progress?.Progress, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            progress?.Finish();
+        }
 
         if (output.Json)
         {

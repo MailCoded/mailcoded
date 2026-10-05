@@ -29,6 +29,23 @@ public sealed class DocumentationTests
     }
 
     [Fact]
+    public void Rpc_doc_has_a_section_for_every_notification_the_daemon_emits()
+    {
+        var doc = Read("docs", "rpc.md");
+
+        foreach (var field in typeof(Mailcoded.Protocol.RpcNotifications)
+                     .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+                     .Where(f => f.IsLiteral))
+        {
+            var notification = (string)field.GetRawConstantValue()!;
+
+            Assert.True(
+                doc.Contains($"### `{notification}`", StringComparison.Ordinal),
+                $"docs/rpc.md has no '### `{notification}`' section. Every notification needs one in the same change.");
+        }
+    }
+
+    [Fact]
     public void License_file_exists_and_is_mit_for_the_stated_holder()
     {
         var license = Read("LICENSE");

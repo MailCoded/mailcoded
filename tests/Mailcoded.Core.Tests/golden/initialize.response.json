@@ -35,7 +35,8 @@
       "notifications": [
         "notify.mail.added",
         "notify.folder.updated",
-        "notify.sync.error"
+        "notify.sync.error",
+        "notify.sync.progress"
       ],
       "providers": [
         "imap"

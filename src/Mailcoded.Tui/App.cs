@@ -91,7 +91,11 @@ internal sealed partial class App
                     else if (next.Input.Key is { } key && !HandleKey(key)) return 0;
                 }
 
-                if (next.Kind == EventKind.Tick && !_writer.Measure() && !Busy) continue;
+                if (next.Kind == EventKind.Tick)
+                {
+                    var expired = _state.Syncing.Expire(Environment.TickCount64);
+                    if (!_writer.Measure() && !expired && !Busy) continue;
+                }
 
                 Draw();
             }
@@ -433,7 +437,7 @@ internal sealed partial class App
             var raw = await _client.CallAsync(
                 RpcMethods.Sync,
                 Json.Serialize(
-                    new SyncParams { AccountId = folder.AccountId, FolderId = folder.Id },
+                    new SyncParams { AccountId = folder.AccountId, FolderId = folder.Id, Progress = true },
                     ProtocolJsonContext.Default.SyncParams),
                 token).ConfigureAwait(false);
 
@@ -519,6 +523,11 @@ internal sealed partial class App
             case RpcNotifications.SyncError when document.RootElement.TryGetProperty("params", out var failed):
                 if (failed.Deserialize(ProtocolJsonContext.Default.SyncErrorNotification) is { } error)
                     _applies.Enqueue(() => Report(error));
+                break;
+
+            case RpcNotifications.SyncProgress when document.RootElement.TryGetProperty("params", out var progressed):
+                if (progressed.Deserialize(ProtocolJsonContext.Default.SyncProgressNotification) is { } progress)
+                    _applies.Enqueue(() => _state.Syncing.Apply(progress, Environment.TickCount64));
                 break;
         }
     }

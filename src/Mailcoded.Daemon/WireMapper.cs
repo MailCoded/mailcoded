@@ -23,6 +23,32 @@ internal static class WireMapper
     public static string Instant(DateTimeOffset value) =>
         DaemonInfo.Deterministic ? DaemonInfo.TranscriptInstant : IsoTime.ToWire(value);
 
+    public static SyncProgressNotification ToNotification(App.SyncProgress progress, DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(progress);
+        var spansAccount = progress.FolderId == FolderId.None;
+
+        return new SyncProgressNotification
+        {
+            AccountId = progress.AccountId.Value,
+            FolderId = spansAccount ? null : progress.FolderId.Value,
+            FolderName = spansAccount ? null : progress.FolderPath,
+            Phase = PhaseName(progress.Phase),
+            Done = progress.Done,
+            Total = progress.Total,
+            Final = progress.Final,
+            AtUtc = Instant(nowUtc),
+        };
+    }
+
+    private static string PhaseName(App.SyncPhase phase) => phase switch
+    {
+        App.SyncPhase.Folders => SyncPhases.Folders,
+        App.SyncPhase.Envelopes => SyncPhases.Envelopes,
+        App.SyncPhase.Flags => SyncPhases.Flags,
+        _ => throw new ArgumentOutOfRangeException(nameof(phase), phase, null),
+    };
+
     public static string? InstantOrNull(DateTimeOffset? value)
     {
         if (value is not { } present) return null;
