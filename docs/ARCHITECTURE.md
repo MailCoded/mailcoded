@@ -99,6 +99,22 @@ No `Result<T>` library (ErrorOr/FluentResults/OneOf).
 
 Normative glossary: **Account, Folder, Envelope, Message, Blob, Tag** (local, notmuch-style) vs **Flag** (server IMAP), **Plan, SyncEvent, Outbox, Quirk**, and **Correspondent** (someone the user has written to, learned from outgoing mail only; never "contact" — contacts are out of scope). SPEC terms = C# type names = JSON-RPC names, exactly. Doubly load-bearing because an AI agent implements the spec: consistent vocabulary keeps generated code converging instead of inventing synonyms.
 
+## 12.6a IMAP connections per Account
+
+One `ImapProvider` per Account owns every IMAP connection, all in `Providers`; MailKit's `ImapClient` takes one command at a time, so each connection has its own command queue.
+
+| Connection | Opened | Serves |
+|---|---|---|
+| Sync connection | at connect | `LIST`, `SELECT`, the sync stream, and any command that finds it idle |
+| Interactive lane | on demand, only while the sync connection is busy | body and attachment fetch, Flag and Tag push, move, append |
+| One per watched Folder | when the watch starts | IMAP IDLE and nothing else |
+
+A sync holds its queue for the whole stream, including the time the caller spends committing batches to SQLite, so a command queued behind it would wait for the entire sync. `InteractiveLaneRouter` therefore sends a command to the sync connection when that is idle (a CLI one-shot or a quiet daemon never holds a second connection) and to the lane when it is not. If the lane cannot be opened for any reason, the command waits its turn on the sync connection and the lane is not retried until a `ReconnectPolicy` backoff, measured on the monotonic clock, has passed. A lane unused for `InteractiveLaneIdleMs` (default 2 minutes) is closed and reopened instead of probed; it is also closed when the sync connection reconnects.
+
+`ConnectionBudget` (`Domain/Sync`, pure) divides a per-Account ceiling: `MaxConnectionsPerAccount` = 8, below Dovecot's default of 10 per user and Gmail's 15, or `LowConnectionMaxConnections` = 4 once the `LowConnectionLimit` Quirk is latched. The sync connection and the lane are reserved first; the watcher cap is whatever remains, never above the configured one. No background body backfill exists, and none was added: bodies are fetched only when someone reads a Message.
+
+Known limit: the lane and the sync connection are separate IMAP sessions, so a Flag pushed on the lane can cross a sync that already fetched that Flag. The server wins on the next sync, exactly as when another client changes the same Message.
+
 ## 12.7 Enforcement
 
 Architecture tests run on CoreCLR at test time (AOT-irrelevant), NetArchTest.Rules or ArchUnitNET:

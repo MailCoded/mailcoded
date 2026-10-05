@@ -11,6 +11,9 @@ public sealed class ImapCommandQueue : IDisposable
     private readonly SemaphoreSlim gate = new(1, 1);
     private int disposed;
 
+    /// <summary>True while a command or a stream holds the queue; a hint, since it can change at once.</summary>
+    public bool IsBusy => Volatile.Read(ref disposed) == 0 && gate.CurrentCount == 0;
+
     public async Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> command, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(command);

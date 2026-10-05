@@ -34,10 +34,14 @@ public sealed partial class ImapProvider
     }
 
     /// <summary>11: consumer servers such as Yahoo and Gmail cap simultaneous connections hard.</summary>
-    private int EffectiveWatchCap() =>
-        quirks.HasFlag(ServerQuirks.LowConnectionLimit)
+    private int EffectiveWatchCap()
+    {
+        var configured = quirks.HasFlag(ServerQuirks.LowConnectionLimit)
             ? Math.Max(1, Math.Min(options.MaxWatchedFolders, options.LowConnectionWatchCap))
             : Math.Max(1, options.MaxWatchedFolders);
+
+        return CurrentBudget().WatcherCap(configured);
+    }
 
     private async Task WatchLoopAsync(
         AccountConfig cfg,

@@ -16,4 +16,5 @@ public static class IntegrationTraits
     public const string Identities = "identities";
     public const string Correspondents = "correspondents";
     public const string ServerDrafts = "server-drafts";
+    public const string InteractiveLane = "interactive-lane";
 }

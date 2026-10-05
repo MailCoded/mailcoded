@@ -36,15 +36,33 @@ public sealed partial class ImapProvider : IMailProvider
     private int disposed;
 
     private readonly IAccessTokenSource? tokens;
+    private readonly InteractiveLaneRouter<ImapProvider>? lanes;
 
     public ImapProvider(
         IClock? clock = null,
         MailTransportOptions? options = null,
         IAccessTokenSource? tokens = null)
+        : this(clock, options, tokens, isLane: false)
+    {
+    }
+
+    private ImapProvider(IClock? clock, MailTransportOptions? options, IAccessTokenSource? tokens, bool isLane)
     {
         this.clock = clock ?? SystemClock.Instance;
         this.options = options ?? MailTransportOptions.Default;
         this.tokens = tokens;
+
+        if (isLane || !this.options.InteractiveLane) return;
+
+        lanes = new InteractiveLaneRouter<ImapProvider>(
+            this.clock,
+            new ReconnectPolicy(this.clock, this.options.CreateRandom()),
+            primaryBusy: () => queue.IsBusy,
+            allowed: () => CurrentBudget().InteractiveLaneAllowed,
+            open: OpenLaneAsync,
+            isUsable: lane => lane.IsConnected,
+            close: lane => lane.DisposeAsync(),
+            idleRecycleMs: this.options.InteractiveLaneIdleMs);
     }
 
     public ServerCaps Capabilities => caps;
@@ -65,7 +83,12 @@ public sealed partial class ImapProvider : IMailProvider
         config = cfg;
         secrets = secretStore;
 
-        return queue.RunAsync(async token =>
+        return ConnectPrimaryAsync(cfg, secretStore, ct);
+    }
+
+    private async Task ConnectPrimaryAsync(AccountConfig cfg, ISecretStore secretStore, CancellationToken ct)
+    {
+        await queue.RunAsync(async token =>
         {
             await TearDownAsync().ConfigureAwait(false);
 
@@ -75,7 +98,9 @@ public sealed partial class ImapProvider : IMailProvider
             caps = session.Caps;
             faulted = false;
             lastActivityTicks = clock.Ticks;
-        }, ct);
+        }, ct).ConfigureAwait(false);
+
+        if (lanes is not null) await lanes.ResetAsync().ConfigureAwait(false);
     }
 
     public Task<IReadOnlyList<RemoteFolder>> ListFoldersAsync(CancellationToken ct) =>
@@ -96,6 +121,9 @@ public sealed partial class ImapProvider : IMailProvider
 
     /// <summary>Convenience form for small messages; anything large belongs on the streaming overload.</summary>
     public Task<byte[]> FetchRawMessageAsync(FolderRef folder, Uid uid, CancellationToken ct) =>
+        Interactive((provider, token) => provider.FetchRawMessageOnOwnQueueAsync(folder, uid, token), ct);
+
+    private Task<byte[]> FetchRawMessageOnOwnQueueAsync(FolderRef folder, Uid uid, CancellationToken ct) =>
         queue.RunAsync<byte[]>(token => GuardAsync<byte[]>("UID FETCH BODY[]", async inner =>
         {
             using var buffer = new MemoryStream();
@@ -108,12 +136,15 @@ public sealed partial class ImapProvider : IMailProvider
         ArgumentNullException.ThrowIfNull(destination);
         if (!destination.CanWrite) throw new ArgumentException("The destination stream is not writable.", nameof(destination));
 
-        return queue.RunAsync<bool>(token => GuardAsync<bool>("UID FETCH BODY[]", async inner =>
+        return Interactive((provider, token) => provider.FetchRawMessageToOnOwnQueueAsync(folder, uid, destination, token), ct);
+    }
+
+    private Task<bool> FetchRawMessageToOnOwnQueueAsync(FolderRef folder, Uid uid, Stream destination, CancellationToken ct) =>
+        queue.RunAsync<bool>(token => GuardAsync<bool>("UID FETCH BODY[]", async inner =>
         {
             await FetchRawCoreAsync(folder, uid, destination, inner).ConfigureAwait(false);
             return true;
         }, token), ct);
-    }
 
     /// <summary>§14.2: the body goes socket-to-destination, so a 100 MB attachment never lands on the heap.</summary>
     private async Task FetchRawCoreAsync(FolderRef folder, Uid uid, Stream destination, CancellationToken ct)
@@ -132,7 +163,11 @@ public sealed partial class ImapProvider : IMailProvider
         ArgumentNullException.ThrowIfNull(delta);
         if (delta.IsEmpty) return Task.CompletedTask;
 
-        return queue.RunAsync<bool>(token => GuardAsync<bool>("UID STORE", async inner =>
+        return Interactive((provider, token) => provider.SetFlagsOnOwnQueueAsync(folder, uid, delta, token), ct);
+    }
+
+    private Task<bool> SetFlagsOnOwnQueueAsync(FolderRef folder, Uid uid, FlagDelta delta, CancellationToken ct) =>
+        queue.RunAsync<bool>(token => GuardAsync<bool>("UID STORE", async inner =>
         {
             var client = await RequireLiveClientAsync(inner).ConfigureAwait(false);
             var imapFolder = await ResolveFolderAsync(client, folder.Path, inner).ConfigureAwait(false);
@@ -168,9 +203,11 @@ public sealed partial class ImapProvider : IMailProvider
 
             return true;
         }, token), ct);
-    }
 
     public Task<Uid?> MoveAsync(FolderRef from, Uid uid, FolderRef to, CancellationToken ct) =>
+        Interactive((provider, token) => provider.MoveOnOwnQueueAsync(from, uid, to, token), ct);
+
+    private Task<Uid?> MoveOnOwnQueueAsync(FolderRef from, Uid uid, FolderRef to, CancellationToken ct) =>
         queue.RunAsync<Uid?>(token => GuardAsync<Uid?>("UID MOVE", async inner =>
         {
             var client = await RequireLiveClientAsync(inner).ConfigureAwait(false);
@@ -209,6 +246,9 @@ public sealed partial class ImapProvider : IMailProvider
         }, token), ct);
 
     public Task<AtomicMoveResult> MoveAtomicAsync(FolderRef from, Uid uid, UidValidity expected, FolderRef to, CancellationToken ct) =>
+        Interactive((provider, token) => provider.MoveAtomicOnOwnQueueAsync(from, uid, expected, to, token), ct);
+
+    private Task<AtomicMoveResult> MoveAtomicOnOwnQueueAsync(FolderRef from, Uid uid, UidValidity expected, FolderRef to, CancellationToken ct) =>
         queue.RunAsync<AtomicMoveResult>(token => GuardAsync<AtomicMoveResult>("UID MOVE", async inner =>
         {
             if (!caps.Move) return AtomicMoveResult.Of(AtomicMoveStatus.Unsupported);
@@ -244,7 +284,11 @@ public sealed partial class ImapProvider : IMailProvider
         ArgumentNullException.ThrowIfNull(raw);
         if (!raw.CanRead) throw new ArgumentException("The source stream is not readable.", nameof(raw));
 
-        return queue.RunAsync<Uid?>(token => GuardAsync<Uid?>("APPEND", async inner =>
+        return Interactive((provider, token) => provider.AppendOnOwnQueueAsync(folder, raw, flags, receivedUtc, token), ct);
+    }
+
+    private Task<Uid?> AppendOnOwnQueueAsync(FolderRef folder, Stream raw, MailcodedFlags flags, DateTimeOffset receivedUtc, CancellationToken ct) =>
+        queue.RunAsync<Uid?>(token => GuardAsync<Uid?>("APPEND", async inner =>
         {
             var client = await RequireLiveClientAsync(inner).ConfigureAwait(false);
 
@@ -276,14 +320,48 @@ public sealed partial class ImapProvider : IMailProvider
                 return appended is { } a && a.Id > 0 ? new Uid(a.Id) : null;
             }
         }, token), ct);
-    }
 
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref disposed, 1) != 0) return;
 
+        if (lanes is not null) await lanes.DisposeAsync().ConfigureAwait(false);
         await TearDownAsync().ConfigureAwait(false);
         queue.Dispose();
+    }
+
+    private Task<T> Interactive<T>(Func<ImapProvider, CancellationToken, Task<T>> run, CancellationToken ct)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
+
+        return lanes is null
+            ? run(this, ct)
+            : lanes.RunAsync(token => run(this, token), (lane, token) => run(lane, token), ct);
+    }
+
+    private ConnectionBudget CurrentBudget() =>
+        ConnectionBudget.For(
+            quirks.HasFlag(ServerQuirks.LowConnectionLimit),
+            options.MaxConnectionsPerAccount,
+            options.LowConnectionMaxConnections,
+            options.InteractiveLane);
+
+    private async Task<ImapProvider> OpenLaneAsync(CancellationToken ct)
+    {
+        var cfg = config ?? throw new ProviderException(FailureCategory.Network, "Connect before opening a second connection.");
+        var store = secrets ?? throw new ProviderException(FailureCategory.Network, "Connect before opening a second connection.");
+
+        var lane = new ImapProvider(clock, options, tokens, isLane: true);
+        try
+        {
+            await lane.ConnectAsync(cfg, store, ct).ConfigureAwait(false);
+            return lane;
+        }
+        catch
+        {
+            await lane.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
     }
 
     private async Task<IReadOnlyList<RemoteFolder>> ListFoldersCoreAsync(ImapClient client, CancellationToken ct)

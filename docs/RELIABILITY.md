@@ -56,7 +56,7 @@ PRAGMA journal_size_limit = 67108864; -- cap -wal reuse at 64 MB
 
 **Connection lifecycle.** `client.IsConnected` can be stale after a network drop — do not trust it as a liveness probe. `ImapProtocolException` and `IOException`/`SocketException` → reconnect; `ImapCommandException` → per-command handling. Reconnect with exponential backoff + full jitter: 1s → 2s → 4s → 8s … capped at 5 min, reset after a stable 10 min. Re-authenticate on every reconnect. **Count auth failures separately from network failures** — never tight-loop a hard `AUTHENTICATIONFAILED` (server lockout / fail2ban); surface `auth-required` instead.
 
-**Threading model.** MailKit is one-command-at-a-time per client. Use a dedicated `ImapClient` per IDLE-watched folder plus a per-account serialized command queue for on-demand fetches. Watch INBOX (and a small set) only — Gmail allows ~15 connections per account.
+**Threading model.** MailKit is one-command-at-a-time per client. Per Account: a sync connection with a serialized command queue; a dedicated `ImapClient` per IDLE-watched folder; and an interactive lane, a second command connection opened only while a sync (or a long fetch) holds the sync connection, so a Message body fetch, an attachment fetch, a Flag/Tag push or a move never waits for a whole sync (§12.6a of ARCHITECTURE). Connection budget per Account: at most 8, at most 4 once the `LowConnectionLimit` Quirk is latched; the lane's slot is reserved ahead of the IDLE watchers. If the server refuses the lane (limit, timeout, login), commands share the sync connection and the lane retries after an exponential, jittered, monotonic backoff (auth failures wait longer and are never tight-looped). Watch INBOX (and a small set) only — Gmail allows ~15 connections per account.
 
 **IDLE cadence.** Re-issue every **9 minutes** for Gmail/consumer servers (Gmail drops idle connections around 10 min); RFC 2177 permits up to 29 minutes where tolerated. Coalesce into one scheduler, not per-folder timers.
 
@@ -111,6 +111,7 @@ Every row needs a fixture and a table-driven test against the pure planner.
 | 32 | 500k+ message account initial sync | high UIDNEXT | newest-first windowed backfill, resumable per-folder cursor |
 | 33 | Disk full (SQLITE_FULL) | error code | pause sync, surface notification, never corrupt |
 | 34 | User copies DB while running | n/a | `mailcoded backup` / `store.backup`: `VACUUM INTO` on a read-only connection plus the referenced external blob files and a verifiable manifest; `backup-verify` / `store.backupVerify` re-checks it |
+| 35 | A long sync or attachment fetch holds the sync connection while the user reads, tags or moves a Message | command waits behind the whole stream | the interactive lane: a second connection opened on demand; refusal falls back to sharing the sync connection and retries after a monotonic backoff; never more than the per-Account connection budget |
 
 ## 14.6 Observability
 

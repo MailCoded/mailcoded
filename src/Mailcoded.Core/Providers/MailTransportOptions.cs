@@ -28,6 +28,21 @@ public sealed record MailTransportOptions
     /// <summary>Watcher cap once a low simultaneous-connection server is latched (edge case 11).</summary>
     public int LowConnectionWatchCap { get; init; } = 2;
 
+    /// <summary>
+    /// Ceiling on simultaneous IMAP connections per Account: the sync connection, the interactive
+    /// lane and every IDLE watcher. Below Dovecot's default of 10 per user and Gmail's 15.
+    /// </summary>
+    public int MaxConnectionsPerAccount { get; init; } = 8;
+
+    /// <summary>The same ceiling once a low simultaneous-connection server is latched.</summary>
+    public int LowConnectionMaxConnections { get; init; } = 4;
+
+    /// <summary>When false, every command shares the sync connection and waits its turn.</summary>
+    public bool InteractiveLane { get; init; } = true;
+
+    /// <summary>An interactive connection idle this long is closed and reopened rather than probed.</summary>
+    public int InteractiveLaneIdleMs { get; init; } = 120_000;
+
     /// <summary>Fixes the backoff jitter for tests. Null uses a shared, non-deterministic source.</summary>
     public int? RandomSeed { get; init; }
 

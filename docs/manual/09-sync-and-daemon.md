@@ -36,6 +36,11 @@ client is different: **`mailcoded-tui` starts a `mailcoded-daemon` and talks to 
 The daemon holds the IMAP connections open, so the cost of TLS and login is paid once a session rather
 than once a keypress, and it can sit in IMAP IDLE waiting for new mail.
 
+Per account the daemon uses one connection to sync, one per watched folder to wait for new mail, and,
+only while a sync is busy, one more so that reading a message or changing its tags does not wait for
+the sync to finish. If the server refuses that extra connection, those commands simply queue behind
+the sync as they did before.
+
 ## One daemon owns a store
 
 A store's live connections belong to exactly one daemon at a time. Whichever starts first takes an OS

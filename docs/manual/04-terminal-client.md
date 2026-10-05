@@ -194,7 +194,7 @@ it. The confirmation screen is the control.
 At startup the TUI asks the daemon to watch every account's folders. New mail arrives as
 `3 new in INBOX - r to refresh` — the folder named by its server path — and a folder whose counts
 changed is updated in the sidebar.
-Watching uses IMAP IDLE, so the daemon keeps one connection open per watched folder.
+Watching uses IMAP IDLE, so the daemon keeps one connection open per watched folder, besides the one it syncs on. While a sync is running, reading a message or changing its tags uses a second connection, opened when it is needed and kept for reuse; an account never holds more than eight connections (four on servers that limit them).
 
 Only one daemon can hold a store's live connections at a time (chapter 9). If another mailcoded is
 already watching this store — a second TUI window, say — this one still works but tells you, once:
