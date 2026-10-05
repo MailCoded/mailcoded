@@ -1,0 +1,28 @@
+{
+  "id": 4,
+  "jsonrpc": "2.0",
+  "result": {
+    "hits": [
+      {
+        "accountId": 1,
+        "bodyFetched": true,
+        "date": "2024-01-05T06:07:08.000Z",
+        "flags": [
+          "unread"
+        ],
+        "folderId": 2,
+        "from": "Promo <promo@example.net>",
+        "hasAttachments": false,
+        "id": 4,
+        "size": 456,
+        "subject": "Invoice offer",
+        "tags": [
+          "unread"
+        ]
+      }
+    ],
+    "relaxed": false,
+    "semantic": false,
+    "truncated": false
+  }
+}

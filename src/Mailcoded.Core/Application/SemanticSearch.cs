@@ -56,7 +56,8 @@ public sealed class SemanticSearch
         AccountId? accountId,
         FolderId? folderId,
         int limit,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        bool skipHiddenFolders = false)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
@@ -86,7 +87,8 @@ public sealed class SemanticSearch
                 best.Insert(at, new SemanticHit(id, similarity));
                 if (best.Count > limit) best.RemoveAt(best.Count - 1);
             },
-            ct);
+            ct,
+            skipHiddenFolders);
 
         return best;
     }

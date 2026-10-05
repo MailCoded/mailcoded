@@ -88,6 +88,14 @@ what removes markdown links and remote images, the EchoLeak-class exfiltration c
 from the agent's context. And no-delete is enforced by absence: the agent has no write
 handle to the database, so an injected `DELETE FROM messages` has nothing to run against.
 
+## What search covers
+
+`search` leaves out messages in Trash and Junk folders unless the query names a folder (`in:trash`,
+`in:INBOX`), says `in:anywhere`, or the call carries `--folder` / `folder_id`. An agent that expects a
+message to exist and gets nothing should retry with `in:anywhere` before concluding it is gone. This
+is a ranking convenience, not a boundary: `in:anywhere` is always available and the agent surface gains
+no new capability from it.
+
 ## Triage signals
 
 `search`, `read` and `thread` results carry two booleans, `automated` and `encrypted`, and the

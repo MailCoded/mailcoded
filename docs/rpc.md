@@ -259,9 +259,22 @@ after an interruption replays safely. A `folderId` that belongs to another accou
    "semantic": false }`
 
 Local only; never touches the network. Query syntax: bare words (full text over subject, sender,
-recipients, body), `"quoted phrases"`, `from:`, `to:`, `cc:`, `subject:`, `tag:`, `folder:`,
+recipients, body), `"quoted phrases"`, `from:`, `to:`, `cc:`, `subject:`, `tag:`, `folder:`/`in:`,
 `is:unread|flagged|draft|replied`, `is:automated`, `is:encrypted`, `is:verified`, `has:attachment`,
 `before:YYYY-MM-DD`, `after:YYYY-MM-DD`, and `-` negation.
+
+**Which Folders a search covers.** By default a search leaves out every Message whose Folder has
+`role` `trash` or `junk`, in every Account. Three things lift that, and any one is enough:
+a **positive** `folder:`/`in:` predicate (`in:trash`, `folder:Spam`, `in:inbox`, whether it names the
+Folder by path, leaf name or role), the literal `in:anywhere` (or `folder:anywhere`), which searches
+every Folder, or a request that carries `folderId`. A negated predicate (`-in:inbox`) only rules a
+Folder out and does not lift the default; `-in:anywhere` is reported in the parse errors and ignored.
+`anywhere` is reserved, so a Folder literally named `anywhere` is reached by `folderId` or by its full
+path. The rule applies to every route: text, CJK, short-CJK `LIKE`, metadata-only, the relaxed retry
+and the semantic ranking. It is a property of `search` only: `thread.get`, `message.get`,
+`folder.list` and `stats` still see everything, and a thread view shows its Messages wherever they
+sit. The reply carries no marker that Messages were left out, so a client that offers a Trash or Junk
+view should send `folderId` for it.
 
 `tag:auto.social`, `tag:auto.news`, `tag:auto.marketing` and `tag:auto.notifications` find the built-in
 category Tags (see `tags.set`); there is no separate operator.

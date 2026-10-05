@@ -22,7 +22,8 @@ Full-text over subject, sender, recipients and body, plus structured predicates.
 | `from:acme`, `to:bob@example.com`, `cc:team` | the address or name contains |
 | `subject:invoice` | the subject contains |
 | `tag:triaged` | carries the local Tag; `tag:auto.news` finds a built-in category (chapter 6) |
-| `folder:INBOX`, `in:INBOX` | in that folder |
+| `folder:INBOX`, `in:INBOX` | in that folder; a folder is matched by its path, its last path segment, or its role (`in:trash`, `in:junk`) |
+| `in:anywhere` | every folder, Trash and Junk included (see below) |
 | `is:unread`, `is:read`, `is:flagged`, `is:unflagged`, `is:draft`, `is:replied` | server Flags; `seen`, `starred` and `answered` are accepted synonyms |
 | `is:automated` | machine-generated: list or bulk mail, an auto-reply, a delivery or read report, a `noreply`-style sender |
 | `is:encrypted` | PGP/MIME, an S/MIME envelope, or an inline PGP block; mailcoded cannot read the body |
@@ -30,6 +31,22 @@ Full-text over subject, sender, recipients and body, plus structured predicates.
 | `has:attachment` | carries an attachment |
 | `before:2026-01-31`, `after:2026-01-01`, `since:2026-01-01` | strictly earlier; at or after. ISO dates |
 | `-term`, `-tag:spam`, `not term` | negation |
+
+**Trash and Junk are left out by default.** A search skips messages whose folder the server marks as
+Trash or Junk, in every account, so a discarded newsletter does not crowd out the mail you meant. Any
+of these puts them back:
+
+- name a folder in the query: `invoice in:trash`, `folder:Spam`. A folder you name is searched whatever
+  its role, and `in:trash` and `in:junk` match by role, so they cover every account's Trash or Junk
+  folder;
+- `in:anywhere` searches every folder, for when you do not know where a message went;
+- `--folder <id>` limits the search to one folder, Trash and Junk included.
+
+A minus does not count as naming a folder: `invoice -in:inbox` still leaves Trash and Junk out. The
+word `anywhere` is reserved for this, so a folder literally called `anywhere` is reached with
+`--folder` or by its full path. Reading a message, showing a thread, listing folders and `stats` are
+not affected, and a search for a word that only a discarded message contains answers nothing until
+you add `in:anywhere` or `in:trash`.
 
 `is:automated` and `is:encrypted` are worked out from message headers and structure when mail is
 synced, and refined when a body is fetched (inline PGP armor can only be seen then). They match only a

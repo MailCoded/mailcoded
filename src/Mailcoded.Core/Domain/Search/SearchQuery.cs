@@ -15,6 +15,9 @@ public abstract record SearchPredicate
     public sealed record Subject(string Value) : SearchPredicate;
     public sealed record HasTag(Tag Value) : SearchPredicate;
     public sealed record InFolder(string Folder) : SearchPredicate;
+
+    /// <summary>The query's own statement that it spans every Folder, Trash and Junk included. Never negated.</summary>
+    public sealed record InAnyFolder : SearchPredicate;
     public sealed record IsUnread : SearchPredicate;
     public sealed record IsFlagged : SearchPredicate;
     public sealed record IsDraft : SearchPredicate;
@@ -95,6 +98,22 @@ public sealed record SearchQuery
     public IReadOnlyList<string> NegatedLikePatterns { get; init; } = [];
 
     public bool IsEmpty => Predicates.Count == 0 && Terms.Count == 0;
+
+    /// <summary>Whether the query itself chose where to look: a positive Folder predicate, or <c>in:anywhere</c>.
+    /// A negated Folder predicate chooses nothing, it only rules a Folder out.</summary>
+    public bool NamesFolderScope
+    {
+        get
+        {
+            foreach (var predicate in Predicates)
+            {
+                if (predicate is SearchPredicate.InAnyFolder) return true;
+                if (predicate is SearchPredicate.InFolder { Negated: false }) return true;
+            }
+
+            return false;
+        }
+    }
 
     public bool HasTextSearch =>
         LatinMatchExpression is not null

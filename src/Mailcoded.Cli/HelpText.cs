@@ -117,7 +117,8 @@ QUERY SYNTAX
   cc:team               Cc contains
   subject:invoice       subject contains
   tag:triaged           has the local Tag (tag:auto.news etc. are built-in categories)
-  folder:INBOX          in that folder
+  folder:INBOX          in that folder (also in:INBOX; matches path, last segment or role)
+  in:anywhere           every folder; by default Trash and Junk are left out
   is:unread             also is:flagged, is:draft, is:replied
   is:automated          list/bulk mail, auto-replies, reports, noreply senders
   is:encrypted          PGP or S/MIME; the body is not readable here
@@ -132,7 +133,7 @@ OPTIONS
   --limit <n>      1..200, default 50
   --cursor <c>     the next_cursor from a previous call, verbatim and undecorated
   --account <id>   restrict to one account
-  --folder <id>    restrict to one folder id
+  --folder <id>    restrict to one folder id; works for Trash and Junk too
   --order <o>      relevance (default for text queries) or date
   --no-snippet     omit match excerpts, which shortens the output a lot
   --meaning        also rank by what a message is about, not only its words. Needs an

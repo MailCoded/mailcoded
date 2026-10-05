@@ -165,7 +165,13 @@ public sealed class SearchService
         if (text.Length == 0) return null;
 
         var limit = NormalizeLimit(request.Limit);
-        var semantic = _semantic.Rank(text, request.AccountId, request.FolderId, limit, ct);
+        var semantic = _semantic.Rank(
+            text,
+            request.AccountId,
+            request.FolderId,
+            limit,
+            ct,
+            SearchFolderScope.HidesByDefault(query, request.FolderId is not null));
         if (semantic.Count == 0) return null;
 
         var scores = new Dictionary<long, double>(lexical.Count + semantic.Count);

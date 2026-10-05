@@ -118,10 +118,12 @@ JSON-RPC rather than opening the store itself. It is the worked example behind `
 compiles against `Mailcoded.Protocol` alone, which is why it is 5.90 MiB where the CLI is 15.53 MiB.
 
 Search understands bare words and phrases plus `from:`, `to:`, `cc:`, `subject:`, `tag:`,
-`folder:`, `is:unread|flagged|draft|replied`, `is:automated`, `is:encrypted`, `is:verified`, `has:attachment`,
+`folder:`/`in:`, `is:unread|flagged|draft|replied`, `is:automated`, `is:encrypted`, `is:verified`, `has:attachment`,
 `before:`/`after:`, and `-` negation. Diacritics fold, and CJK is indexed with a trigram route (with a `LIKE` fallback for one-
 and two-character terms). `--meaning` additionally ranks by what a message is about rather than
 which words it used, if you installed a model — see [Known gaps](#known-gaps) for its real state.
+Search leaves out Messages in Trash and Junk Folders unless the query names a Folder (`in:trash`,
+`folder:INBOX`), says `in:anywhere`, or the call is scoped to one Folder with `--folder`.
 New mail may also get one local category Tag (`auto.social`, `auto.news`, `auto.marketing` or
 `auto.notifications`) from fixed built-in rules, assigned once and never pushed to the server;
 find them with `tag:auto.news`.

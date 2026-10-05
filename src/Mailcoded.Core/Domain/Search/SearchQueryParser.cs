@@ -249,6 +249,22 @@ public static class SearchQueryParser
                 return true;
 
             case FieldKind.Folder:
+                if (string.Equals(value, SearchFolderScope.AnywhereKeyword, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (negated)
+                    {
+                        errors.Add(new SearchParseError(
+                            SearchParseErrorKind.UnknownValue,
+                            "in:anywhere names no Folder to rule out; leave the minus off.",
+                            position,
+                            Excerpt(value)));
+                        return false;
+                    }
+
+                    predicates.Add(new SearchPredicate.InAnyFolder());
+                    return true;
+                }
+
                 predicates.Add(new SearchPredicate.InFolder(value) { Negated = negated });
                 return true;
 

@@ -98,6 +98,23 @@ ORDER BY rank LIMIT 50;
 
 Keep `LIMIT` small; call `snippet()`/`highlight()` only on the returned page, never across the full result set.
 
+**Default Folder scope.** Unless the query names a Folder (or the request carries a `folderId`), every
+search adds one uncorrelated predicate:
+
+```sql
+AND m.folder_id NOT IN (SELECT id FROM folders WHERE role IN ('trash', 'junk'))
+```
+
+SQLite evaluates the subquery once into a handful of ids and tests each candidate row against it, so
+the plan still walks `ix_msg_date` for a date-ordered search and still seeks `(date_utc, id) < (?, ?)`
+for a keyset page: no temp B-tree for the ORDER BY, no per-row probe of `folders`. A correlated
+`NOT EXISTS` over `folders` gives the same plan but probes per row. Measured on a synthetic 500k-message
+store (8% of rows in Trash/Junk, WAL off, one connection, python `sqlite3`): a metadata-only first page
+and a deep keyset page stay at 0.1 ms, and a date-ordered FTS term matching 100k rows costs about
+20-25 ms more than without the predicate, the price of testing each candidate row; a term matching
+fewer rows costs proportionally less. Re-run `Mailcoded.Bench` before treating the FTS p95 as unchanged.
+The semantic scan adds the same predicate, so hidden vectors never take a top-k slot.
+
 **Thread view (latest per thread):**
 
 ```sql

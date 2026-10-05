@@ -133,6 +133,21 @@ internal sealed class SearchSqlBuilder
         And(negated ? string.Concat("NOT ", clause) : clause);
     }
 
+    public void AndOutsideFolderRoles(IReadOnlyList<FolderRole> roles) => And(OutsideFolderRoles(roles));
+
+    /// <summary>Uncorrelated, so SQLite materialises the few matching Folder ids once rather than probing per Message.</summary>
+    public static string OutsideFolderRoles(IReadOnlyList<FolderRole> roles)
+    {
+        var wire = new List<string>(roles.Count);
+        foreach (var role in roles)
+            if (role.ToWireValue() is { } value)
+                wire.Add(string.Concat("'", value, "'"));
+
+        return wire.Count == 0
+            ? string.Empty
+            : string.Concat("m.folder_id NOT IN (SELECT id FROM folders WHERE role IN (", string.Join(", ", wire), "))");
+    }
+
     /// <summary>A literal mask, so the clause still matches the ix_msg_unread partial-index predicate.</summary>
     public static string FlagClause(MessageFlags flag, bool negated)
     {

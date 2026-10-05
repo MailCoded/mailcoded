@@ -47,7 +47,7 @@ Backend first (M0–M2); the extension consumes released daemon binaries from M3
 ### 3.1 In scope — v0.1
 - One IMAP account (app password or XOAUTH2), sync to local SQLite store.
 - Incremental sync: UIDVALIDITY tracking, QRESYNC/CONDSTORE fast resync, full-fetch fallback, lazy body fetch.
-- FTS5 search, notmuch-compatible tags (`unread`, `flagged`, `replied`, custom).
+- FTS5 search, notmuch-compatible tags (`unread`, `flagged`, `replied`, custom). Search leaves out Trash- and Junk-role Folders unless the query names a Folder, says `in:anywhere`, or is scoped to one Folder.
 - Send via SMTP with mandatory confirmation + outbox state machine.
 - JSON-RPC daemon (stdio) + thin one-shot CLI (`mailcoded`, JSON output).
 - Secrets in OS keyring with encrypted-file fallback.

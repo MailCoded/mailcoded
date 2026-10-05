@@ -105,7 +105,10 @@ HTML.
 `/` opens a prompt on the status line. The query language is the one `mailcoded search` uses
 (chapter 5): words, `"phrases"`, `from:`, `to:`, `subject:`, `tag:`, `is:unread`, `has:attachment`,
 `before:` and `after:` dates, `-` to negate. A search covers the **whole account** the selected folder
-belongs to and comes back by relevance; `esc` clears it and returns you to the folder.
+belongs to and comes back by relevance, leaving out Trash and Junk like every search; `esc` clears it and
+returns you to the folder. Searching while Trash or Junk is the selected folder stays in that folder,
+unless the query names a folder (`in:inbox`) or says `in:anywhere`; then the query decides, as it does
+everywhere else.
 
 ## Triage
 

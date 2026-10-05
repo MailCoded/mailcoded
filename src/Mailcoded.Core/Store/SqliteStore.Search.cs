@@ -34,6 +34,8 @@ public sealed partial class SqliteStore
 
         if (request.AccountId is { } accountId) builder.AndIntCompare("m.account_id", "=", accountId.Value);
         if (request.FolderId is { } folderId) builder.AndIntCompare("m.folder_id", "=", folderId.Value);
+        if (SearchFolderScope.HidesByDefault(query, request.FolderId is not null))
+            builder.AndOutsideFolderRoles(SearchFolderScope.HiddenByDefault);
 
         foreach (var predicate in query.Predicates) AppendPredicate(builder, predicate);
         AppendText(builder, query, route);
@@ -150,6 +152,8 @@ public sealed partial class SqliteStore
                 break;
             case SearchPredicate.InFolder folderPredicate:
                 builder.AndFolderName(folderPredicate.Folder, negated);
+                break;
+            case SearchPredicate.InAnyFolder:
                 break;
             case SearchPredicate.IsUnread:
                 builder.And(SearchSqlBuilder.FlagClause(MessageFlags.Unread, negated));

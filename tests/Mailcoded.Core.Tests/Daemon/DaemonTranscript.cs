@@ -2,7 +2,9 @@ using System.Globalization;
 using System.IO.Pipelines;
 using System.Text;
 using Mailcoded.Core.Application;
+using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Signals;
+using Mailcoded.Core.Providers;
 using Mailcoded.Core.Tests.Surface;
 using Mailcoded.Daemon;
 
@@ -144,7 +146,26 @@ internal sealed class DaemonTranscript : IAsyncDisposable
             size: 345,
             ct: ct).ConfigureAwait(false);
 
+        var junkIds = await host.Store.UpsertFoldersAsync(
+            accountId,
+            [new RemoteFolder { Path = FolderPath.Create("Junk"), Role = FolderRole.Junk }],
+            ct).ConfigureAwait(false);
+
+        await StoreSeeder.AddMessageAsync(
+            host.Store,
+            junkIds[0],
+            uid: 1,
+            messageId: "golden-4@example.test",
+            subject: "Invoice offer",
+            from: "Promo <promo@example.net>",
+            to: "golden@example.test",
+            dateUtc: new DateTimeOffset(2024, 1, 5, 6, 7, 8, TimeSpan.Zero),
+            bodyText: "Pay this invoice now.",
+            size: 456,
+            ct: ct).ConfigureAwait(false);
+
         await host.Store.RecountFolderAsync(folderId, ct).ConfigureAwait(false);
+        await host.Store.RecountFolderAsync(junkIds[0], ct).ConfigureAwait(false);
     }
 
     private static byte[] Frame(byte[] body)

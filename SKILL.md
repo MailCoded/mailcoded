@@ -67,7 +67,12 @@ Run it when unsure rather than guessing a flag.
 Bare words are full text over subject, sender, recipients, and body. `"two words"` is a
 phrase. Operators: `from:`, `to:`, `cc:`, `subject:`, `tag:`, `folder:`, `is:unread`
 (also `is:flagged`, `is:draft`, `is:replied`), `is:automated`, `is:encrypted`, `is:verified`, `has:attachment`,
-`before:2026-01-31`, `after:2026-01-01`. Prefix with `-` to negate (`-tag:spam`).
+`before:2026-01-31`, `after:2026-01-01`, `in:<folder>` (alias `folder:`). Prefix with `-` to negate (`-tag:spam`).
+
+A search skips messages in Trash and Junk folders unless the query names a folder (`in:trash`,
+`in:INBOX`), says `in:anywhere`, or you pass `--folder <id>`. A negated folder (`-in:inbox`) does not
+count as naming one. If a search for something that must exist comes back empty, try `in:anywhere`
+before concluding it is not in the store.
 
 `is:automated` marks list and bulk mail, auto-replies, delivery and read reports, and `noreply`-style
 senders; `-is:automated` is the usual first cut when triaging for mail a person wrote. Both signals

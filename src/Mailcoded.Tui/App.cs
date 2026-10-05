@@ -362,7 +362,7 @@ internal sealed partial class App
                 {
                     Query = query ?? string.Empty,
                     AccountId = folder.AccountId,
-                    FolderId = query is null ? folder.Id : null,
+                    FolderId = MessageListScope.FolderFilter(folder, query),
                     Limit = PageSize,
                     Cursor = cursor,
                     Order = query is null ? SearchOrders.Date : null,

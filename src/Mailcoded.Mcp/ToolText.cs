@@ -32,7 +32,9 @@ internal static class ToolText
 
     public const string SearchDescription =
         "Search the local mailcoded store. The query accepts free text plus the from:, to:, subject:, " +
-        "tag:, is:, before: and after: operators. Returns envelope hits with an optional snippet. " +
+        "tag:, in:, is:, before: and after: operators. Messages in Trash and Junk folders are left out " +
+        "unless the query names a folder, says in:anywhere, or folder_id is given. " +
+        "Returns envelope hits with an optional snippet. " +
         "Follow next_cursor unchanged while truncated is true; never edit or mix cursors.";
 
     public const string ReadDescription =
@@ -80,7 +82,7 @@ internal static class ToolText
         "limit": { "type": "integer", "minimum": 1, "maximum": 200, "description": "Hits per page. Defaults to 50." },
         "cursor": { "type": "string", "description": "Opaque next_cursor from a previous call. Pass it back unchanged." },
         "account_id": { "type": "integer", "description": "Restrict to one account." },
-        "folder_id": { "type": "integer", "description": "Restrict to one folder." },
+        "folder_id": { "type": "integer", "description": "Restrict to one folder; Trash and Junk are searched when named here." },
         "order": { "type": "string", "enum": ["relevance", "date"], "description": "Defaults to relevance." },
         "include_snippet": { "type": "boolean", "description": "Include a match excerpt. Defaults to true." }
       },

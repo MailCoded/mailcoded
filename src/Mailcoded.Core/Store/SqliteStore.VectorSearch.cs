@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Domain.Search;
 using ParsedQuery = Mailcoded.Core.Domain.Search.SearchQuery;
 
 namespace Mailcoded.Core.Store;
@@ -18,7 +19,8 @@ public sealed partial class SqliteStore
         AccountId? accountId,
         FolderId? folderId,
         VectorVisitor visit,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        bool skipHiddenFolders = false)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(dimensions);
         ArgumentNullException.ThrowIfNull(visit);
@@ -32,6 +34,7 @@ public sealed partial class SqliteStore
             sql.Append("WHERE v.model_id = $model");
             if (accountId is not null) sql.Append(" AND f.account_id = $account");
             if (folderId is not null) sql.Append(" AND m.folder_id = $folder");
+            if (skipHiddenFolders) sql.Append(" AND ").Append(SearchSqlBuilder.OutsideFolderRoles(SearchFolderScope.HiddenByDefault));
             sql.Append(" ORDER BY m.date_utc DESC, m.id DESC");
 
             var names = new List<string>(3) { "$model" };
