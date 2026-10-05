@@ -490,7 +490,7 @@ public sealed class MessageService
             try
             {
                 await _store
-                    .SetAttachmentTextsAsync(envelope.Id, AttachmentTextIndexing.EntriesOf(parsed), AttachmentTextIndexing.ExtractorVersion, ct)
+                    .SetAttachmentTextsAsync(envelope.Id, AttachmentTextIndexing.EntriesOf(parsed), AttachmentTextIndexing.ExtractorVersion, blob.Id, ct)
                     .ConfigureAwait(false);
             }
             catch (StoreException ex)

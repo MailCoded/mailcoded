@@ -250,7 +250,7 @@ public sealed class BackupTamperTests : IDisposable
         var outside = Path.Combine(_kit.Target.Root, "outside.bin");
         File.WriteAllBytes(outside, File.ReadAllBytes(FirstBlobPath));
         File.Delete(FirstBlobPath);
-        if (!TryLink(FirstBlobPath, outside)) return;
+        Assert.SkipUnless(TryLink(FirstBlobPath, outside), "Symbolic links are not permitted here.");
 
         var kinds = Kinds(await VerifyAsync());
 
@@ -265,12 +265,48 @@ public sealed class BackupTamperTests : IDisposable
         var outside = Path.Combine(_kit.Target.Root, "outside.db");
         File.Copy(DatabasePath, outside);
         File.Delete(DatabasePath);
-        if (!TryLink(DatabasePath, outside)) return;
+        Assert.SkipUnless(TryLink(DatabasePath, outside), "Symbolic links are not permitted here.");
 
         var kinds = Kinds(await VerifyAsync());
 
         Assert.Contains(BackupProblemKinds.LinkRefused, kinds);
         Assert.Contains(BackupProblemKinds.DatabaseMissing, kinds);
+    }
+
+    [Fact]
+    public async Task A_database_replaced_by_a_fifo_is_refused_without_blocking()
+    {
+        await InitializeAsync();
+        File.Delete(DatabasePath);
+        Assert.SkipUnless(TryFifo(DatabasePath), "mkfifo is not available here.");
+
+        var result = await VerifyWithinAsync();
+
+        Assert.Contains(BackupProblemKinds.DatabaseMissing, Kinds(result));
+    }
+
+    [Fact]
+    public async Task A_blob_replaced_by_a_fifo_is_refused_without_blocking()
+    {
+        await InitializeAsync();
+        File.Delete(FirstBlobPath);
+        Assert.SkipUnless(TryFifo(FirstBlobPath), "mkfifo is not available here.");
+
+        var result = await VerifyWithinAsync();
+
+        Assert.Contains(BackupProblemKinds.BlobMissing, Kinds(result));
+    }
+
+    [Fact]
+    public async Task A_manifest_replaced_by_a_fifo_is_refused_without_blocking()
+    {
+        await InitializeAsync();
+        File.Delete(ManifestPath);
+        Assert.SkipUnless(TryFifo(ManifestPath), "mkfifo is not available here.");
+
+        var result = await VerifyWithinAsync();
+
+        Assert.Contains(BackupProblemKinds.ManifestMissing, Kinds(result));
     }
 
     [Fact]
@@ -311,12 +347,31 @@ public sealed class BackupTamperTests : IDisposable
     public async Task A_hostile_file_name_cannot_inject_control_characters_into_the_report()
     {
         await InitializeAsync();
-        if (OperatingSystem.IsWindows()) return;
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Windows file names cannot hold control characters.");
         File.WriteAllText(Path.Combine(Root, "evil\u001b[2J\nname"), "x");
 
         var problem = Assert.Single((await VerifyAsync()).Problems, static p => p.Kind == BackupProblemKinds.UnexpectedFile);
 
         Assert.DoesNotContain(problem.Subject!, static c => char.IsControl(c));
+    }
+
+    private async Task<BackupVerification> VerifyWithinAsync() =>
+        await VerifyAsync().WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+
+    private static bool TryFifo(string path)
+    {
+        if (OperatingSystem.IsWindows()) return false;
+
+        try
+        {
+            using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("mkfifo") { ArgumentList = { path }, UseShellExecute = false });
+            process!.WaitForExit();
+            return process.ExitCode == 0 && File.Exists(path);
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException)
+        {
+            return false;
+        }
     }
 
     private static bool TryLink(string path, string target)

@@ -20,7 +20,7 @@ internal static class SetupCommand
         ArgumentNullException.ThrowIfNull(output);
 
         line.RejectExtraPositional(0);
-        AuthservOptions.Read(line, "trust-authserv-id");
+        var requestedTrust = AuthservOptions.Read(line, "trust-authserv-id");
 
         if (!Prompt.IsInteractive)
         {
@@ -28,6 +28,8 @@ internal static class SetupCommand
                 "'setup' is interactive and needs a terminal. For scripts use 'mailcoded account add' "
                 + "with explicit options and --password-stdin.");
         }
+
+        AuthservOptions.RequireConfirmed(line, "the account being set up", requestedTrust);
 
         Prompt.Heading("mailcoded setup");
         Prompt.Say("Adds a mail account to this machine. Nothing is saved until a real login succeeds.");

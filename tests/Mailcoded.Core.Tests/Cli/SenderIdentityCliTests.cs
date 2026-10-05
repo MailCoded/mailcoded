@@ -434,6 +434,7 @@ public sealed class SenderIdentityCliTests : IDisposable
         Assert.Contains("--signature", HelpText.For("draft"), StringComparison.Ordinal);
         Assert.Contains("--no-signature", HelpText.For("reply"), StringComparison.Ordinal);
         Assert.Contains("RFC 3676", HelpText.For("account signature"), StringComparison.Ordinal);
+        Assert.Contains("printf 'Alex Example\\nExample Pty\\n' |", HelpText.For("account signature"), StringComparison.Ordinal);
         Assert.Contains("account identity", HelpText.Overview, StringComparison.Ordinal);
         Assert.Contains("account signature", HelpText.Overview, StringComparison.Ordinal);
         await Task.CompletedTask;

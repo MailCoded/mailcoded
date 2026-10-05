@@ -16,41 +16,11 @@ public sealed partial class SqliteStore
         ArgumentNullException.ThrowIfNull(request);
 
         var query = request.Query;
-        var route = PrimaryRoute(query);
+        var (route, relevance, limit, offset, builder, sql) = Compile(request);
 
-        // Only bm25 over msg_fts gives a meaningful rank; trigram and LIKE always page by date.
-        var relevance = route == SearchRoute.Fts && request.Order == SearchOrder.Relevance;
-        var limit = NormalizeLimit(request.Limit);
+        if (relevance && offset >= _options.MaxSearchOffset)
+            return new StoreSearchResult { Hits = [], Route = route, Truncated = true };
 
-        var offset = 0;
-        if (relevance)
-        {
-            Cursors.TryDecodeOffset(request.Cursor, out offset);
-            if (offset >= _options.MaxSearchOffset)
-                return new StoreSearchResult { Hits = [], Route = route, Truncated = true };
-        }
-
-        var builder = new SearchSqlBuilder();
-
-        if (request.AccountId is { } accountId) builder.AndIntCompare("m.account_id", "=", accountId.Value);
-        if (request.FolderId is { } folderId) builder.AndIntCompare("m.folder_id", "=", folderId.Value);
-        if (SearchFolderScope.HidesByDefault(query, request.FolderId is not null))
-            builder.AndOutsideFolderRoles(SearchFolderScope.HiddenByDefault);
-
-        foreach (var predicate in query.Predicates) AppendPredicate(builder, predicate);
-        AppendText(builder, query, route);
-
-        if (!relevance && Cursors.TryDecodeKeyset(request.Cursor, out var cursorDate, out var cursorId))
-        {
-            var date = builder.AddInt(cursorDate);
-            var id = builder.AddInt(cursorId);
-            builder.And(string.Concat("(m.date_utc, m.id) < (", date, ", ", id, ")"));
-        }
-
-        var limitName = builder.AddInt(limit + 1);
-        var offsetName = relevance ? builder.AddInt(offset) : null;
-
-        var sql = BuildSearchSql(route, request.IncludeSnippet, builder.Where, relevance, limitName, offsetName);
         var needles = SnippetNeedles(query);
         var withSnippet = request.IncludeSnippet;
 
@@ -124,6 +94,46 @@ public sealed partial class SqliteStore
         }, ct);
     }
 
+    internal static string CompiledSearchSql(StoreSearchRequest request) => Compile(request).Sql;
+
+    private readonly record struct CompiledSearch(
+        SearchRoute Route,
+        bool Relevance,
+        int Limit,
+        int Offset,
+        SearchSqlBuilder Builder,
+        string Sql);
+
+    private static CompiledSearch Compile(StoreSearchRequest request)
+    {
+        var query = request.Query;
+        var route = PrimaryRoute(query);
+
+        // Only bm25 over msg_fts gives a meaningful rank; trigram and LIKE always page by date.
+        var relevance = route == SearchRoute.Fts && request.Order == SearchOrder.Relevance;
+        var limit = NormalizeLimit(request.Limit);
+
+        var offset = 0;
+        if (relevance) Cursors.TryDecodeOffset(request.Cursor, out offset);
+
+        var builder = new SearchSqlBuilder();
+        AppendScope(builder, request);
+        AppendText(builder, query, route);
+
+        if (!relevance && Cursors.TryDecodeKeyset(request.Cursor, out var cursorDate, out var cursorId))
+        {
+            var date = builder.AddInt(cursorDate);
+            var id = builder.AddInt(cursorId);
+            builder.And(string.Concat("(m.date_utc, m.id) < (", date, ", ", id, ")"));
+        }
+
+        var limitName = builder.AddInt(limit + 1);
+        var offsetName = relevance ? builder.AddInt(offset) : null;
+
+        var sql = BuildSearchSql(route, request.IncludeSnippet, builder.Where, relevance, limitName, offsetName);
+        return new CompiledSearch(route, relevance, limit, offset, builder, sql);
+    }
+
     private static void AttachMatches(DbSession session, List<StoreSearchHit> hits, FtsTerm term, bool withSnippet, CancellationToken ct)
     {
         var sql = term.Script switch
@@ -175,6 +185,16 @@ public sealed partial class SqliteStore
         if (query.LatinMatchExpression is not null) return SearchRoute.Fts;
         if (query.CjkMatchExpression is not null) return SearchRoute.Cjk;
         return query.LikePatterns.Count > 0 ? SearchRoute.Like : SearchRoute.None;
+    }
+
+    private static void AppendScope(SearchSqlBuilder builder, StoreSearchRequest request)
+    {
+        if (request.AccountId is { } accountId) builder.AndIntCompare("m.account_id", "=", accountId.Value);
+        if (request.FolderId is { } folderId) builder.AndIntCompare("m.folder_id", "=", folderId.Value);
+        if (SearchFolderScope.HidesByDefault(request.Query, request.FolderId is not null))
+            builder.AndOutsideFolderRoles(SearchFolderScope.HiddenByDefault);
+
+        foreach (var predicate in request.Query.Predicates) AppendPredicate(builder, predicate);
     }
 
     private static void AppendPredicate(SearchSqlBuilder builder, SearchPredicate predicate)
@@ -254,6 +274,11 @@ public sealed partial class SqliteStore
 
         foreach (var pattern in query.LikePatterns) builder.AndLikeFallback(pattern, negated: false);
 
+        AppendNegatedText(builder, query);
+    }
+
+    private static void AppendNegatedText(SearchSqlBuilder builder, ParsedQuery query)
+    {
         if (query.NegatedLatinMatchExpression is { } notLatin)
             builder.AndFtsSubquery("msg_fts", notLatin, negated: true);
 

@@ -29,24 +29,14 @@ internal static class AccountTrustCommand
 
         if (changing)
         {
-            if (!Confirmed(line, account, requested))
+            if (!AuthservOptions.Confirmed(line, $"account {account.Id.Value}: {account.Email}", requested))
             {
                 throw new CliUsageException(
                     "Changing the trusted authserv-ids changes what 'verified' means. Re-run from a terminal to "
                     + $"confirm, or set {OverrideEnvVar}=1 and pass --yes for an unattended run.");
             }
 
-            changed = await host.Store.SetTrustedAuthservIdsAsync(account.Id, requested, ct).ConfigureAwait(false);
-
-            if (changed)
-            {
-                await host.Audit.WarnAsync(
-                    "account_trust_changed",
-                    account.Id,
-                    host.Caller,
-                    "authserv_ids=" + (requested.Count == 0 ? "none" : string.Join(' ', requested)),
-                    ct).ConfigureAwait(false);
-            }
+            changed = await host.Accounts.SetTrustedAuthservIdsAsync(account.Id, requested, host.Caller, ct).ConfigureAwait(false);
 
             account = host.Store.GetAccount(account.Id, ct) ?? account;
         }
@@ -100,24 +90,5 @@ internal static class AccountTrustCommand
         writer.WriteStartArray(name);
         foreach (var id in ids) writer.WriteStringValue(id);
         writer.WriteEndArray();
-    }
-
-    private static bool Confirmed(CommandLine line, AccountConfig account, IReadOnlyList<string> requested)
-    {
-        if (line.Flag("yes"))
-        {
-            var allowed = Environment.GetEnvironmentVariable(OverrideEnvVar);
-            return allowed is "1" or "true" or "yes";
-        }
-
-        if (!Prompt.IsInteractive) return false;
-
-        Prompt.Say();
-        Prompt.Say($"About to trust {(requested.Count == 0 ? "no authserv-id" : string.Join(", ", requested))} for account {account.Id.Value}: {account.Email}");
-        Prompt.Say("  Mail whose Authentication-Results names one of these will be able to show as verified.");
-        Prompt.Say("  Only list names your own mail server writes and strips from incoming mail.");
-        Prompt.Say();
-
-        return Prompt.Confirm("Apply it?", false);
     }
 }

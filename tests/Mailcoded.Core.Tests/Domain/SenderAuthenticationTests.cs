@@ -48,6 +48,8 @@ public sealed class SenderAuthenticationTests
     [InlineData("mx.example.net; dmarc=pass header.from=\"\"")]
     [InlineData("mx.example.net; dmarc=pass body.from=example.com")]
     [InlineData("mx.example.net; dmarc=pass smtp.from=example.com")]
+    [InlineData("mx.example.net; dmarc=pass header.from=evil.example.org header.from=example.com")]
+    [InlineData("mx.example.net; dmarc=pass header.from=example.com header.from=evil.example.org")]
     public void Anything_short_of_a_dmarc_result_that_names_the_from_domain_is_unknown(string instance)
     {
         Assert.Equal(DmarcResult.Unknown, Evaluate([instance]));

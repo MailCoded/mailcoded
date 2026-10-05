@@ -68,9 +68,11 @@ or `TERM_PROGRAM`.
 
 ## Default posture
 
-This is the matrix from AGENT-INTERFACE §13.6, as implemented in
-`Mailcoded.Core.Application.AgentPolicy`. It is a function of the caller kind alone: the
-CLI and MCP are "agent surfaces"; the editor's RPC client is not.
+This is the matrix from AGENT-INTERFACE §13.6, which is the canonical copy. The send, SQL,
+move and backup rows are enforced in `Mailcoded.Core.Application.AgentPolicy` and are a function of
+the caller kind alone: the CLI and MCP are "agent surfaces"; the editor's RPC client is not. The
+three configuration rows (trusted authserv-ids, sender identities, server drafts) are enforced in
+the CLI command classes behind a terminal confirmation and have no RPC or MCP route.
 
 | Capability | Default for an agent | How it unlocks |
 |---|---|---|
@@ -82,7 +84,10 @@ CLI and MCP are "agent surfaces"; the editor's RPC client is not.
 | raw SQL read | **OFF** | `MAILCODED_ENABLE_SQL=1`; read-only and row-capped even then |
 | store backup (`backup`, `backup-verify`) | **OFF** on the CLI, **absent** from MCP | `MAILCODED_ALLOW_BACKUP=1`, CLI only |
 | HTML bodies | **never on this surface** | not available to an agent at all |
-| move between folders | **never on this surface** | not available to an agent at all |
+| move between folders | **never on MCP**; **OFF** on the CLI | `MAILCODED_ALLOW_MOVE=1`; a terminal then confirms, and `--yes` skips the prompt |
+| change the trusted authserv-ids (what `is:verified` means) | **OFF** on the CLI, **absent** from MCP | a terminal confirmation, or `MAILCODED_ALLOW_TRUST_CHANGE=1` + `--yes` |
+| add a sender identity (`account identity add`) | **OFF** on the CLI, **absent** from MCP | a terminal confirmation, or `MAILCODED_ALLOW_IDENTITY_CHANGE=1` + `--yes` |
+| save drafts to the server (`account server-drafts on`) | **OFF** on the CLI, **absent** from MCP | a terminal confirmation, or `MAILCODED_ALLOW_SERVER_DRAFTS=1` + `--yes` |
 | delete / expunge / trash | **does not exist** | never; there is no such verb or tool |
 
 Two consequences worth understanding. Bodies reach the agent as plaintext only — that is
@@ -287,18 +292,22 @@ nothing in the codebase rewrites or deletes a row. Columns are `id`, `ts`, `acco
 `level` (`info`/`warn`/`error`), `event`, `detail`, `interface` (`cli` | `mcp` | `rpc` |
 `internal`), and `agent_host`.
 
-Recorded from the agent surface: `cli_read`, `cli_thread`, `cli_folders`, `cli_correspondents`, `cli_stats`,
-`cli_health`, `cli_import`, `tags_set`, `body_fetched`, `sql_query`, the backup trail
-(`backup_started`, `backup_completed`, `backup_failed`, `backup_denied`, `backup_verified`,
-`backup_verify_failed`), and the send trail —
-`send_preview`, `send_attempt`, `send_result`, `sent_append`. Send rows carry the
+Recorded from the agent surface: `search`, `cli_read`, `cli_thread`, `cli_folders`, `cli_correspondents`,
+`cli_unsubscribe`, `cli_stats`, `cli_health`, `cli_import`, `tags_set`, `body_fetched`, `sql_query`, the
+backup trail (`backup_started`, `backup_completed`, `backup_failed`, `backup_denied`, `backup_verified`,
+`backup_verify_failed`), the configuration trail (`account_trust_changed`, `identity_added`,
+`identity_forgotten`, `signature_set`, `signature_forgotten`, `signature_default_changed`,
+`sender_denied`, `server_draft_setting`, `server_draft_saved`, `server_draft_save_failed`,
+`server_draft_moved`, `server_draft_left`),
+and the send trail — `send_preview`, `send_attempt`, `send_result`, `sent_append`. Send rows carry the
 decision (`allowed` / `denied` / `rate-limited`), the recipient count, whether a token was
 consumed, and a digest of the message; **the body itself is never written to the log**.
 Denied attempts are logged exactly like allowed ones, at `warn`.
 
-Two honest caveats. `search` itself is not audited — the queries an agent runs are not
-recorded, only the messages it opens. And the log is a table in the same database the
-mail lives in, so it is only as trustworthy as that file's filesystem permissions.
+Two honest caveats. `search` is audited as a digest of the query plus the hit count and the
+truncation flag, not the query text, so the digest does not let you read back what was asked. And
+the log is a table in the same database the mail lives in, so it is only as trustworthy as that
+file's filesystem permissions.
 
 To read it:
 

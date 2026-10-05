@@ -6,32 +6,39 @@ What has actually been exercised, and what has not. This file exists because
 below is a development-machine measurement, labelled as such, and is not a reference-hardware result.
 
 Environment: NixOS on WSL2, .NET SDK 10.0.302, linux-x64. Docker was **not** available for the
-earlier rows; the most recent run had it, and the Dovecot/smtp4dev suite ran (see below).
+earlier rows; an earlier run had it, and the original five Dovecot/smtp4dev tests ran then (see below).
 
 An adversarial review (six independent lenses, then a skeptic per finding instructed to refute it)
-produced 16 confirmed defects, all since fixed with regression tests. The store schema is at
-`user_version` 8.
+produced 16 confirmed defects, all since fixed with regression tests.
+
+**What the latest session re-ran, on the current tree.** Only these: the build (0 warnings, 0 errors),
+the whole unit suite, the TypeScript protocol check (`--check`, up to date), and
+`mailcoded import-eml fixtures/eml` on a fresh store (56 files, 56 imported, 0 failures). The store
+schema is at `user_version` 17 (migrations 009 to 017 were added since the rows below were recorded).
+Every other row below was run on an earlier tree, at `user_version` 8, with 37 fixtures; it says
+nothing about code written since. No Docker, no AOT publish and no pty run happened in that session.
 
 ## Verified by running it
 
 | Area | What was run | Result |
 |---|---|---|
 | Build | `dotnet build Mailcoded.slnx` with `TreatWarningsAsErrors=true` | clean, 0 warnings |
-| Unit suite | `tests/Mailcoded.Core.Tests` (xunit.v3) | **1377 passed, 0 failed** |
+| Unit suite | `tests/Mailcoded.Core.Tests` (xunit.v3), latest session | **3516 passed, 0 failed, 1 skipped (the env-gated 100k performance test)** |
 | Architecture tests | NetArchTest rules from ARCHITECTURE §12.7 | green, incl. the no-removal-verb rule |
 | Native AOT | `dotnet publish -r linux-x64 -p:PublishAot=true` | `mailcoded-daemon` 16.25 MiB and `mailcoded` 15.53 MiB, **zero IL2xxx/IL3xxx warnings**; both under the 20 MB fail gate, both over the 12 MB warning |
 | Size gate | `scripts/size-gate.sh` over the publish directory | every file counted, incl. `libe_sqlite3.so` (1.40 MiB); a 29 MB decoy library fails the gate |
 | Encoder AOT cost | byte count of the published daemon with and without the encoder reachable | **+158,000 bytes** (0.9%); 3.5x the design's 45,144 B estimate |
-| AOT runtime | the AOT **CLI** imported all 37 fixtures and ran FTS, CJK-trigram, short-CJK `LIKE` and metadata search | identical results to the JIT build — MimeKit and SQLitePCLRaw survive trimming |
+| AOT runtime | the AOT **CLI** (earlier tree) imported all 37 fixtures and ran FTS, CJK-trigram, short-CJK `LIKE` and metadata search | identical results to the JIT build — MimeKit and SQLitePCLRaw survive trimming |
 | Daemon stdio | `scripts/aot-smoke.sh` plus a pipelined 4-request session | `initialize`, `account.list`, `folder.list`, `stats`, `health`, `shutdown` all answered; framing correct |
-| FTS5 assertion | startup check against `PRAGMA compile_options` | present; a fresh store opens at `user_version` 8 |
-| MIME corpus | `mailcoded import-eml fixtures/eml` | 37/37 imported, **0 failures** |
-| Migration 008 | fresh store, and store at v7 | reaches `user_version` 8; `msg_vec`, `vec_model` present; account forget cascades to `msg_vec` |
+| FTS5 assertion | startup check against `PRAGMA compile_options` | present; a fresh store opened at `user_version` 8 then (now 17, asserted by unit tests) |
+| MIME corpus | `mailcoded import-eml fixtures/eml`, latest session, JIT CLI | 56/56 imported, **0 failures** (37/37 on the earlier tree) |
+| Migration 008 | fresh store, and store at v7 (earlier tree) | reaches `user_version` 8; `msg_vec`, `vec_model` present; account forget cascades to `msg_vec` |
 | Semantic pipeline | synthetic random-weight model in `<data>/model`; daemon in stdio mode; then CLI | daemon logged the model and `capabilities.semantic: true`; backfill wrote 37/37 vectors in the background; `search 'invoice' --meaning` returned `semantic: true` with the lexical hit still ranked first; `vec_model` row count unchanged after the CLI (it attaches read-only) |
 | Semantic refusal | `search` with `semantic: true` and no model | **1008** with category `unsupported` (golden transcript) |
 | Backfill vs bulk ingest | unit test opening a bulk-ingest window | the worker stands down and writes nothing inside the window; a write issued inside it would join that window's transaction and be rolled back with it (found by test, fixed) |
-| Dovecot / smtp4dev | `tests/Mailcoded.Integration` via Testcontainers | **5 passed, 0 skipped**: add-account/sync/search/tag/send round trip; crash after SMTP 250 reconciles from Sent; stuck send is investigated, never resent; UIDVALIDITY change re-enumerates without duplicating blobs; external APPEND produces `notify.mail.added` within 5 s |
-| Search | FTS terms, phrases, diacritics, CJK ≥3 chars (trigram), CJK 1–2 chars (`LIKE`), `from:`, `subject:`, `tag:`, `is:unread`, `is:flagged`, `has:attachment`, `attachment:` (text-like attachments and `.docx`), `before:`/`after:`, negation, `in:trash`/`in:anywhere`, Trash and Junk left out by default | correct hits, correct reported route |
+| Dovecot / smtp4dev | the original five tests in `tests/Mailcoded.Integration` via Testcontainers, on an earlier tree | **5 passed, 0 skipped**: add-account/sync/search/tag/send round trip; crash after SMTP 250 reconciles from Sent; stuck send is investigated, never resent; UIDVALIDITY change re-enumerates without duplicating blobs; external APPEND produces `notify.mail.added` within 5 s |
+| Search | FTS terms, phrases, diacritics, CJK ≥3 chars (trigram), CJK 1–2 chars (`LIKE`), `from:`, `subject:`, `tag:`, `is:unread`, `is:flagged`, `has:attachment`, `before:`/`after:`, negation (earlier tree) | correct hits, correct reported route |
+| Search, newer operators | `attachment:` (text-like attachments and `.docx`), `in:trash`/`in:anywhere`, Trash and Junk left out by default, `is:automated`, `is:verified`, `is:encrypted` | **unit tests only**; no Docker or daemon session exercised them |
 | Malformed query | `search 'from: AND AND "unclosed'` | `ok: true` with a populated `errors` array — never throws |
 | IMAP sync | first sync against a minimal local IMAP server | plan `invalidate`, 3 envelopes ingested, 3 batches |
 | Re-sync | second sync, same server | `added: 0`, row count unchanged, 96 ms — idempotent |
@@ -48,7 +55,7 @@ produced 16 confirmed defects, all since fixed with regression tests. The store 
 | MCP surface | `tools/list` and three `tools/call` round trips | 8 tools, **no** delete/expunge/trash tool, `send_draft` marked dangerous |
 | Audit trail | `sync_log` after CLI activity | a row per call with `interface=cli`, a decision, and an args **digest** — no bodies, no credentials |
 | Exit codes | one invocation per class | 0 / 2 validation / 3 not-found / 4 forbidden, distinct and documented in `help` |
-| Integration suite | run with no Docker | **5 skipped** with the reason printed, 0 failed — never silently passes |
+| Integration suite | run with no Docker (earlier tree, when it held five tests) | **5 skipped** with the reason printed, 0 failed — never silently passes |
 | **Agent send cap** | seven `draft`/`send-preview`/`send-draft` triples, each in a **separate CLI process** | five transmitted, the sixth and seventh refused `1005 rate_limited`; the SMTP sink saw exactly five deliveries and `send_budget` held five rows |
 | **HTML text loss** | a message whose body contains `<3`, `<5000`, `<10%` | the payload after each now reaches `body_text` — `wire`, `999-888`, `CFO` and `IMPORTANT` are all searchable |
 | Script exclusion | fixture 011 (HTML-only with `<script>` and `javascript:`) | `body_text` carries none of it; the only `alert` match in the corpus is fixture 035's deliberately **undecoded** UTF-7 text |
@@ -111,7 +118,7 @@ hardware, or the other two OS legs, none of which were available here.
 |---|---|---|
 | **M0** Scaffold | criteria met on linux-x64 | the macOS and Windows CI legs have not run |
 | **M1** Store + MIME | met | — |
-| **M2** IMAP sync + send | mostly met | Dovecot and smtp4dev now run (5 tests): the QRESYNC/CONDSTORE arms and the 5k-message timing are still unrun |
+| **M2** IMAP sync + send | mostly met | Dovecot and smtp4dev ran for the original 5 tests: the QRESYNC/CONDSTORE arms and the 5k-message timing are still unrun |
 | **M3** Daemon + secrets + extension skeleton | backend met | the Windows/macOS keyrings are untested; the VS Code extension is a separate repository this record does not cover |
 | **M4** Read/act/compose in the extension | partly, elsewhere | reading, search and the sandboxed reader exist in the extension's own repository; compose and send do not. Nothing here tests it |
 | **M-perf** | harness only | the BenchmarkDotNet suite has never run; `baseline.json` is zeros on purpose. A 100k-message read-path test has run once on a development machine (below), which is not reference hardware |
@@ -126,6 +133,11 @@ hardware, or the other two OS legs, none of which were available here.
   reference hardware. `baseline.json` is committed with zeros on purpose. Every number in
   PERFORMANCE §15.2 is a target, not a measurement. The 100k development-machine run above is the
   only timing on record, and two of its paths are above target.
+- **The newer integration tests.** `tests/Mailcoded.Integration` holds 15 more test methods in eight
+  files (message signals, sync progress, sender identities, server drafts, correspondents,
+  List-Unsubscribe, the interactive IMAP lane, attachment text). They are written but have never run: no Docker was
+  available, so they prove nothing yet, and the MailKit-facing code they cover (folder hierarchy, the interactive lane,
+  `APPENDUID` handling, server-draft `UID MOVE`, envelope signals) is checked by unit tests against fakes only.
 - **QRESYNC and CONDSTORE delta paths.** The local test server advertises neither, so only the
   full-diff arm has executed. The planner's delta arms are covered by unit tests, not by a server.
 - **`MOVE`**, and the 5k-message sync timing.

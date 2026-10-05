@@ -51,6 +51,7 @@ public sealed class SenderAuthenticationCliTests : IDisposable
     {
         var ct = TestContext.Current.CancellationToken;
         await AddAccountAsync("a@example.com", [], "imap.example.com", ct);
+        using var locked = Locked();
 
         var bare = await RunAsync("account trust", ["--authserv-id", "mx.example.net"], ct);
         Assert.NotEqual(ExitCodes.Ok, bare.ExitCode);
@@ -130,13 +131,13 @@ public sealed class SenderAuthenticationCliTests : IDisposable
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var add = await RunAsync(
+        var add = await WithUnlockAsync(() => RunAsync(
             "account add",
             [
-                "--email", "new@example.com", "--imap-host", "imap.example.com", "--no-password",
+                "--email", "new@example.com", "--imap-host", "imap.example.com", "--no-password", "--yes",
                 "--trust-authserv-id", "MX.example.net", "--trust-authserv-id", "mx2.example.net,mx2.example.net",
             ],
-            ct);
+            ct));
 
         Assert.Equal(ExitCodes.Ok, add.ExitCode);
         Assert.Equal(["mx.example.net", "mx2.example.net"], StoredIds(1, ct));
@@ -144,6 +145,44 @@ public sealed class SenderAuthenticationCliTests : IDisposable
         using var list = JsonDocument.Parse((await RunAsync("account list", [], ct)).StdOut);
         var entry = list.RootElement.GetProperty("accounts")[0];
         Assert.Equal(["mx.example.net", "mx2.example.net"], Strings(entry.GetProperty("trusted_authserv_ids")));
+
+        using var store = OpenStore();
+        var row = Assert.Single(StoreQuery.Strings(store, "SELECT level || '|' || detail FROM sync_log WHERE event = 'account_trust_changed'", ct));
+        Assert.Equal("warn|authserv_ids=mx.example.net mx2.example.net", row);
+    }
+
+    [Fact]
+    public async Task Account_add_with_ids_needs_the_same_confirmation_as_account_trust_and_stores_nothing_without_it()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        string[] args = ["--email", "new@example.com", "--imap-host", "imap.example.com", "--no-password", "--trust-authserv-id", "mx.attacker.example.org"];
+
+        using var locked = Locked();
+
+        var bare = await RunAsync("account add", args, ct);
+        Assert.NotEqual(ExitCodes.Ok, bare.ExitCode);
+        Assert.Contains(AccountTrustCommand.OverrideEnvVar, bare.StdErr + bare.StdOut, StringComparison.Ordinal);
+
+        var flagOnly = await RunAsync("account add", [.. args, "--yes"], ct);
+        Assert.NotEqual(ExitCodes.Ok, flagOnly.ExitCode);
+
+        using var list = JsonDocument.Parse((await RunAsync("account list", [], ct)).StdOut);
+        Assert.Equal(0, list.RootElement.GetProperty("count").GetInt32());
+
+        using var store = OpenStore();
+        Assert.Equal(0, StoreQuery.Scalar(store, "SELECT COUNT(*) FROM sync_log WHERE event = 'account_trust_changed'", ct));
+    }
+
+    [Fact]
+    public async Task Account_add_without_ids_needs_no_confirmation_and_records_no_trust_change()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var add = await RunAsync("account add", ["--email", "new@example.com", "--imap-host", "imap.example.com", "--no-password"], ct);
+
+        Assert.Equal(ExitCodes.Ok, add.ExitCode);
+        using var store = OpenStore();
+        Assert.Equal(0, StoreQuery.Scalar(store, "SELECT COUNT(*) FROM sync_log WHERE event = 'account_trust_changed'", ct));
     }
 
     [Fact]
@@ -162,22 +201,45 @@ public sealed class SenderAuthenticationCliTests : IDisposable
         Assert.Equal(0, list.RootElement.GetProperty("count").GetInt32());
     }
 
-    [Fact]
-    public async Task Account_add_for_an_existing_address_cannot_change_the_trust_list()
+    [Theory]
+    [InlineData("a@example.com")]
+    [InlineData("A@Example.com")]
+    [InlineData("A@EXAMPLE.COM")]
+    public async Task Account_add_for_an_existing_address_in_any_case_cannot_change_the_trust_list(string address)
     {
         var ct = TestContext.Current.CancellationToken;
         await AddAccountAsync("a@example.com", ["mx.example.net"], "imap.example.com", ct);
 
-        var add = await RunAsync(
+        var add = await WithUnlockAsync(() => RunAsync(
             "account add",
             [
-                "--email", "a@example.com", "--imap-host", "imap.example.com", "--no-password",
+                "--email", address, "--imap-host", "imap.example.com", "--no-password", "--yes",
                 "--trust-authserv-id", "mx.attacker.example.org",
             ],
-            ct);
+            ct));
 
         Assert.Equal(ExitCodes.Ok, add.ExitCode);
         Assert.Equal(["mx.example.net"], StoredIds(1, ct));
+
+        using var list = JsonDocument.Parse((await RunAsync("account list", [], ct)).StdOut);
+        Assert.Equal(1, list.RootElement.GetProperty("count").GetInt32());
+
+        using var store = OpenStore();
+        Assert.Equal(0, StoreQuery.Scalar(store, "SELECT COUNT(*) FROM sync_log WHERE event = 'account_trust_changed'", ct));
+    }
+
+    [Fact]
+    public async Task Account_trust_writes_its_audit_row_through_the_service()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AddAccountAsync("a@example.com", [], "imap.example.com", ct);
+
+        var set = await WithUnlockAsync(() => RunAsync("account trust", ["--authserv-id", "mx.example.net", "--yes"], ct));
+        Assert.Equal(ExitCodes.Ok, set.ExitCode);
+
+        using var store = OpenStore();
+        var row = Assert.Single(StoreQuery.Strings(store, "SELECT level || '|' || detail FROM sync_log WHERE event = 'account_trust_changed'", ct));
+        Assert.Equal("warn|authserv_ids=mx.example.net", row);
     }
 
     [Fact]
@@ -263,6 +325,8 @@ public sealed class SenderAuthenticationCliTests : IDisposable
         Assert.Contains("--authserv-id", help, StringComparison.Ordinal);
         Assert.Contains(AccountTrustCommand.OverrideEnvVar, help, StringComparison.Ordinal);
         Assert.Contains("account trust", HelpText.Overview, StringComparison.Ordinal);
+        Assert.Contains(AccountTrustCommand.OverrideEnvVar, HelpText.Overview, StringComparison.Ordinal);
+        Assert.Contains("--trust-authserv-id", HelpText.For("setup"), StringComparison.Ordinal);
     }
 
     private Task<CliRun> RunAsync(string verb, string[] arguments, CancellationToken ct) =>
@@ -296,17 +360,11 @@ public sealed class SenderAuthenticationCliTests : IDisposable
 
     private static async Task<CliRun> WithUnlockAsync(Func<Task<CliRun>> run)
     {
-        Environment.SetEnvironmentVariable(AccountTrustCommand.OverrideEnvVar, "1");
-
-        try
-        {
-            return await run();
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(AccountTrustCommand.OverrideEnvVar, null);
-        }
+        using var unlocked = EnvironmentScope.Set((AccountTrustCommand.OverrideEnvVar, "1"));
+        return await run();
     }
+
+    private static EnvironmentScope Locked() => EnvironmentScope.Set((AccountTrustCommand.OverrideEnvVar, null));
 
     private static List<string> Strings(JsonElement array) =>
         [.. array.EnumerateArray().Select(e => e.GetString() ?? string.Empty)];

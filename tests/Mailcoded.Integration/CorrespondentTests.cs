@@ -31,6 +31,7 @@ public sealed class CorrespondentTests : IClassFixture<MailStackFixture>
 
         var accountId = await harness.AddAccountAsync(ct);
         await using var provider = await harness.ConnectProviderAsync(accountId, ct);
+        await harness.Accounts.InitialSyncAsync(provider, accountId, null, ct);
         var mailbox = _stack.Credentials.Mailbox;
 
         var subject = "mailcoded correspondents " + Guid.NewGuid().ToString("N");
@@ -49,6 +50,7 @@ public sealed class CorrespondentTests : IClassFixture<MailStackFixture>
         {
             var sent = await harness.Send.SendAsync(CallerContext.Rpc, sender, provider, preview.OutboxId, preview.ConfirmToken, null, ct);
             Assert.Equal(OutboxState.Sent, sent.State);
+            Assert.True(sent.AppendedToSent, "The sent copy was not APPENDed to the Sent folder.");
         }
 
         Assert.Equal(1, Assert.Single(harness.Store.ListCorrespondents(accountId, ct)).Count);

@@ -43,6 +43,7 @@ connection test.
 | `Live updates belong to another mailcoded window; press r to refresh here.` | another daemon owns this store's live connections | normal with two TUI windows; `r` refreshes (chapter 9) |
 | `Another live daemon (pid N) owns this store; watch connections stay closed here.` (stderr) | the same, from the daemon's side | |
 | any other red `sync: ...` | the server refused, or failed | `A` or `account test` for the detail; `S` for the last error |
+| `warning: N folder(s) not synced, their names cannot be told apart from the server's hierarchy` (`sync`; `unsyncable_folders` in `--json`) | a folder whose name contains `/` on a server that uses another hierarchy delimiter, such as `.`; its mail is not synced, and the same names are written to the log as `folder_unsyncable` | rename the folder on the server, or read it with another client |
 | `Still <something>. Press esc to give up on it.` | a server operation is slow | wait, or `esc` to cancel it |
 | `The daemon is gone: ...`, TUI exits 3 | the daemon process died | the TUI prints the daemon's recent stderr as it exits; run it again; `mailcoded-tui --check` |
 

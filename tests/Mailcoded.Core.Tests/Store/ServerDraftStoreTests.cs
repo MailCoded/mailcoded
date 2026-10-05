@@ -205,7 +205,8 @@ public sealed class ServerDraftStoreTests
         await temp.Store.TransitionServerDraftAsync(sentMoved, ServerDraftState.Saved, ServerDraftState.Moved, ServerDraftReason.None, ct);
         Execute(temp, $"UPDATE outbox SET state = 'sent' WHERE id IN ({sentSaved}, {sentMoving}, {sentMoved}, {sentNone})");
 
-        Assert.Equal(2, await temp.Store.LeaveInterruptedServerDraftsAsync(ct));
+        var cutoff = temp.Clock.UtcNow.AddHours(1);
+        Assert.Equal(2, await temp.Store.LeaveInterruptedServerDraftsAsync(cutoff, ct));
 
         Assert.Equal(ServerDraftState.Left, Stored(temp, sentSaved, ct)!.State);
         Assert.Equal(ServerDraftReason.Interrupted, Stored(temp, sentSaved, ct)!.Reason);
@@ -214,7 +215,23 @@ public sealed class ServerDraftStoreTests
         Assert.Equal(ServerDraftState.Saved, Stored(temp, queuedSaved, ct)!.State);
         Assert.Null(Stored(temp, sentNone, ct));
 
-        Assert.Equal(0, await temp.Store.LeaveInterruptedServerDraftsAsync(ct));
+        Assert.Equal(0, await temp.Store.LeaveInterruptedServerDraftsAsync(cutoff, ct));
+    }
+
+    [Fact]
+    public async Task The_sweep_leaves_a_row_another_process_may_still_be_settling()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (temp, _, recent) = await SeedAsync(ct, "a@example.com");
+        using var _ = temp;
+        await temp.Store.RecordServerDraftAsync(recent, Saved(), ct);
+        Execute(temp, $"UPDATE outbox SET state = 'sent', last_attempt_utc = {temp.Clock.UtcNow.ToUnixTimeMilliseconds()} WHERE id = {recent}");
+
+        Assert.Equal(0, await temp.Store.LeaveInterruptedServerDraftsAsync(temp.Clock.UtcNow.AddMinutes(-10), ct));
+        Assert.Equal(ServerDraftState.Saved, Stored(temp, recent, ct)!.State);
+
+        Assert.Equal(1, await temp.Store.LeaveInterruptedServerDraftsAsync(temp.Clock.UtcNow.AddMinutes(1), ct));
+        Assert.Equal(ServerDraftState.Left, Stored(temp, recent, ct)!.State);
     }
 
     [Theory]

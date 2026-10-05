@@ -316,7 +316,7 @@ public sealed class BackupService
         var manifestPath = Path.Combine(full, BackupManifest.ManifestFileName);
         var manifestInfo = new FileInfo(manifestPath);
 
-        if (manifestInfo.LinkTarget is not null || !manifestInfo.Exists)
+        if (!IsReadableRegularFile(manifestInfo))
         {
             return Failed(
                 full,
@@ -375,7 +375,7 @@ public sealed class BackupService
 
         var databasePath = Path.Combine(full, BackupManifest.DatabaseFileName);
         var databaseInfo = new FileInfo(databasePath);
-        if (databaseInfo.Exists && databaseInfo.LinkTarget is null)
+        if (IsReadableRegularFile(databaseInfo))
         {
             var sha = await HashFileAsync(databasePath, ct).ConfigureAwait(false);
             database = new ObservedFile(true, databaseInfo.Length, sha);
@@ -400,7 +400,7 @@ public sealed class BackupService
 
             var path = Path.Combine(full, BackupManifest.BlobDirectoryName, blob.Sha256[..2], blob.Sha256 + ".blob");
             var info = new FileInfo(path);
-            if (!info.Exists || info.LinkTarget is not null)
+            if (!IsReadableRegularFile(info))
             {
                 blobFiles[blob.Sha256] = new ObservedFile(false, 0, null);
                 continue;
@@ -479,6 +479,9 @@ public sealed class BackupService
         links.Sort(StringComparer.Ordinal);
         return (unexpected, links, false);
     }
+
+    // FileInfo cannot tell a FIFO from a regular file and opening one blocks forever. A FIFO always reports length 0, and no valid manifest, database or blob is empty.
+    private static bool IsReadableRegularFile(FileInfo info) => info.Exists && info.LinkTarget is null && info.Length > 0;
 
     private List<string> LiveRoots() =>
         [_store.DataDirectory, _store.BlobDirectory, Path.GetDirectoryName(_store.DatabasePath) ?? _store.DataDirectory];

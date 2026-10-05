@@ -297,15 +297,18 @@ public sealed partial class SqliteStore
                 .SetText(3, from.ToWireValue())
                 .Execute() == 1, ct);
 
-    /// <summary>Marks server drafts whose send finished but whose move did not as left; a move in flight may have happened, so none is retried.</summary>
-    public Task<int> LeaveInterruptedServerDraftsAsync(CancellationToken ct) =>
+    /// <summary>Marks server drafts whose send finished but whose move did not as left; a move in flight may have happened, so none is retried.
+    /// Rows last attempted after <paramref name="lastAttemptBefore"/> are skipped: another process may still be settling them.</summary>
+    public Task<int> LeaveInterruptedServerDraftsAsync(DateTimeOffset lastAttemptBefore, CancellationToken ct) =>
         WriteAsync(context =>
             context.Session
                 .Prepare(
                     "UPDATE outbox SET server_draft_state = 'left', server_draft_reason = $reason "
-                    + "WHERE state = 'sent' AND server_draft_state IN ('saved','moving')",
-                    "$reason")
+                    + "WHERE state = 'sent' AND server_draft_state IN ('saved','moving') "
+                    + "AND COALESCE(last_attempt_utc, created_utc) < $cutoff",
+                    "$reason", "$cutoff")
                 .SetText(0, ServerDraftReason.Interrupted.ToWireValue())
+                .SetInt(1, ToUnixMs(lastAttemptBefore))
                 .Execute(), ct);
 
     private const string SelectConfirmToken =

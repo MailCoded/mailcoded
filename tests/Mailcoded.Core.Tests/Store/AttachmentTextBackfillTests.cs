@@ -95,6 +95,63 @@ public sealed class AttachmentTextBackfillTests
     }
 
     [Fact]
+    public async Task A_blob_file_that_cannot_be_opened_leaves_the_message_queued_and_does_not_hold_up_the_rest()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var temp = TempStore.Create(configure: o => o with { InlineBlobThresholdBytes = 1 });
+        var (folder, _) = await AddFetchedAsync(temp, null, 1, DocxKit.Message("Lost", DocxKit.Text("text/plain", "a.txt", "lostword")), ct);
+
+        var held = Path.Combine(temp.Workspace.Root, "held");
+        Directory.CreateDirectory(held);
+        var moved = new List<(string From, string To)>();
+        foreach (var file in Directory.EnumerateFiles(temp.Workspace.BlobDirectory, "*", SearchOption.AllDirectories))
+        {
+            var to = Path.Combine(held, moved.Count.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            File.Move(file, to);
+            moved.Add((file, to));
+        }
+
+        Assert.NotEmpty(moved);
+        await AddFetchedAsync(temp, folder, 2, DocxKit.Message("Fine", DocxKit.Text("text/plain", "b.txt", "fineword")), ct);
+
+        var backfill = new AttachmentTextBackfill(
+            temp.Store, MessageParser.Default, new AttachmentTextBackfillOptions { RetryAfter = TimeSpan.FromHours(1) });
+        var first = await backfill.RunBatchAsync(ct);
+
+        Assert.Equal(1, first.WithText);
+        Assert.Equal(1, first.Remaining);
+        Assert.Equal(1L, backfill.Remaining(ct));
+        Assert.Single(Find(temp.Store, "attachment:fineword", ct).Hits);
+        Assert.Empty(Find(temp.Store, "attachment:lostword", ct).Hits);
+
+        Assert.Equal(0, (await backfill.RunBatchAsync(ct)).Processed);
+
+        foreach (var (from, to) in moved) File.Move(to, from);
+        var retrying = new AttachmentTextBackfill(temp.Store, MessageParser.Default);
+        Assert.Equal(1, (await retrying.RunBatchAsync(ct)).WithText);
+        Assert.Single(Find(temp.Store, "attachment:lostword", ct).Hits);
+        Assert.Equal(0L, retrying.Remaining(ct));
+    }
+
+    [Fact]
+    public async Task Text_read_from_a_blob_the_message_no_longer_points_at_is_not_stored()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var temp = TempStore.Create();
+        var (_, id) = await AddFetchedAsync(temp, null, 1, DocxKit.Message("M", DocxKit.Text("text/plain", "a.txt", "staleword")), ct);
+        var work = Assert.Single(temp.Store.NextAttachmentIndexWork(AttachmentTextIndexing.ExtractorVersion, 10, ct));
+        var entries = new[] { new AttachmentTextEntry { Index = 0, MimeType = "text/plain", Text = "staleword" } };
+
+        Assert.False(await temp.Store.SetAttachmentTextsAsync(
+            id, entries, AttachmentTextIndexing.ExtractorVersion, new BlobId(work.BlobId.Value + 1000), ct));
+        Assert.Empty(Find(temp.Store, "attachment:staleword", ct).Hits);
+        Assert.Equal(1L, temp.Store.CountPendingAttachmentIndex(AttachmentTextIndexing.ExtractorVersion, ct));
+
+        Assert.True(await temp.Store.SetAttachmentTextsAsync(id, entries, AttachmentTextIndexing.ExtractorVersion, work.BlobId, ct));
+        Assert.Single(Find(temp.Store, "attachment:staleword", ct).Hits);
+    }
+
+    [Fact]
     public async Task Batches_resume_where_the_last_one_stopped()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -112,6 +169,29 @@ public sealed class AttachmentTextBackfillTests
         var left = await backfill.RunWithinAsync(TimeSpan.FromSeconds(30), ct);
         Assert.Equal(0, left);
         Assert.Single(Find(temp.Store, "attachment:batchword5", ct).Hits);
+    }
+
+    [Fact]
+    public async Task A_spent_budget_stops_the_batch_before_the_next_message_is_read()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var temp = TempStore.Create();
+        FolderId? folder = null;
+        for (var uid = 1u; uid <= 3; uid++)
+            folder = (await AddFetchedAsync(temp, folder, uid, DocxKit.Message("M", DocxKit.Text("text/plain", "a.txt", $"budgetword{uid}")), ct)).Folder;
+
+        var backfill = new AttachmentTextBackfill(temp.Store, MessageParser.Default);
+
+        var stopped = await backfill.RunBatchAsync(TimeSpan.Zero, ct);
+
+        Assert.Equal(0, stopped.Processed);
+        Assert.Equal(3, stopped.Remaining);
+        Assert.Empty(Find(temp.Store, "attachment:budgetword1", ct).Hits);
+
+        var finished = await backfill.RunBatchAsync(TimeSpan.FromSeconds(30), ct);
+
+        Assert.Equal(3, finished.Processed);
+        Assert.Equal(0, finished.Remaining);
     }
 
     [Fact]
@@ -170,5 +250,97 @@ public sealed class AttachmentTextBackfillTests
         await source.CancelAsync();
 
         await run.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task The_loop_drains_the_queue_at_the_pacing_delay_then_idles()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var temp = TempStore.Create();
+        FolderId? folder = null;
+        for (var uid = 1u; uid <= 3; uid++)
+            folder = (await AddFetchedAsync(temp, folder, uid, DocxKit.Message("M", DocxKit.Text("text/plain", "a.txt", $"loopword{uid}")), ct)).Folder;
+
+        var options = new AttachmentTextBackfillOptions
+        {
+            BatchSize = 1,
+            PacingDelay = TimeSpan.FromMilliseconds(1),
+            BusyDelay = TimeSpan.FromHours(1),
+            IdleDelay = TimeSpan.FromHours(1),
+        };
+        var backfill = new AttachmentTextBackfill(temp.Store, MessageParser.Default, options);
+        var reports = new RecordingProgress();
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+        var run = backfill.RunAsync(reports, stop.Token);
+        await reports.WaitForAsync(r => r.Count(x => x.Processed == 0) == 1, ct);
+        await Task.Delay(200, ct);
+
+        Assert.Equal(3, reports.Snapshot().Sum(r => r.Processed));
+        Assert.Equal(1, reports.Snapshot().Count(r => r.Processed == 0));
+        Assert.Single(Find(temp.Store, "attachment:loopword3", ct).Hits);
+
+        await stop.CancelAsync();
+        await run.WaitAsync(TimeSpan.FromSeconds(10), ct);
+    }
+
+    [Fact]
+    public async Task The_loop_polls_at_the_busy_delay_while_a_bulk_window_is_open_and_resumes_when_it_closes()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var temp = TempStore.Create();
+        FolderId? folder = null;
+        for (var uid = 1u; uid <= 2; uid++)
+            folder = (await AddFetchedAsync(temp, folder, uid, DocxKit.Message("M", DocxKit.Text("text/plain", "a.txt", $"busyword{uid}")), ct)).Folder;
+
+        var options = new AttachmentTextBackfillOptions
+        {
+            PacingDelay = TimeSpan.FromMilliseconds(1),
+            BusyDelay = TimeSpan.FromMilliseconds(5),
+            IdleDelay = TimeSpan.FromHours(1),
+        };
+        var backfill = new AttachmentTextBackfill(temp.Store, MessageParser.Default, options);
+        var reports = new RecordingProgress();
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+        Task run;
+        await using (await temp.Store.BeginBulkIngestAsync(null, ct))
+        {
+            run = backfill.RunAsync(reports, stop.Token);
+            await reports.WaitForAsync(r => r.Count >= 3, ct);
+
+            Assert.All(reports.Snapshot(), r => Assert.Equal(0, r.Processed));
+            Assert.Empty(Find(temp.Store, "attachment:busyword1", ct).Hits);
+        }
+
+        await reports.WaitForAsync(r => r.Sum(x => x.Processed) == 2, ct);
+        Assert.Single(Find(temp.Store, "attachment:busyword2", ct).Hits);
+
+        await stop.CancelAsync();
+        await run.WaitAsync(TimeSpan.FromSeconds(10), ct);
+    }
+
+    private sealed class RecordingProgress : IProgress<AttachmentTextBackfillReport>
+    {
+        private readonly List<AttachmentTextBackfillReport> _reports = [];
+
+        public void Report(AttachmentTextBackfillReport value)
+        {
+            lock (_reports) _reports.Add(value);
+        }
+
+        public IReadOnlyList<AttachmentTextBackfillReport> Snapshot()
+        {
+            lock (_reports) return [.. _reports];
+        }
+
+        public async Task WaitForAsync(Func<IReadOnlyList<AttachmentTextBackfillReport>, bool> condition, CancellationToken ct)
+        {
+            using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            limit.CancelAfter(TimeSpan.FromSeconds(20));
+
+            while (!condition(Snapshot()))
+                await Task.Delay(5, limit.Token);
+        }
     }
 }

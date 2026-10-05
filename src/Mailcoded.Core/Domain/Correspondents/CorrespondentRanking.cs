@@ -10,7 +10,7 @@ public static class CorrespondentRanking
     private const double HalfLifeDays = 90;
     private const double RecencyFloor = 0.25;
 
-    /// <summary>Each use adds less than the last (log), and recency decays toward a floor so a long-standing contact outlives one stray recent name.</summary>
+    /// <summary>Each use adds less than the last (log), and recency decays toward a floor so a long-standing Correspondent outlives one stray recent name.</summary>
     public static double Score(int count, DateTimeOffset lastUsedUtc, DateTimeOffset nowUtc)
     {
         var ageDays = Math.Max(0, (nowUtc - lastUsedUtc).TotalDays);
@@ -20,6 +20,13 @@ public static class CorrespondentRanking
 
     /// <summary>An exact address match first, then best score; ties fall to count, then recency, then the address, so the order never wobbles.</summary>
     public static IReadOnlyList<Correspondent> Suggest(
+        IEnumerable<Correspondent> all,
+        string? prefix,
+        int limit,
+        DateTimeOffset nowUtc) => SuggestPage(all, prefix, limit, nowUtc).Items;
+
+    /// <summary>Same order as <see cref="Suggest"/>; <c>More</c> says matches were left out by the limit.</summary>
+    public static (IReadOnlyList<Correspondent> Items, bool More) SuggestPage(
         IEnumerable<Correspondent> all,
         string? prefix,
         int limit,
@@ -56,7 +63,7 @@ public static class CorrespondentRanking
         var take = Math.Min(Math.Max(limit, 0), ranked.Count);
         var result = new List<Correspondent>(take);
         for (var i = 0; i < take; i++) result.Add(ranked[i].Row);
-        return result;
+        return (result, ranked.Count > take);
     }
 
     /// <summary>The address, the whole display name, or any word of it, starts with the prefix; an empty prefix matches everyone.</summary>

@@ -166,6 +166,7 @@ internal static class ImportEmlCommand
                         id,
                         AttachmentTextIndexing.EntriesOf(item.Message),
                         AttachmentTextIndexing.ExtractorVersion,
+                        item.Blob.Id,
                         ct)
                     .ConfigureAwait(false);
             }

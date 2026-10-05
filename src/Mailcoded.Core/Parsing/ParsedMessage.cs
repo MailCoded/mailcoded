@@ -48,7 +48,7 @@ public sealed record ParsedMessage
     /// <summary>Null only when the message could not be parsed at all.</summary>
     public bool? Automated { get; init; }
 
-    /// <summary>True for PGP/MIME, an S/MIME envelope or inline PGP armor in a text body. Null only when the message could not be parsed.</summary>
+    /// <summary>True for PGP/MIME, an S/MIME envelope or inline PGP armor in a text body. Null when the message could not be parsed or the walk stopped at a limit before it could rule encryption out.</summary>
     public bool? Encrypted { get; init; }
 
     /// <summary>Notes about anything non-conforming we recovered from; surfaced in diagnostics.</summary>

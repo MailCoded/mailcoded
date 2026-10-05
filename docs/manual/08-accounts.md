@@ -86,8 +86,10 @@ empties it (the provider's built-in id, if any, stays).
 Which servers you trust decides what "verified" means, so the change is gated like `move`: it asks
 for confirmation at a terminal, and an unattended run needs `--yes` **and**
 `MAILCODED_ALLOW_TRUST_CHANGE=1`. It is absent from the MCP surface, and an agent must not run it.
-`account add` and `setup` also take `--trust-authserv-id <id>` for a new account; re-adding an
-address that already exists leaves its list alone.
+`account add` and `setup` also take `--trust-authserv-id <id>` for a new account, behind the same
+confirmation (add `--yes` and the variable for an unattended `account add`); re-adding an address
+that already exists, in any letter case, leaves its list alone. Every change to the list, from any
+of these routes, writes an `account_trust_changed` audit row.
 
 Changing the list clears the recorded DMARC results of that account, so nothing stays verified under
 a list you no longer hold. A message whose body is stored gets a result again the next time you read

@@ -28,9 +28,13 @@ internal sealed class FakeServerProvider : IMailProvider
 
     public bool AppendReportsNoUid { get; set; }
 
+    public bool AppendReportsValidity { get; set; }
+
     public Exception? OpenFailure { get; set; }
 
     public Exception? MoveFailure { get; set; }
+
+    public Func<Task>? DuringMove { get; set; }
 
     public AtomicMoveStatus MoveStatus { get; set; } = AtomicMoveStatus.Moved;
 
@@ -54,6 +58,12 @@ internal sealed class FakeServerProvider : IMailProvider
         return Task.FromResult<Uid?>(AppendReportsNoUid ? null : new Uid(_nextUid++));
     }
 
+    public async Task<AppendedMessage> AppendWithValidityAsync(FolderRef folder, byte[] raw, MessageFlags flags, DateTimeOffset receivedUtc, CancellationToken ct)
+    {
+        var uid = await AppendAsync(folder, raw, flags, receivedUtc, ct);
+        return new AppendedMessage(uid, AppendReportsValidity && uid is not null ? new UidValidity(FolderValidity) : UidValidity.Unknown);
+    }
+
     public Task<Uid?> AppendAsync(FolderRef folder, Stream raw, MessageFlags flags, DateTimeOffset receivedUtc, CancellationToken ct)
     {
         using var buffer = new MemoryStream();
@@ -69,15 +79,15 @@ internal sealed class FakeServerProvider : IMailProvider
         return Task.FromResult(new ServerFolderInfo { Path = folder.Path, UidValidity = new UidValidity(FolderValidity) });
     }
 
-    public Task<AtomicMoveResult> MoveAtomicAsync(FolderRef from, Uid uid, UidValidity expected, FolderRef to, CancellationToken ct)
+    public async Task<AtomicMoveResult> MoveAtomicAsync(FolderRef from, Uid uid, UidValidity expected, FolderRef to, CancellationToken ct)
     {
         Moves.Add(new MoveCall(from, uid, expected, to));
         if (MoveFailure is { } failure) throw failure;
+        if (DuringMove is { } during) await during();
 
-        return Task.FromResult(
-            MoveStatus == AtomicMoveStatus.Moved && !MoveReportsNoNewUid
-                ? new AtomicMoveResult(AtomicMoveStatus.Moved, new Uid(500))
-                : AtomicMoveResult.Of(MoveStatus));
+        return MoveStatus == AtomicMoveStatus.Moved && !MoveReportsNoNewUid
+            ? new AtomicMoveResult(AtomicMoveStatus.Moved, new Uid(500))
+            : AtomicMoveResult.Of(MoveStatus);
     }
 
     public Task SetFlagsAsync(FolderRef folder, Uid uid, FlagDelta delta, CancellationToken ct)

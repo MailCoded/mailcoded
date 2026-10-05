@@ -23,7 +23,7 @@ or the `--email` you give — pointing at `localhost:993` with no credential. It
 mailbox: it cannot sync, and the daemon says so once rather than trying (chapter 9). Once you add a
 real account, pass `--account` to say which one an import belongs to.
 
-The repository ships 37 anonymised fixtures in `fixtures/eml/`, which is a good way to try everything
+The repository ships 56 anonymised fixtures in `fixtures/eml/`, which is a good way to try everything
 in this manual without a mail server:
 
     mailcoded --db /tmp/mail.db import-eml fixtures/eml
@@ -44,7 +44,7 @@ handle to the database file. `--read-only` affirms the only mode there is.
 
     $ MAILCODED_ENABLE_SQL=1 mailcoded query --sql 'SELECT folder_id, COUNT(*) AS n FROM messages GROUP BY folder_id'
     folder_id	n
-    1	37
+    1	56
     [1 row(s), truncated=false]
 
 The tables are `accounts`, `folders`, `messages`, `blobs`, `tags`, `body_text`, `outbox` and

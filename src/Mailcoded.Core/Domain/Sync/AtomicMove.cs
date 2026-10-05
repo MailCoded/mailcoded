@@ -21,3 +21,6 @@ public readonly record struct AtomicMoveResult(AtomicMoveStatus Status, Uid? New
 {
     public static AtomicMoveResult Of(AtomicMoveStatus status) => new(status, null);
 }
+
+/// <summary>The UID the server assigned to an appended message and the Folder's UIDVALIDITY, each unknown when the server did not say.</summary>
+public readonly record struct AppendedMessage(Uid? Uid, UidValidity UidValidity);

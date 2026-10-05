@@ -9,6 +9,7 @@ public static class AuditEvents
 {
     public const string AccountAdded = "account_added";
     public const string AccountUpdated = "account_updated";
+    public const string AccountTrustChanged = "account_trust_changed";
     public const string SyncStarted = "sync_started";
     public const string SyncCompleted = "sync_completed";
     public const string SyncFailed = "sync_failed";
@@ -17,6 +18,7 @@ public static class AuditEvents
     public const string UidValidityChanged = "uidvalidity_changed";
     public const string FolderReconciled = "folder_reconciled";
     public const string FolderOrphaned = "folder_orphaned";
+    public const string FolderUnsyncable = "folder_unsyncable";
     public const string BodyFetched = "body_fetched";
     public const string AttachmentTextFailed = "attachment_text_failed";
     public const string TagsSet = "tags_set";

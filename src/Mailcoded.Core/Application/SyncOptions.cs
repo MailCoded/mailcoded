@@ -78,6 +78,9 @@ public sealed record SyncReport
     public ServerQuirks LatchedQuirks { get; init; } = ServerQuirks.None;
     public IReadOnlyList<FolderSyncReport> FolderReports { get; init; } = [];
 
+    /// <summary>Server Folders whose names cannot be a path here, so their mail is not synced.</summary>
+    public IReadOnlyList<string> UnsyncableFolders { get; init; } = [];
+
     public static readonly SyncReport Empty = new();
 }
 
@@ -89,4 +92,6 @@ public sealed record FolderReconcileReport
 
     /// <summary>Folders the server no longer lists. Reported and logged; never removed here.</summary>
     public IReadOnlyList<string> OrphanedPaths { get; init; } = [];
+
+    public IReadOnlyList<string> UnsyncableFolders { get; init; } = [];
 }

@@ -105,7 +105,7 @@ public sealed class InteractiveLaneTests : IClassFixture<MailStackFixture>
     }
 
     [Fact]
-    public async Task An_idle_provider_serves_a_fetch_without_opening_a_second_connection()
+    public async Task An_idle_provider_with_the_lane_enabled_still_serves_a_fetch()
     {
         _stack.SkipUnlessAvailable();
 

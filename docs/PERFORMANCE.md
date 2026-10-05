@@ -52,10 +52,12 @@ CREATE INDEX ix_msg_thread   ON messages(thread_key, date_utc DESC, id);
 -- ORDER BY date_utc DESC, id DESC LIMIT 2000 is 189.5 ms without this and 0.5 ms with it (~7.2 MB).
 CREATE INDEX ix_msg_date     ON messages(date_utc DESC, id DESC);
 -- messages.UNIQUE (folder_id, uid) already indexes that pair; no standalone index.
--- messages.automated / messages.encrypted (nullable 0/1, migration 009) carry no index: is:automated and
--- is:encrypted filter the date-ordered scan the way has:attachment does, and a partial index would cost
--- space in proportion to how much mail is automated. Add one only against a measurement at 500k rows.
--- messages.dmarc (nullable text, migration 010) is likewise unindexed: is:verified filters the same scan.
+-- messages.automated (nullable 0/1, migration 009) carries no index: automated mail is a large share of any
+-- mailbox, so is:automated finds its first 51 hits almost at once on the date-ordered scan, and an index would
+-- cost space in proportion to that share. messages.encrypted is the opposite: ix_msg_encrypted (migration 017)
+-- is partial (WHERE encrypted = 1) and serves is:encrypted only, because encrypted mail is rare and a query with
+-- few hits would otherwise probe every row (measured at 500k rows: 82 ms scan, 0.02 ms with the index).
+-- messages.dmarc (nullable text, migration 010) is unindexed: is:verified filters the same scan.
 -- messages.unsubscribe (nullable text, migration 011, at most 4,000 chars and NULL or empty for most mail) is
 -- read only by id and is not searchable, so it has no index and no query path of its own.
 -- Attachment text (migration 015) lives beside the message index, never inside it, so a bare-word query

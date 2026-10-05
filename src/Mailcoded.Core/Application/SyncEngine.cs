@@ -11,6 +11,8 @@ namespace Mailcoded.Core.Application;
 /// <summary>The imperative shell around <see cref="SyncPlanner"/>: plan, execute, fold, persist.</summary>
 public sealed class SyncEngine
 {
+    private const int MaxLoggedUnsyncable = 5;
+
     private readonly SqliteStore _store;
     private readonly IThreader? _threader;
     private readonly IClock _clock;
@@ -43,7 +45,9 @@ public sealed class SyncEngine
         var account = RequireAccount(accountId, ct);
         var started = _clock.Ticks;
 
-        if (_options.ReconcileFolders) await ReconcileFoldersAsync(provider, accountId, ct).ConfigureAwait(false);
+        var unsyncable = _options.ReconcileFolders
+            ? (await ReconcileFoldersAsync(provider, accountId, ct).ConfigureAwait(false)).UnsyncableFolders
+            : [];
 
         var folders = _store.ListFolders(accountId, ct);
         var reports = new List<FolderSyncReport>(folders.Count);
@@ -133,6 +137,7 @@ public sealed class SyncEngine
             Degraded = degraded,
             LatchedQuirks = quirks,
             FolderReports = reports,
+            UnsyncableFolders = unsyncable,
         };
     }
 
@@ -213,6 +218,21 @@ public sealed class SyncEngine
                 ct).ConfigureAwait(false);
         }
 
+        var unsyncable = provider.UnsyncableFolders;
+        if (unsyncable.Count > 0)
+        {
+            var names = new List<string>(Math.Min(unsyncable.Count, MaxLoggedUnsyncable));
+            for (var i = 0; i < unsyncable.Count && i < MaxLoggedUnsyncable; i++)
+                names.Add(AuditText.Sanitize(unsyncable[i], 128) ?? string.Empty);
+
+            await _audit.WarnAsync(
+                AuditEvents.FolderUnsyncable,
+                accountId,
+                CallerContext.Internal,
+                AuditText.Fields(("count", AuditText.Number(unsyncable.Count)), ("folders", string.Join(" | ", names))),
+                ct).ConfigureAwait(false);
+        }
+
         await _audit.InfoAsync(
             AuditEvents.FolderReconciled,
             accountId,
@@ -228,6 +248,7 @@ public sealed class SyncEngine
             Listed = selectable.Count,
             Known = local.Count,
             OrphanedPaths = orphaned,
+            UnsyncableFolders = unsyncable,
         };
     }
 

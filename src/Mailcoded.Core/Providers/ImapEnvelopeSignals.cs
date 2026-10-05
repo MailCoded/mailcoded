@@ -23,7 +23,7 @@ public static class ImapEnvelopeSignals
         return new EnvelopeSignals(
             headers,
             MessageSignals.IsAutomated(headers, from, top),
-            summary.Body is null ? null : HasEncryptedPart(summary.Body));
+            summary.Body is null || !HasEncryptedPart(summary.Body) ? null : true);
     }
 
     private static SignalHeaders HeadersFrom(HeaderList headers)
@@ -41,6 +41,7 @@ public static class ImapEnvelopeSignals
     private static string? Parameter(ContentType type, string name) =>
         type.Parameters.TryGetValue(name, out string? value) ? value : null;
 
+    // Never false: inline armor lives in the text body, and a structure walk that ran out of budget saw only part of the tree.
     // Attached messages are not descended into: a forwarded encrypted message does not make the outer one unreadable.
     private static bool HasEncryptedPart(BodyPart root)
     {

@@ -19,7 +19,7 @@ internal static class CorrespondentsCommand
         var limit = line.Int("limit", 1, CorrespondentRanking.MaxLimit);
         var account = host.RequireAccount(line, ct);
 
-        var found = host.Correspondents.Suggest(account.Id, prefix, limit, ct);
+        var (found, more) = host.Correspondents.SuggestPage(account.Id, prefix, limit, ct);
 
         await host.Audit.InfoAsync(
             CliAuditEvents.Correspondents,
@@ -34,6 +34,7 @@ internal static class CorrespondentsCommand
             writer.WriteNumber("account_id", account.Id.Value);
             writer.WriteString("email", account.Email);
             writer.WriteNumber("count", found.Count);
+            JsonFields.WritePaging(writer, null, more);
 
             writer.WriteStartArray("correspondents");
             foreach (var each in found)

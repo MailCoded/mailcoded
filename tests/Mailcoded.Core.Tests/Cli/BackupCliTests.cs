@@ -202,7 +202,7 @@ public sealed class BackupCliTests : IDisposable
     [Fact]
     public async Task A_destination_name_with_an_escape_sequence_never_reaches_the_terminal_raw()
     {
-        if (OperatingSystem.IsWindows()) return;
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Windows file names cannot hold control characters.");
 
         var ct = TestContext.Current.CancellationToken;
         await SeedAsync(ct);
@@ -218,7 +218,7 @@ public sealed class BackupCliTests : IDisposable
     [Fact]
     public async Task A_hostile_file_name_in_a_backup_never_reaches_the_terminal_raw()
     {
-        if (OperatingSystem.IsWindows()) return;
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Windows file names cannot hold control characters.");
 
         var ct = TestContext.Current.CancellationToken;
         await SeedAsync(ct);

@@ -360,10 +360,16 @@ public sealed class SearchFolderScopeStoreTests
         using var temp = TempStore.Create();
         await SeedAsync(temp, ct);
 
+        var compiled = SqliteStore.CompiledSearchSql(new StoreSearchRequest
+        {
+            Query = SearchQueryParser.Parse("").Query,
+            Order = SearchOrder.Date,
+            Cursor = Cursors.EncodeKeyset(1000, 5),
+        });
+        Assert.Contains("NOT IN (SELECT id FROM folders WHERE role IN ('trash', 'junk'))", compiled, StringComparison.Ordinal);
+
         var rows = temp.Store.ExecuteReadOnlyQuery(
-            "EXPLAIN QUERY PLAN SELECT m.id FROM messages m "
-            + "WHERE m.folder_id NOT IN (SELECT id FROM folders WHERE role IN ('trash', 'junk')) "
-            + "AND (m.date_utc, m.id) < (1000, 5) ORDER BY m.date_utc DESC, m.id DESC LIMIT 51",
+            "EXPLAIN QUERY PLAN " + compiled,
             100,
             ct).Rows;
 

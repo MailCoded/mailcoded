@@ -121,7 +121,7 @@ Built with the official MCP C# SDK **inside the same binary** (`mailcoded --mcp`
 | raw SQL read | **OFF** | `MAILCODED_ENABLE_SQL=1`, read-only, row-capped |
 | delete / expunge | **does not exist** | never |
 | store backup (`backup`, `backup-verify`) | **OFF** for agents | `MAILCODED_ALLOW_BACKUP=1` on the CLI; **absent from MCP**, which refuses even with the variable set |
-| change the trusted authserv-ids (what `is:verified` means) | **OFF** for agents | terminal confirmation, or `MAILCODED_ALLOW_TRUST_CHANGE=1` + `--yes`; absent from MCP |
+| change the trusted authserv-ids (what `is:verified` means), including `account add`/`setup --trust-authserv-id` | **OFF** for agents | terminal confirmation, or `MAILCODED_ALLOW_TRUST_CHANGE=1` + `--yes`; absent from MCP |
 | add a sender identity (`account identity add`) | **OFF** for agents | terminal confirmation, or `MAILCODED_ALLOW_IDENTITY_CHANGE=1` + `--yes`; absent from MCP |
 | save drafts to the server (`account server-drafts on`) | **OFF** for agents | terminal confirmation, or `MAILCODED_ALLOW_SERVER_DRAFTS=1` + `--yes`; absent from MCP |
 

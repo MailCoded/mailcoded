@@ -62,7 +62,7 @@ public sealed record RemoteEnvelope
     /// <summary>Null means unknown, which is not the same as false.</summary>
     public bool? Automated { get; init; }
 
-    /// <summary>From BODYSTRUCTURE only; inline armor needs the body, so false is not final.</summary>
+    /// <summary>From BODYSTRUCTURE only, so true or null: ruling encryption out needs the body.</summary>
     public bool? Encrypted { get; init; }
 
     /// <summary>Filled by the sync engine from the Account's trusted authserv-ids; null means not evaluated.</summary>

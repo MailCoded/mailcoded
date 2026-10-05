@@ -106,6 +106,7 @@ ENVIRONMENT
   MAILCODED_APPROVED_RECIPIENTS   comma list of addresses or @domain patterns
   MAILCODED_ENABLE_SQL=1          unlocks 'query --sql'
   MAILCODED_ALLOW_BACKUP=1        unlocks 'backup' and 'backup-verify' from the agent surface
+  MAILCODED_ALLOW_TRUST_CHANGE=1     with --yes, lets 'account trust' (and --trust-authserv-id) run unattended
   MAILCODED_ALLOW_IDENTITY_CHANGE=1  with --yes, lets 'account identity add' run unattended
   MAILCODED_ALLOW_SERVER_DRAFTS=1    with --yes, lets 'account server-drafts on' run unattended
   MAILCODED_SECRET_BACKEND        auto | file | libsecret | keychain | wincred
@@ -424,6 +425,9 @@ mailcoded correspondents [prefix] [--account <id>] [--limit <n>] [--json]
   outranks someone written to once, long ago. --limit is 1..100, default 10. A name is the one
   on the most recent message that carried it; it is untrusted text.
 
+  --json carries "truncated": true when more people matched than --limit allowed. There is no
+  cursor: narrow the prefix, or raise --limit (at most 100).
+
   Examples:
     mailcoded correspondents ada
     mailcoded correspondents --limit 5 --json
@@ -486,6 +490,8 @@ OPTIONS
   --display-name <n>   a label for this account
   --client-id <guid>   your own OAuth client id, instead of the borrowed default
   --tenant <name>      common (default), consumers, organizations, or a tenant guid
+  --trust-authserv-id <id>  trust Authentication-Results from this authserv-id (repeatable); asks for
+                       confirmation, or --yes with MAILCODED_ALLOW_TRUST_CHANGE=1
   --json               also print the result as JSON; prompts go to stderr, so stdout stays clean
 
   For scripts, use 'mailcoded account add' instead — it takes every setting as an option and
@@ -535,10 +541,12 @@ OPTIONS
   --smtp-security <mode>    default startTls
   --smtp-user <name>
   --trust-authserv-id <id>  trust Authentication-Results from this authserv-id (repeatable);
-                            see 'account trust'
+                            needs the confirmation 'account trust' needs, and --yes with
+                            MAILCODED_ALLOW_TRUST_CHANGE=1 when unattended
   --secret-ref <handle>     reuse an existing secret handle instead of deriving one
   --password-stdin          read the credential from stdin
   --no-password             register without storing a credential
+  --yes                     confirm --trust-authserv-id unattended (needs MAILCODED_ALLOW_TRUST_CHANGE=1)
 
 EXAMPLE
   printf '%s' "$IMAP_PASSWORD" | mailcoded account add --json \
@@ -656,9 +664,7 @@ RULES
   added to a body that already holds its own "-- " line.
 
 EXAMPLE
-  printf 'Alex Example
-Example Pty
-' | mailcoded account signature set work --stdin
+  printf 'Alex Example\nExample Pty\n' | mailcoded account signature set work --stdin
   mailcoded account signature default new work
 """;
 

@@ -16,6 +16,8 @@ internal sealed class ScriptedMailProvider : IMailProvider
 
     public bool IsConnected => true;
 
+    public IReadOnlyList<string> UnsyncableFolders { get; set; } = [];
+
     public void Folder(
         string path,
         ServerFolderInfo info,

@@ -18,7 +18,8 @@ public sealed record SearchParams
     /// <summary><c>relevance|date</c>. Defaults to relevance for text queries.</summary>
     public string? Order { get; init; }
 
-    public bool IncludeSnippet { get; init; } = true;
+    /// <summary>Omitted means false on the wire; the CLI and MCP default to true.</summary>
+    public bool IncludeSnippet { get; init; }
 
     /// <summary>Null fuses meaning into the ranking when a model is installed; true requires one and
     /// fails with <c>1008</c> without it; false asks for words only.</summary>
@@ -64,7 +65,8 @@ public sealed record MessageGetParams
     /// <summary><c>text|html|raw</c>.</summary>
     public string Format { get; init; } = MessageFormats.Text;
 
-    public bool FetchIfMissing { get; init; } = true;
+    /// <summary>Omitted means false on the wire (stay offline); the CLI and MCP default to true.</summary>
+    public bool FetchIfMissing { get; init; }
 }
 
 public sealed record MessageGetResult

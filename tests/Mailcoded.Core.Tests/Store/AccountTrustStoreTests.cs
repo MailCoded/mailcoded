@@ -43,6 +43,23 @@ public sealed class AccountTrustStoreTests
         Assert.Equal(["mx.example.net"], Require.Ref(temp.Store.GetAccount(id, ct), "the account").TrustedAuthservIds);
     }
 
+    [Theory]
+    [InlineData("A@example.com")]
+    [InlineData("A@EXAMPLE.COM")]
+    public async Task A_case_variant_of_an_existing_address_is_the_same_account_and_keeps_its_list(string variant)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var temp = TempStore.Create();
+
+        var id = await temp.Store.AddAccountAsync(Config("a@example.com", "mx.example.net"), ct);
+        var again = await temp.Store.AddAccountAsync(Config(variant, "mx.attacker.example.org"), ct);
+
+        Assert.Equal(id, again);
+        Assert.Single(temp.Store.ListAccounts(ct));
+        Assert.Equal(["mx.example.net"], Require.Ref(temp.Store.GetAccount(id, ct), "the account").TrustedAuthservIds);
+        Assert.Equal(id, Require.Ref(temp.Store.FindAccountByEmail(variant, ct), "the account").Id);
+    }
+
     [Fact]
     public async Task A_config_update_from_stale_memory_cannot_overwrite_the_list()
     {

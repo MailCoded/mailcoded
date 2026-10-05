@@ -1,3 +1,4 @@
+using System.Runtime.Versioning;
 using System.Text.Json;
 using Mailcoded.Core.Application;
 using Mailcoded.Core.Domain.Backup;
@@ -271,9 +272,10 @@ public sealed class BackupServiceTests : IDisposable
     }
 
     [Fact]
+    [UnsupportedOSPlatform("windows")]
     public async Task A_unix_backup_is_private_to_its_owner()
     {
-        if (OperatingSystem.IsWindows()) return;
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Windows has no Unix permission bits.");
 
         var ct = TestContext.Current.CancellationToken;
         await _kit.SeedAsync(ct);

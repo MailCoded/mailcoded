@@ -24,6 +24,7 @@ public sealed partial class ImapProvider : IMailProvider
     private readonly MailTransportOptions options;
     private readonly ImapCommandQueue queue = new();
     private readonly Dictionary<string, IMailFolder> folderCache = new(StringComparer.Ordinal);
+    private IReadOnlyList<string> unsyncableFolders = [];
 
     private AccountConfig? config;
     private ISecretStore? secrets;
@@ -109,6 +110,8 @@ public sealed partial class ImapProvider : IMailProvider
             var client = await RequireLiveClientAsync(inner).ConfigureAwait(false);
             return await ListFoldersCoreAsync(client, inner).ConfigureAwait(false);
         }, token), ct);
+
+    public IReadOnlyList<string> UnsyncableFolders => Volatile.Read(ref unsyncableFolders);
 
     public Task<ServerFolderInfo> OpenFolderAsync(FolderRef folder, bool writable, CancellationToken ct) =>
         queue.RunAsync<ServerFolderInfo>(token => GuardAsync<ServerFolderInfo>("SELECT", async inner =>
@@ -279,16 +282,26 @@ public sealed partial class ImapProvider : IMailProvider
         return await AppendAsync(folder, source, flags, receivedUtc, ct).ConfigureAwait(false);
     }
 
-    public Task<Uid?> AppendAsync(FolderRef folder, Stream raw, MailcodedFlags flags, DateTimeOffset receivedUtc, CancellationToken ct)
+    public async Task<Uid?> AppendAsync(FolderRef folder, Stream raw, MailcodedFlags flags, DateTimeOffset receivedUtc, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(raw);
         if (!raw.CanRead) throw new ArgumentException("The source stream is not readable.", nameof(raw));
 
-        return Interactive((provider, token) => provider.AppendOnOwnQueueAsync(folder, raw, flags, receivedUtc, token), ct);
+        var appended = await Interactive((provider, token) => provider.AppendOnOwnQueueAsync(folder, raw, flags, receivedUtc, token), ct).ConfigureAwait(false);
+        return appended.Uid;
     }
 
-    private Task<Uid?> AppendOnOwnQueueAsync(FolderRef folder, Stream raw, MailcodedFlags flags, DateTimeOffset receivedUtc, CancellationToken ct) =>
-        queue.RunAsync<Uid?>(token => GuardAsync<Uid?>("APPEND", async inner =>
+    public async Task<AppendedMessage> AppendWithValidityAsync(FolderRef folder, byte[] raw, MailcodedFlags flags, DateTimeOffset receivedUtc, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(raw);
+        if (raw.Length == 0) throw new ArgumentException("Cannot append an empty message.", nameof(raw));
+
+        using var source = new MemoryStream(raw, writable: false);
+        return await Interactive((provider, token) => provider.AppendOnOwnQueueAsync(folder, source, flags, receivedUtc, token), ct).ConfigureAwait(false);
+    }
+
+    private Task<AppendedMessage> AppendOnOwnQueueAsync(FolderRef folder, Stream raw, MailcodedFlags flags, DateTimeOffset receivedUtc, CancellationToken ct) =>
+        queue.RunAsync<AppendedMessage>(token => GuardAsync<AppendedMessage>("APPEND", async inner =>
         {
             var client = await RequireLiveClientAsync(inner).ConfigureAwait(false);
 
@@ -317,7 +330,9 @@ public sealed partial class ImapProvider : IMailProvider
             {
                 var request = new AppendRequest(message, ImapCapabilityMap.ToImapFlags(flags), receivedUtc);
                 var appended = await imapFolder.AppendAsync(FormatFor(), request, inner).ConfigureAwait(false);
-                return appended is { } a && a.Id > 0 ? new Uid(a.Id) : null;
+                return appended is { } a && a.Id > 0
+                    ? new AppendedMessage(new Uid(a.Id), a.Validity > 0 ? new UidValidity(a.Validity) : UidValidity.Unknown)
+                    : new AppendedMessage(null, UidValidity.Unknown);
             }
         }, token), ct);
 
@@ -368,15 +383,17 @@ public sealed partial class ImapProvider : IMailProvider
     {
         var result = new List<RemoteFolder>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var skipped = new List<string>();
 
         foreach (var ns in client.PersonalNamespaces)
         {
             var folders = await ListNamespaceAsync(client, ns, ct).ConfigureAwait(false);
             foreach (var folder in folders)
-                AddFolder(result, seen, folder);
+                AddFolder(result, seen, skipped, folder);
         }
 
-        AddFolder(result, seen, client.Inbox);
+        AddFolder(result, seen, skipped, client.Inbox);
+        Volatile.Write(ref unsyncableFolders, skipped);
         return result;
     }
 
@@ -394,25 +411,30 @@ public sealed partial class ImapProvider : IMailProvider
         }
     }
 
-    private static void AddFolder(List<RemoteFolder> result, HashSet<string> seen, IMailFolder folder)
+    private static void AddFolder(List<RemoteFolder> result, HashSet<string> seen, List<string> skipped, IMailFolder folder)
     {
         // 20: a NIL hierarchy delimiter is legal and arrives as '\0'; FolderPath keeps such a
         // flat namespace untouched.
-        if (!FolderPath.TryCreate(folder.FullName, folder.DirectorySeparator, out var path)) return;
-        if (!seen.Add(path.Value)) return;
+        if (!FolderPath.TryCreate(folder.FullName, folder.DirectorySeparator, out var path))
+        {
+            if (IsSelectable(folder) && !string.IsNullOrWhiteSpace(folder.FullName)) skipped.Add(folder.FullName);
+            return;
+        }
 
-        var selectable = !folder.Attributes.HasFlag(FolderAttributes.NoSelect)
-            && !folder.Attributes.HasFlag(FolderAttributes.NonExistent);
+        if (!seen.Add(path.Value)) return;
 
         result.Add(new RemoteFolder
         {
             Path = path,
             Role = ImapCapabilityMap.ToRole(folder.Attributes, path),
-            IsSelectable = selectable,
+            IsSelectable = IsSelectable(folder),
             TotalCount = folder.Count > 0 ? folder.Count : 0,
             UnreadCount = folder.Unread > 0 ? folder.Unread : 0,
         });
     }
+
+    private static bool IsSelectable(IMailFolder folder) =>
+        !folder.Attributes.HasFlag(FolderAttributes.NoSelect) && !folder.Attributes.HasFlag(FolderAttributes.NonExistent);
 
     private async Task<IMailFolder> ResolveFolderAsync(ImapClient client, FolderPath path, CancellationToken ct)
     {

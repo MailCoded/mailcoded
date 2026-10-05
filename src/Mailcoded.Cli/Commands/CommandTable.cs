@@ -76,7 +76,7 @@ internal static class CommandTable
         new CliCommandDefinition("sync", new VerbSpec(["account", "folder"], []), SyncCommand.RunAsync),
 
         new CliCommandDefinition("setup",
-            new VerbSpec(["email", "display-name", "imap-host", "imap-port", "smtp-host", "smtp-port", "client-id", "tenant", "trust-authserv-id"], []),
+            new VerbSpec(["email", "display-name", "imap-host", "imap-port", "smtp-host", "smtp-port", "client-id", "tenant", "trust-authserv-id"], ["yes"]),
             SetupCommand.RunAsync),
 
         new CliCommandDefinition("account add",
@@ -85,7 +85,7 @@ internal static class CommandTable
                     "email", "display-name", "imap-host", "imap-port", "imap-security", "imap-user",
                     "smtp-host", "smtp-port", "smtp-security", "smtp-user", "secret-ref", "trust-authserv-id",
                 ],
-                ["password-stdin", "no-password"]),
+                ["password-stdin", "no-password", "yes"]),
             AccountAddCommand.RunAsync),
 
         new CliCommandDefinition("account list", new VerbSpec([], []), AccountListCommand.RunAsync),

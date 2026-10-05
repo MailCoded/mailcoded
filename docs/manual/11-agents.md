@@ -26,6 +26,8 @@ you cannot loosen one by choosing the other.
 | search, read, thread | on | — |
 | tag | on | — |
 | draft | on | — |
+| change the trusted authserv-ids (`account trust`, or `--trust-authserv-id` on `account add` and `setup`) | off | a terminal confirmation, or `MAILCODED_ALLOW_TRUST_CHANGE=1` and `--yes`; absent from MCP |
+| list correspondents (`correspondents`) | on the CLI | absent from MCP |
 | save drafts to the server (`account server-drafts on`) | off | a terminal confirmation, or `MAILCODED_ALLOW_SERVER_DRAFTS=1` and `--yes`; absent from MCP |
 | add a sender identity | off | a terminal confirmation, or `MAILCODED_ALLOW_IDENTITY_CHANGE=1` and `--yes`; absent from MCP |
 | send | **off** | `MAILCODED_SEND=1`, `MAILCODED_APPROVED_RECIPIENTS`, a one-time token, at most 5 an hour |

@@ -142,6 +142,38 @@ public sealed class CorrespondentStoreTests
         Assert.Equal(1, Learned(temp, account, ct)["ada@example.org"].Count);
     }
 
+    [Theory]
+    [InlineData("flip-1@example.com")]
+    [InlineData(null)]
+    public async Task A_UIDVALIDITY_change_and_refetch_does_not_count_the_same_mail_again(string? messageId)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var temp = TempStore.Create();
+        var (account, sent, _) = await SeedAsync(temp, ct);
+        var envelope = Mail(1, "ada@example.org", messageId: messageId);
+
+        await StoreSeed.MessageAsync(temp.Store, sent, envelope, ct);
+        await temp.Store.InvalidateFolderUidsAsync(sent, new UidValidity(99), ct);
+        await StoreSeed.MessageAsync(temp.Store, sent, envelope, ct);
+
+        Assert.Equal(1, Learned(temp, account, ct)["ada@example.org"].Count);
+    }
+
+    [Fact]
+    public async Task Mail_that_arrives_after_a_UIDVALIDITY_change_is_still_counted()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var temp = TempStore.Create();
+        var (account, sent, _) = await SeedAsync(temp, ct);
+
+        await StoreSeed.MessageAsync(temp.Store, sent, Mail(1, "ada@example.org", messageId: "old@example.com"), ct);
+        await temp.Store.InvalidateFolderUidsAsync(sent, new UidValidity(99), ct);
+        await StoreSeed.MessageAsync(temp.Store, sent, Mail(1, "ada@example.org", messageId: "old@example.com"), ct);
+        await StoreSeed.MessageAsync(temp.Store, sent, Mail(2, "ada@example.org", messageId: "new@example.com"), ct);
+
+        Assert.Equal(2, Learned(temp, account, ct)["ada@example.org"].Count);
+    }
+
     [Fact]
     public async Task The_sync_batch_and_bulk_paths_learn_new_Messages_too()
     {
@@ -373,7 +405,7 @@ public sealed class CorrespondentStoreTests
         using var connection = new SqliteConnection($"Data Source={workspace.DatabasePath};Pooling=False");
         connection.Open();
         using var command = connection.CreateCommand();
-        command.CommandText = "DELETE FROM correspondents; DELETE FROM correspondent_backfill;";
+        command.CommandText = "DELETE FROM correspondents; DELETE FROM correspondent_learned; DELETE FROM correspondent_backfill;";
         command.ExecuteNonQuery();
     }
 
@@ -409,6 +441,62 @@ public sealed class CorrespondentStoreTests
         using (var store = workspace.OpenStore())
         {
             Assert.Equal(2, store.ListCorrespondents(account, ct).Single(c => c.Address == "ada@example.org").Count);
+        }
+    }
+
+    [Fact]
+    public async Task Two_processes_opening_an_upgraded_store_at_once_both_open_and_count_once()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var workspace = TempWorkspace.Create();
+        AccountId account;
+
+        using (var store = workspace.OpenStore())
+        {
+            account = await StoreSeed.AccountAsync(store, ct, Own);
+            var sent = await StoreSeed.FolderAsync(store, account, "Sent", FolderRole.Sent, ct);
+            for (var uid = 1u; uid <= 400; uid++)
+                await StoreSeed.MessageAsync(store, sent, Mail(uid, "ada@example.org", messageId: $"race-{uid}@example.com"), ct);
+        }
+
+        ForgetTheFeature(workspace);
+
+        var opens = Enumerable.Range(0, 4).Select(_ => Task.Run(() => workspace.OpenStore(), ct)).ToArray();
+        var stores = await Task.WhenAll(opens);
+
+        try
+        {
+            Assert.Equal(400, stores[0].ListCorrespondents(account, ct).Single(c => c.Address == "ada@example.org").Count);
+        }
+        finally
+        {
+            foreach (var store in stores) store.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task Mail_the_opening_pass_counted_is_not_counted_again_after_a_UIDVALIDITY_change()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var workspace = TempWorkspace.Create();
+        AccountId account;
+        FolderId sent;
+        var envelope = Mail(1, "ada@example.org", messageId: "backfilled@example.com");
+
+        using (var store = workspace.OpenStore())
+        {
+            account = await StoreSeed.AccountAsync(store, ct, Own);
+            sent = await StoreSeed.FolderAsync(store, account, "Sent", FolderRole.Sent, ct);
+            await StoreSeed.MessageAsync(store, sent, envelope, ct);
+        }
+
+        ForgetTheFeature(workspace);
+
+        using (var store = workspace.OpenStore())
+        {
+            await store.InvalidateFolderUidsAsync(sent, new UidValidity(99), ct);
+            await StoreSeed.MessageAsync(store, sent, envelope, ct);
+            Assert.Equal(1, store.ListCorrespondents(account, ct).Single().Count);
         }
     }
 

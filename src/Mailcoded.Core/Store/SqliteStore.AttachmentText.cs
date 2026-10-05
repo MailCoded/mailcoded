@@ -9,7 +9,24 @@ public sealed partial class SqliteStore
         LocalMessageId messageId,
         IReadOnlyList<AttachmentTextEntry> entries,
         int version,
-        CancellationToken ct = default)
+        CancellationToken ct = default) =>
+        SetAttachmentTextsCoreAsync(messageId, entries, version, null, ct);
+
+    /// <summary>As above, but only if the message still points at <paramref name="expectedBlob"/>, the blob the text was read from.</summary>
+    public Task<bool> SetAttachmentTextsAsync(
+        LocalMessageId messageId,
+        IReadOnlyList<AttachmentTextEntry> entries,
+        int version,
+        BlobId expectedBlob,
+        CancellationToken ct = default) =>
+        SetAttachmentTextsCoreAsync(messageId, entries, version, expectedBlob, ct);
+
+    private Task<bool> SetAttachmentTextsCoreAsync(
+        LocalMessageId messageId,
+        IReadOnlyList<AttachmentTextEntry> entries,
+        int version,
+        BlobId? expectedBlob,
+        CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(entries);
 
@@ -17,11 +34,12 @@ public sealed partial class SqliteStore
         {
             var session = context.Session;
 
-            var exists = session
-                .Prepare("SELECT 1 FROM messages WHERE id = $id", "$id")
+            var current = session
+                .Prepare("SELECT COALESCE(blob_id, 0) FROM messages WHERE id = $id", "$id")
                 .SetInt(0, messageId.Value)
-                .ExecuteNullableInt64() is not null;
-            if (!exists) return false;
+                .ExecuteNullableInt64();
+            if (current is null) return false;
+            if (expectedBlob is { } expected && current.Value != expected.Value) return false;
 
             AttachmentIndex.Replace(session, messageId.Value, entries, version);
             return true;

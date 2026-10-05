@@ -70,12 +70,15 @@ public sealed partial class SqliteStore
     }
 
     /// <summary>Hydrates hits for ids the semantic stage chose, in that order. <c>message_id</c> is
-    /// the rowid alias, so each of these is a point lookup.</summary>
+    /// the rowid alias, so each of these is a point lookup. A <paramref name="scope"/> keeps only the
+    /// ids that also satisfy its Account, Folder and every filter, so a meaning match cannot return
+    /// what the same query would refuse on words.</summary>
     public IReadOnlyList<StoreSearchHit> SearchHitsByIds(
         IReadOnlyList<LocalMessageId> ids,
         ParsedQuery? query = null,
         bool includeSnippet = true,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        StoreSearchRequest? scope = null)
     {
         ArgumentNullException.ThrowIfNull(ids);
         if (ids.Count == 0) return [];
@@ -91,18 +94,30 @@ public sealed partial class SqliteStore
             if (includeSnippet) sql.Append(" LEFT JOIN body_text b ON b.message_id = m.id");
             sql.Append(" WHERE m.id IN (");
 
-            var names = new string[ids.Count];
+            var builder = new SearchSqlBuilder();
+            if (scope is not null)
+            {
+                AppendScope(builder, scope);
+                AppendNegatedText(builder, scope.Query);
+            }
+
+            var scopeNames = builder.Names();
+            var names = new string[scopeNames.Length + ids.Count];
+            scopeNames.CopyTo(names, 0);
+
             for (var i = 0; i < ids.Count; i++)
             {
-                names[i] = string.Create(CultureInfo.InvariantCulture, $"$id{i}");
+                names[scopeNames.Length + i] = string.Create(CultureInfo.InvariantCulture, $"$id{i}");
                 if (i > 0) sql.Append(',');
-                sql.Append(names[i]);
+                sql.Append(names[scopeNames.Length + i]);
             }
 
             sql.Append(')');
+            if (!builder.IsEmpty) sql.Append(" AND ").Append(builder.Where);
 
             var statement = session.Prepare(sql.ToString(), names);
-            for (var i = 0; i < ids.Count; i++) statement.SetInt(i, ids[i].Value);
+            builder.Bind(statement);
+            for (var i = 0; i < ids.Count; i++) statement.SetInt(scopeNames.Length + i, ids[i].Value);
 
             var found = new Dictionary<long, StoreSearchHit>(ids.Count);
 

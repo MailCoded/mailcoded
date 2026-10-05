@@ -89,7 +89,7 @@ static `e_sqlite3.a` to link — so distribute the pair. Details in
 
 ## Quick start
 
-Steps 1 and 2 are verified working against this tree — all 37 bundled fixtures import with zero
+Steps 1 and 2 are verified working against this tree — all 56 bundled fixtures import with zero
 failures, and the search examples return hits. The rest are the documented verbs; run
 `mailcoded help <verb>` for the authoritative arguments.
 

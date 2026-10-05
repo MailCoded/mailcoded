@@ -26,7 +26,7 @@ public sealed class BackupDatabaseReaderTests : IDisposable
     [Fact]
     public void A_path_full_of_uri_metacharacters_still_opens_the_right_file()
     {
-        if (OperatingSystem.IsWindows()) return;
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Windows file names cannot hold the question mark.");
 
         var directory = Path.Combine(_workspace.Root, "we?ird #dir%20&x=1");
         Directory.CreateDirectory(directory);
@@ -183,6 +183,35 @@ public sealed class BackupDatabaseReaderTests : IDisposable
         Assert.Equal(SqliteStore.LatestSchemaVersion, facts.UserVersion);
         Assert.Equal(1, facts.TableCounts["messages"]);
         Assert.Equal(["ok"], facts.IntegrityMessages);
+    }
+
+    [Fact]
+    public async Task Cancelling_interrupts_the_copy_and_leaves_no_partial_file()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var workspace = TempWorkspace.Create("interrupt");
+        using var live = workspace.OpenStore();
+
+        using (var connection = new SqliteConnection($"Data Source={workspace.DatabasePath};Pooling=False"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText =
+                "CREATE TABLE ballast (x BLOB); WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 256) "
+                + "INSERT INTO ballast SELECT zeroblob(1048576) FROM n;";
+            command.ExecuteNonQuery();
+        }
+
+        var target = workspace.PathFor("interrupted.db");
+        using var cancel = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var backup = live.BackupToAsync(target, cancel.Token);
+
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!File.Exists(target) && DateTime.UtcNow < deadline) await Task.Delay(1, ct);
+        await cancel.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => backup);
+        Assert.False(File.Exists(target));
     }
 
     [Fact]

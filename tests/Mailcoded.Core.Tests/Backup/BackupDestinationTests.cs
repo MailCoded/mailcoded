@@ -131,7 +131,7 @@ public sealed class BackupDestinationTests : IDisposable
         var target = Path.Combine(_area.Root, "real");
         var link = Path.Combine(_area.Root, "link");
         Directory.CreateDirectory(target);
-        if (!TryLink(link, target)) return;
+        Assert.SkipUnless(TryLink(link, target), "Symbolic links are not permitted here.");
 
         Assert.Contains("symbolic link", Refusal(link), StringComparison.Ordinal);
     }
@@ -140,7 +140,7 @@ public sealed class BackupDestinationTests : IDisposable
     public void A_symbolic_link_in_the_path_that_leads_into_the_store_is_refused()
     {
         var link = Path.Combine(_area.Root, "shortcut");
-        if (!TryLink(link, _live.Root)) return;
+        Assert.SkipUnless(TryLink(link, _live.Root), "Symbolic links are not permitted here.");
 
         Assert.Contains("overlaps", Refusal(Path.Combine(link, "backups")), StringComparison.Ordinal);
     }
@@ -151,7 +151,7 @@ public sealed class BackupDestinationTests : IDisposable
         var real = Path.Combine(_area.Root, "elsewhere");
         var link = Path.Combine(_area.Root, "alias");
         Directory.CreateDirectory(real);
-        if (!TryLink(link, real)) return;
+        Assert.SkipUnless(TryLink(link, real), "Symbolic links are not permitted here.");
 
         var path = Path.Combine(link, "out");
         Assert.Equal(path, Resolve(path));
@@ -162,7 +162,7 @@ public sealed class BackupDestinationTests : IDisposable
     {
         var a = Path.Combine(_area.Root, "a");
         var b = Path.Combine(_area.Root, "b");
-        if (!TryLink(a, b) || !TryLink(b, a)) return;
+        Assert.SkipUnless(TryLink(a, b) && TryLink(b, a), "Symbolic links are not permitted here.");
 
         Assert.Throws<ArgumentException>(() => Resolve(Path.Combine(a, "out")));
     }

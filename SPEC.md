@@ -303,7 +303,7 @@ Error codes are stable and numeric (`1000` auth, `1001` network, `1002` not-foun
 
 ### 5.8 Native AOT rules **[DECIDED]**
 
-`PublishAot=true`, `InvariantGlobalization=false` (MIME charsets), `PredefinedCulturesOnly=true`, `InvariantTimezone=false`, `StripSymbols=true`. **No S/MIME/PGP/BouncyCastle** — out of scope for v0.x and unsafe for the agent threat model (§3.3); BouncyCastle would also break the size gate and the AOT build. STJ source generators only. Any new package must pass the AOT CI job. Full size-tuned property block in `docs/DEPENDENCIES.md`.
+`PublishAot=true`, `InvariantGlobalization=false` (MIME charsets), `PredefinedCulturesOnly=true`, `InvariantTimezone=false`, `StripSymbols=true`. **No S/MIME/PGP/BouncyCastle** — out of scope for v0.x and unsafe for the agent threat model (§3.3); BouncyCastle is also kept out for the size budget; the AOT build is not the reason (the trimmer removes it, see `docs/DEPENDENCIES.md`). STJ source generators only. Any new package must pass the AOT CI job. Full size-tuned property block in `docs/DEPENDENCIES.md`.
 
 ### 5.9 Windows & Maildir specifics
 

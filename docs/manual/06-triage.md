@@ -103,7 +103,7 @@ the account has no such folder you are told to use `move --folder` instead.
 
 Mailing lists announce how to leave in a `List-Unsubscribe` header. `unsubscribe` reads it and, when it
 offers a `mailto:` address, queues an ordinary draft to that address with the subject and body the
-sender asked for (or `unsubscribe`). It never sends:
+sender asked for (or `unsubscribe`). When you have sender identities (chapter 7), the draft is from the one the list mail was addressed to, because the list knows you by that address. It never sends:
 
     $ mailcoded unsubscribe 1
     message 1 from "Gardening Club" <news@club.example.org>

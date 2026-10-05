@@ -18,6 +18,9 @@ public interface IMailProvider : IAsyncDisposable
 
     Task<IReadOnlyList<RemoteFolder>> ListFoldersAsync(CancellationToken ct);
 
+    /// <summary>Selectable Folders the last <see cref="ListFoldersAsync"/> could not represent as a path, so their mail is not synced.</summary>
+    IReadOnlyList<string> UnsyncableFolders => [];
+
     /// <summary>Opens the folder and reports what the server says about it, without fetching anything.</summary>
     Task<ServerFolderInfo> OpenFolderAsync(FolderRef folder, bool writable, CancellationToken ct);
 
@@ -49,6 +52,10 @@ public interface IMailProvider : IAsyncDisposable
 
     /// <summary>Streaming form of <see cref="AppendAsync(FolderRef, byte[], MessageFlags, DateTimeOffset, CancellationToken)"/>.</summary>
     Task<Uid?> AppendAsync(FolderRef folder, Stream raw, MessageFlags flags, DateTimeOffset receivedUtc, CancellationToken ct);
+
+    /// <summary>Like <see cref="AppendAsync(FolderRef, byte[], MessageFlags, DateTimeOffset, CancellationToken)"/>, but also reports the UIDVALIDITY from the APPENDUID response so the caller needs no SELECT. The default reports it unknown.</summary>
+    async Task<AppendedMessage> AppendWithValidityAsync(FolderRef folder, byte[] raw, MessageFlags flags, DateTimeOffset receivedUtc, CancellationToken ct) =>
+        new(await AppendAsync(folder, raw, flags, receivedUtc, ct).ConfigureAwait(false), UidValidity.Unknown);
 
     /// <summary>Blocks in IMAP IDLE, invoking <paramref name="onChange"/> on each notification.</summary>
     Task WatchAsync(FolderRef folder, Func<CancellationToken, Task> onChange, CancellationToken ct);

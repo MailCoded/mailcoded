@@ -34,6 +34,36 @@ internal static class AuthservOptions
         return ids;
     }
 
+    public static bool Confirmed(CommandLine line, string subject, IReadOnlyList<string> requested)
+    {
+        ArgumentNullException.ThrowIfNull(line);
+
+        if (line.Flag("yes"))
+        {
+            var allowed = Environment.GetEnvironmentVariable(AccountTrustCommand.OverrideEnvVar);
+            return allowed is "1" or "true" or "yes";
+        }
+
+        if (!Prompt.IsInteractive) return false;
+
+        Prompt.Say();
+        Prompt.Say($"About to trust {(requested.Count == 0 ? "no authserv-id" : string.Join(", ", requested))} for {subject}");
+        Prompt.Say("  Mail whose Authentication-Results names one of these will be able to show as verified.");
+        Prompt.Say("  Only list names your own mail server writes and strips from incoming mail.");
+        Prompt.Say();
+
+        return Prompt.Confirm("Apply it?", false);
+    }
+
+    public static void RequireConfirmed(CommandLine line, string subject, IReadOnlyList<string> requested)
+    {
+        if (requested.Count == 0 || Confirmed(line, subject, requested)) return;
+
+        throw new CliUsageException(
+            "Trusting an authserv-id changes what 'verified' means. Re-run from a terminal to confirm, or set "
+            + $"{AccountTrustCommand.OverrideEnvVar}=1 and pass --yes for an unattended run.");
+    }
+
     public static void NoteIfIgnored(CliHost host, AccountId account, IReadOnlyList<string> requested, CancellationToken ct)
     {
         if (requested.Count == 0) return;

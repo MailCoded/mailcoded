@@ -20,7 +20,11 @@ public sealed class CorrespondentService
     }
 
     /// <summary>Throws <see cref="ArgumentException"/> for a limit outside 1 to <see cref="CorrespondentRanking.MaxLimit"/>.</summary>
-    public IReadOnlyList<Correspondent> Suggest(AccountId accountId, string? prefix, int? limit, CancellationToken ct)
+    public IReadOnlyList<Correspondent> Suggest(AccountId accountId, string? prefix, int? limit, CancellationToken ct) =>
+        SuggestPage(accountId, prefix, limit, ct).Items;
+
+    /// <summary>As <see cref="Suggest"/>, and says whether matches were left out by the limit.</summary>
+    public (IReadOnlyList<Correspondent> Items, bool More) SuggestPage(AccountId accountId, string? prefix, int? limit, CancellationToken ct)
     {
         var take = limit ?? CorrespondentRanking.DefaultLimit;
         if (take is < 1 or > CorrespondentRanking.MaxLimit)
@@ -28,6 +32,6 @@ public sealed class CorrespondentService
             throw new ArgumentException($"limit must be between 1 and {CorrespondentRanking.MaxLimit}.");
         }
 
-        return CorrespondentRanking.Suggest(_store.ListCorrespondents(accountId, ct), prefix, take, _clock.UtcNow);
+        return CorrespondentRanking.SuggestPage(_store.ListCorrespondents(accountId, ct), prefix, take, _clock.UtcNow);
     }
 }

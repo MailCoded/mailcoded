@@ -23,6 +23,8 @@ internal static class AccountAddCommand
 
         var email = line.RequireValue("email");
         var imapHost = line.RequireValue("imap-host");
+        var trusted = AuthservOptions.Read(line, "trust-authserv-id");
+        AuthservOptions.RequireConfirmed(line, $"new account {email}", trusted);
         var secret = await ReadSecretAsync(line, ct).ConfigureAwait(false);
 
         var imap = new ImapConfig
@@ -44,8 +46,6 @@ internal static class AccountAddCommand
                 Username = line.Value("smtp-user") ?? email,
             };
         }
-
-        var trusted = AuthservOptions.Read(line, "trust-authserv-id");
 
         var accountId = await host.Accounts.AddAsync(
             new AddAccountRequest

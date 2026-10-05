@@ -1,7 +1,9 @@
 using System.Globalization;
 using Mailcoded.Core.Application;
+using Mailcoded.Core.Domain.Identities;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Signals;
+using Mailcoded.Core.Parsing;
 using Mailcoded.Core.Providers;
 using Mailcoded.Core.Store;
 
@@ -51,6 +53,7 @@ internal static class UnsubscribeCommand
                 new DraftRequest
                 {
                     To = [EmailAddress.Parse(mailto.Address)],
+                    From = SubscribedAs(account, envelope),
                     Subject = mailto.Subject ?? DefaultSubject,
                     BodyText = mailto.Body ?? DefaultBody,
                 },
@@ -74,6 +77,17 @@ internal static class UnsubscribeCommand
 
         WriteText(output, id, envelope, options, preview);
         return ExitCodes.Ok;
+    }
+
+    // The list knows the subscriber by the address its mail was sent to; a request from another address is ignored.
+    private static EmailAddress? SubscribedAs(AccountConfig account, EnvelopeRow envelope)
+    {
+        if (account.Identities.Count == 0 || !EmailAddress.TryParse(account.Email, out var own)) return null;
+
+        var recipients = new List<EmailAddress>();
+        recipients.AddRange(RecipientExtractor.ParseAddressList(envelope.To, out _));
+        recipients.AddRange(RecipientExtractor.ParseAddressList(envelope.Cc, out _));
+        return SenderIdentities.PickForReply(own, account.Identities, recipients);
     }
 
     private static async Task<EnvelopeRow> ResolveUnknownAsync(CliHost host, CommandLine line, EnvelopeRow envelope, CancellationToken ct)

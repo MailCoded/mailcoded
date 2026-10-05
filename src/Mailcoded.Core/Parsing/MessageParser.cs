@@ -361,7 +361,7 @@ public sealed class MessageParser
             SignalHeaders = signalHeaders,
             FromHeader = FormatAddresses(message.From),
             Automated = MessageSignals.IsAutomated(signalHeaders, from, top),
-            Encrypted = walk.Encrypted,
+            Encrypted = walk.Encrypted ? true : walk.Truncated ? null : false,
             MessageId = messageId,
             References = references,
             InReplyTo = inReplyTo,
@@ -469,12 +469,14 @@ public sealed class MessageParser
         if (++walk.Visited > _options.MaxParts)
         {
             walk.Warn("too-many-parts");
+            walk.Truncated = true;
             return;
         }
 
         if (depth > _options.MaxDepth)
         {
             walk.Warn("mime-too-deep");
+            walk.Truncated = true;
             return;
         }
 
@@ -1044,6 +1046,8 @@ public sealed class MessageParser
         public int NestedDepth { get; set; }
 
         public bool Encrypted { get; set; }
+
+        public bool Truncated { get; set; }
 
         /// <summary>Set when only attachment identity is wanted, so no body part is decoded.</summary>
         public bool SkipText { get; init; }

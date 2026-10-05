@@ -11,7 +11,7 @@
       "externalBlobCount": 0,
       "formatVersion": 1,
       "mailcodedVersion": "0.0.0-transcript",
-      "schemaVersion": 15,
+      "schemaVersion": 17,
       "tableCounts": {
         "accounts": 1,
         "attachment_index": 1,
@@ -20,6 +20,7 @@
         "body_text": 4,
         "confirm_tokens": 0,
         "correspondent_backfill": 1,
+        "correspondent_learned": 0,
         "correspondents": 3,
         "folder_sync_state": 0,
         "folders": 5,

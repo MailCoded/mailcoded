@@ -67,6 +67,10 @@ internal static class SyncCommand
             }
 
             writer.WriteEndArray();
+
+            writer.WriteStartArray("unsyncable_folders");
+            foreach (var name in report.UnsyncableFolders) writer.WriteStringValue(SafeText.Line(name, 128));
+            writer.WriteEndArray();
             output.EndJson(writer);
             return ExitCodes.Ok;
         }
@@ -84,6 +88,14 @@ internal static class SyncCommand
         }
 
         if (report.Degraded) output.Line("warning: at least one folder synced in degraded mode");
+        if (report.UnsyncableFolders.Count > 0)
+        {
+            output.Line(string.Create(
+                CultureInfo.InvariantCulture,
+                $"warning: {report.UnsyncableFolders.Count} folder(s) not synced, their names cannot be told apart from the server's hierarchy:"));
+            foreach (var name in report.UnsyncableFolders.Take(10)) output.Line($"  {SafeText.Line(name, 128)}");
+        }
+
         if (pending > 0)
             output.Line(string.Create(CultureInfo.InvariantCulture, $"attachment text: {pending} fetched message(s) still to read; sync again to continue"));
         return ExitCodes.Ok;

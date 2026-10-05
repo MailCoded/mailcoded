@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Mailcoded.Cli;
+using Mailcoded.Core.Domain.Identities;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Signals;
 using Mailcoded.Core.Domain.Sync;
@@ -48,6 +49,29 @@ public sealed class UnsubscribeCliTests : IDisposable
         var raw = Encoding.UTF8.GetString(draft.Raw);
         Assert.Contains("Subject: Unsubscribe me", raw, StringComparison.Ordinal);
         Assert.Contains("Please remove this address", raw, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task The_request_comes_from_the_identity_the_list_mail_was_addressed_to()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await ImportAsync(ct, "050-unsubscribe-mailto.eml");
+        using (var store = new SqliteStore(new SqliteStoreOptions { DatabasePath = _workspace.DatabasePath }, new ManualClock()))
+        {
+            Assert.True(SenderIdentity.TryCreate("bob@example.org", null, null, out var identity, out var error), error);
+            await store.EditIdentitiesAsync(new AccountId(1), list => SenderIdentities.With(list, identity), ct);
+        }
+
+        var run = await RunAsync("unsubscribe", ["1"], ct);
+
+        Assert.Equal(ExitCodes.Ok, run.ExitCode);
+        using var document = JsonDocument.Parse(run.StdOut);
+        var draft = Draft(document.RootElement.GetProperty("draft_id").GetInt64());
+        var raw = Encoding.UTF8.GetString(draft.Raw);
+
+        Assert.Contains("<bob@example.org>", raw.Split('\n').Single(l => l.StartsWith("From:", StringComparison.Ordinal)), StringComparison.Ordinal);
+        Assert.DoesNotContain("In-Reply-To", raw, StringComparison.Ordinal);
+        Assert.DoesNotContain("References", raw, StringComparison.Ordinal);
     }
 
     [Fact]

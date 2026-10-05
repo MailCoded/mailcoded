@@ -97,6 +97,27 @@ public sealed class CorrespondentsCliTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task The_json_says_whether_the_limit_cut_the_list_and_never_offers_a_cursor()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await SeedAsync(ct);
+
+        var cut = await CliRunner.RunAsync(_workspace.DatabasePath, "correspondents", ["--limit", "2"], ct);
+        using (var document = JsonDocument.Parse(cut.StdOut))
+        {
+            Assert.True(document.RootElement.GetProperty("truncated").GetBoolean());
+            Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("next_cursor").ValueKind);
+        }
+
+        foreach (var arguments in new[] { new[] { "--limit", "3" }, [] })
+        {
+            var whole = await CliRunner.RunAsync(_workspace.DatabasePath, "correspondents", arguments, ct);
+            using var document = JsonDocument.Parse(whole.StdOut);
+            Assert.False(document.RootElement.GetProperty("truncated").GetBoolean());
+        }
+    }
+
     [Theory]
     [InlineData("0")]
     [InlineData("101")]
@@ -220,6 +241,7 @@ public sealed class CorrespondentsCliTests : IDisposable
         Assert.Contains("Sent mail only", HelpText.Overview, StringComparison.Ordinal);
         Assert.Contains("--limit", help, StringComparison.Ordinal);
         Assert.Contains("Received mail adds no one", help, StringComparison.Ordinal);
+        Assert.Contains("\"truncated\": true", help, StringComparison.Ordinal);
         Assert.DoesNotContain("contact", help, StringComparison.OrdinalIgnoreCase);
     }
 }

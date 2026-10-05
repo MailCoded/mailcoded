@@ -192,7 +192,14 @@ public sealed class SearchService
             if (!known.ContainsKey(id.Value)) missing.Add(id);
         }
 
-        foreach (var hit in _store.SearchHitsByIds(missing, query, request.IncludeSnippet, ct))
+        var scope = new StoreSearchRequest
+        {
+            Query = query,
+            AccountId = request.AccountId,
+            FolderId = request.FolderId,
+        };
+
+        foreach (var hit in _store.SearchHitsByIds(missing, query, request.IncludeSnippet, ct, scope))
             known[hit.Id.Value] = hit;
 
         var ordered = new List<long>(scores.Keys);

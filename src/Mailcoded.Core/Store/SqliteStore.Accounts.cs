@@ -20,8 +20,9 @@ public sealed partial class SqliteStore
 
         return WriteAsync(context =>
         {
+            // The UNIQUE index on email is binary, so a case variant would otherwise pass as a new Account.
             var existing = context.Session
-                .Prepare("SELECT id FROM accounts WHERE email = $email", "$email")
+                .Prepare("SELECT id FROM accounts WHERE email = $email COLLATE NOCASE", "$email")
                 .SetText(0, config.Email)
                 .ExecuteNullableInt64();
 
@@ -223,7 +224,7 @@ public sealed partial class SqliteStore
         return Read<AccountConfig?>(session =>
         {
             using var reader = session
-                .Prepare(SelectAccount + " WHERE email = $email", "$email")
+                .Prepare(SelectAccount + " WHERE email = $email COLLATE NOCASE", "$email")
                 .SetText(0, email)
                 .ExecuteReader();
             return reader.Read() ? MapAccount(reader) : null;

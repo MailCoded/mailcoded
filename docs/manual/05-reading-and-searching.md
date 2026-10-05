@@ -258,7 +258,8 @@ account address counts only once you add that address as an identity.
 Order is how often and how recently: a person you wrote to last week outranks one you wrote to once
 long ago, but a long-standing correspondent is not pushed out by a stray recent name. A name is the
 one on the most recent message that carried one, and is untrusted text. `--json` gives `address`,
-`display_name`, `uses` and `last_used_utc`. Sent mail that was already stored when this feature first
+`display_name`, `uses` and `last_used_utc`, and `truncated`: true when more people matched than `--limit`
+allowed. There is no cursor, so narrow the prefix or raise `--limit`. Sent mail that was already stored when this feature first
 appeared is counted once, the next time the store opens. `account forget` removes the list with the
 account. An agent can run this verb; the MCP server has no tool for it, and an agent that only needs
 to find a recipient can search the Sent folder (`in:sent`).

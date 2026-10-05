@@ -19,7 +19,7 @@ public sealed class ImapEnvelopeSignalsTests
     }
 
     [Fact]
-    public void Fetched_headers_that_say_nothing_make_the_message_known_not_automated()
+    public void Fetched_headers_that_say_nothing_make_the_message_known_not_automated_but_encryption_stays_unknown()
     {
         var summary = new MessageSummary(0) { Headers = new HeaderList(), Body = Basic("text", "plain") };
 
@@ -27,7 +27,7 @@ public sealed class ImapEnvelopeSignalsTests
 
         Assert.NotNull(signals.Headers);
         Assert.False(signals.Automated);
-        Assert.False(signals.Encrypted);
+        Assert.Null(signals.Encrypted);
     }
 
     [Fact]
@@ -70,9 +70,9 @@ public sealed class ImapEnvelopeSignalsTests
     [Theory]
     [InlineData("pkcs7-mime", "enveloped-data", true)]
     [InlineData("x-pkcs7-mime", "authEnveloped-data", true)]
-    [InlineData("pkcs7-mime", "signed-data", false)]
-    [InlineData("pkcs7-mime", null, false)]
-    public void Smime_depends_on_the_smime_type_parameter(string subtype, string? smimeType, bool expected)
+    [InlineData("pkcs7-mime", "signed-data", null)]
+    [InlineData("pkcs7-mime", null, null)]
+    public void Smime_depends_on_the_smime_type_parameter(string subtype, string? smimeType, bool? expected)
     {
         var part = smimeType is null ? Basic("application", subtype) : Basic("application", subtype, ("smime-type", smimeType));
 
@@ -98,7 +98,7 @@ public sealed class ImapEnvelopeSignalsTests
         mixed.BodyParts.Add(Basic("text", "plain"));
         mixed.BodyParts.Add(attached);
 
-        Assert.False(ImapEnvelopeSignals.Read(new MessageSummary(0) { Body = mixed }, null).Encrypted);
+        Assert.Null(ImapEnvelopeSignals.Read(new MessageSummary(0) { Body = mixed }, null).Encrypted);
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public sealed class ImapEnvelopeSignalsTests
             current = wrapper;
         }
 
-        Assert.False(ImapEnvelopeSignals.Read(new MessageSummary(0) { Body = current }, null).Encrypted);
+        Assert.Null(ImapEnvelopeSignals.Read(new MessageSummary(0) { Body = current }, null).Encrypted);
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public sealed class ImapEnvelopeSignalsTests
         for (var i = 0; i < 500; i++) wide.BodyParts.Add(Basic("text", "plain"));
         wide.BodyParts.Add(Multipart("encrypted", ("protocol", "application/pgp-encrypted")));
 
-        Assert.False(ImapEnvelopeSignals.Read(new MessageSummary(0) { Body = wide }, null).Encrypted);
+        Assert.Null(ImapEnvelopeSignals.Read(new MessageSummary(0) { Body = wide }, null).Encrypted);
     }
 
     [Fact]

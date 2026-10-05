@@ -503,6 +503,7 @@ export interface MessageGetParams {
   messageId: number;
   /** `text|html|raw`. */
   format?: string;
+  /** Omitted means false on the wire (stay offline); the CLI and MCP default to true. */
   fetchIfMissing?: boolean;
 }
 
@@ -642,6 +643,7 @@ export interface SearchParams {
   folderId?: number;
   /** `relevance|date`. Defaults to relevance for text queries. */
   order?: string;
+  /** Omitted means false on the wire; the CLI and MCP default to true. */
   includeSnippet?: boolean;
   /**
    * Null fuses meaning into the ranking when a model is installed; true requires one and fails

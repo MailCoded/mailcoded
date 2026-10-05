@@ -193,6 +193,34 @@ public sealed class ServerDraftSendTests
     }
 
     [Fact]
+    public async Task A_server_that_reports_the_validity_with_the_append_is_not_asked_again()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var harness = await ServerDraftHarness.CreateAsync(ct);
+        harness.Provider.AppendReportsValidity = true;
+        harness.Provider.OpenFailure = new ProviderException(FailureCategory.Network, "a SELECT here would queue behind a running sync");
+
+        var preview = await harness.PreviewAsync(harness.Connect, ct);
+        var draft = Require.Ref(StoredDraft(harness, preview.OutboxId, ct), "the server draft");
+
+        Assert.Equal(ServerDraftState.Saved, draft.State);
+        Assert.Equal(harness.Provider.FolderValidity, draft.UidValidity.Value);
+        Assert.Empty(harness.Provider.Opened);
+    }
+
+    [Fact]
+    public async Task A_server_that_reports_no_uid_is_not_selected_either()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var harness = await ServerDraftHarness.CreateAsync(ct);
+        harness.Provider.AppendReportsNoUid = true;
+
+        await harness.PreviewAsync(harness.Connect, ct);
+
+        Assert.Empty(harness.Provider.Opened);
+    }
+
+    [Fact]
     public async Task Drafting_writes_only_to_the_drafts_folder_and_only_the_one_message()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -484,6 +512,7 @@ public sealed class ServerDraftSendTests
         Assert.Equal(OutboxState.Sent, Require.Ref(harness.Inner.Store.GetOutbox(preview.OutboxId, ct), "the outbox row").State);
 
         harness.Provider.MoveFailure = null;
+        harness.Inner.Clock.Advance(TimeSpan.FromMinutes(11));
         var report = await harness.Inner.Send.ReconcileStuckSendsAsync(null, null, null, ct);
 
         Assert.Equal(1, report.ServerDraftsLeft);
@@ -492,6 +521,40 @@ public sealed class ServerDraftSendTests
         Assert.Equal(ServerDraftReason.Interrupted, draft.Reason);
         Assert.Single(harness.Provider.Moves);
         Assert.Single(harness.Provider.Appends);
+    }
+
+    [Fact]
+    public async Task A_send_another_process_may_still_be_settling_is_not_swept_until_it_is_old_enough_to_be_a_crash()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var harness = await ServerDraftHarness.CreateAsync(ct);
+        var preview = await harness.PreviewAsync(harness.Connect, ct);
+        harness.Provider.MoveFailure = new OperationCanceledException();
+        await Assert.ThrowsAsync<OperationCanceledException>(() => harness.SendAsync(preview, harness.Provider, ct));
+
+        harness.Inner.Clock.Advance(TimeSpan.FromMinutes(1));
+        Assert.Equal(0, (await harness.Inner.Send.ReconcileStuckSendsAsync(null, null, null, ct)).ServerDraftsLeft);
+        Assert.Equal(ServerDraftState.Moving, StoredDraft(harness, preview.OutboxId, ct)!.State);
+
+        harness.Inner.Clock.Advance(TimeSpan.FromMinutes(11));
+        Assert.Equal(1, (await harness.Inner.Send.ReconcileStuckSendsAsync(null, null, null, ct)).ServerDraftsLeft);
+    }
+
+    [Fact]
+    public async Task A_settlement_that_lost_its_state_to_another_writer_reports_the_stored_state_and_does_not_claim_a_move()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var harness = await ServerDraftHarness.CreateAsync(ct);
+        var preview = await harness.PreviewAsync(harness.Connect, ct);
+        harness.Provider.DuringMove = () => harness.Inner.Store.TransitionServerDraftAsync(
+            preview.OutboxId, ServerDraftState.Moving, ServerDraftState.Left, ServerDraftReason.Interrupted, ct);
+
+        var result = await harness.SendAsync(preview, harness.Provider, ct);
+
+        Assert.Equal(ServerDraftState.Left, result.ServerDraft);
+        Assert.Equal(ServerDraftReason.Interrupted, result.ServerDraftReason);
+        Assert.Equal(ServerDraftState.Left, StoredDraft(harness, preview.OutboxId, ct)!.State);
+        Assert.Equal(0, AuditCount(harness, AuditEvents.ServerDraftMoved, ct));
     }
 
     [Fact]
@@ -507,6 +570,7 @@ public sealed class ServerDraftSendTests
         message.BeginSending(harness.Inner.Clock.UtcNow);
         message.MarkSent(SmtpResult.Accepted("250 ok"));
         await harness.Inner.Store.SaveOutboxAsync(ToRecord(message), ct);
+        harness.Inner.Clock.Advance(TimeSpan.FromMinutes(11));
 
         var report = await harness.Inner.Send.ReconcileStuckSendsAsync(null, null, null, ct);
 

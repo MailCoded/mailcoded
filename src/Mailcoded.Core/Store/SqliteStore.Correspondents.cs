@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Mailcoded.Core.Domain.Correspondents;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Sync;
@@ -101,23 +103,26 @@ public sealed partial class SqliteStore
     /// Sent outbox rows with no copy in Sent yet are counted too; a copy that arrives later is skipped because the outbox row owns it.</summary>
     private static void BackfillCorrespondents(DbSession session, IClock clock)
     {
-        var done = session.ExecScalarInt64("SELECT COUNT(*) FROM correspondent_backfill");
-        if (done > 0) return;
-
         var now = clock.UtcNow;
         var ownByAccount = new Dictionary<long, IReadOnlySet<string>>();
 
         session.BeginImmediate();
         try
         {
+            if (session.ExecScalarInt64("SELECT COUNT(*) FROM correspondent_backfill") > 0)
+            {
+                session.Rollback();
+                return;
+            }
+
             long last = 0;
             while (true)
             {
-                var batch = new List<(long Id, long Account, string? From, string? To, string? Cc, long Date)>(BackfillBatch);
+                var batch = new List<(long Id, long Account, string? From, string? To, string? Cc, long Date, string? MessageId, string? Subject)>(BackfillBatch);
 
                 using (var reader = session
                     .Prepare(
-                        "SELECT m.id, m.account_id, m.from_addr, m.to_addrs, m.cc_addrs, COALESCE(m.date_utc, 0) "
+                        "SELECT m.id, m.account_id, m.from_addr, m.to_addrs, m.cc_addrs, COALESCE(m.date_utc, 0), m.message_id, m.subject "
                         + "FROM messages m JOIN folders f ON f.id = m.folder_id "
                         + "WHERE f.role = 'sent' AND m.id > $last ORDER BY m.id LIMIT $batch",
                         "$last", "$batch")
@@ -126,7 +131,7 @@ public sealed partial class SqliteStore
                     .ExecuteReader())
                 {
                     while (reader.Read())
-                        batch.Add((reader.GetInt64(0), reader.GetInt64(1), Db.Str(reader, 2), Db.Str(reader, 3), Db.Str(reader, 4), reader.GetInt64(5)));
+                        batch.Add((reader.GetInt64(0), reader.GetInt64(1), Db.Str(reader, 2), Db.Str(reader, 3), Db.Str(reader, 4), reader.GetInt64(5), Db.Str(reader, 6), Db.Str(reader, 7)));
                 }
 
                 if (batch.Count == 0) break;
@@ -138,7 +143,9 @@ public sealed partial class SqliteStore
                         ownByAccount[row.Account] = own = LoadOwnKeys(session, row.Account);
 
                     var used = Math.Min(row.Date, ToUnixMs(now));
-                    LearnFromHeaders(session, row.Account, own, row.From, row.To, row.Cc, used);
+                    LearnFromHeaders(
+                        session, row.Account, own, row.From, row.To, row.Cc, used,
+                        LearnedKey(row.MessageId, row.From, row.Date, row.To, row.Cc, row.Subject));
                 }
             }
 
@@ -181,13 +188,29 @@ public sealed partial class SqliteStore
         string? from,
         string? to,
         string? cc,
-        long usedMs)
+        long usedMs,
+        string key)
     {
         if (string.IsNullOrEmpty(to) && string.IsNullOrEmpty(cc)) return;
         if (!CorrespondentLearning.IsAuthoredBy(RecipientList.Parse(from), own)) return;
 
+        var counted = session
+            .Prepare("INSERT OR IGNORE INTO correspondent_learned (account_id, msg_key) VALUES ($account, $key)", "$account", "$key")
+            .SetInt(0, accountId)
+            .SetText(1, key)
+            .Execute();
+        if (counted == 0) return;
+
         var chosen = CorrespondentLearning.Select(RecipientList.Parse(to), RecipientList.Parse(cc), own);
         if (chosen.Count > 0) RecordCorrespondents(session, accountId, chosen, usedMs);
+    }
+
+    private static string LearnedKey(string? messageId, string? from, long dateMs, string? to, string? cc, string? subject)
+    {
+        if (messageId?.Trim() is { Length: > 0 } id) return "m:" + id;
+
+        var joined = string.Join('\0', from, dateMs.ToString(System.Globalization.CultureInfo.InvariantCulture), to, cc, subject);
+        return "h:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(joined)));
     }
 
     /// <summary>The per-batch state for learning from a Sent-role Folder: the Account's own addresses, read once.</summary>
@@ -227,7 +250,10 @@ public sealed partial class SqliteStore
                     .ExecuteNullableInt64() is not null)
                 return;
 
-            LearnFromHeaders(session, _accountId, _own, envelope.From, envelope.To, envelope.Cc, Math.Min(ToUnixMs(envelope.DateUtc), _nowMs));
+            var dateMs = ToUnixMs(envelope.DateUtc);
+            LearnFromHeaders(
+                session, _accountId, _own, envelope.From, envelope.To, envelope.Cc, Math.Min(dateMs, _nowMs),
+                LearnedKey(envelope.MessageIdHeader, envelope.From, dateMs, envelope.To, envelope.Cc, envelope.Subject));
         }
     }
 }

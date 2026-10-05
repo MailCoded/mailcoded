@@ -292,7 +292,7 @@ text, so render it as plain text. `count` is how many outgoing messages named th
 `prefix` matches case-insensitively when it begins the address, begins the display name, or begins
 any word of the name; absent or empty lists the best overall. Order is an exact address match first,
 then frequency weighted by recency (a recent use counts for more, and the weight decays with a
-90-day half-life toward a floor, so a long-standing contact still outranks a one-off). `limit` is
+90-day half-life toward a floor, so a long-standing Correspondent still outranks a one-off). `limit` is
 `1..100`, default 10; outside that range → **-32602**. Unknown `accountId` → **1002**.
 
 Learned from outgoing mail only, so received mail never adds anyone: every message mailcoded sends
@@ -402,7 +402,8 @@ has no trusted pass to show.
 - **A malformed query is not an error.** The parser reports what it could not read (to stderr at
   debug level) and searches with the rest.
 - `snippet` on an `EnvelopeDto` is present only on search hits and only when `includeSnippet` is
-  true. It is an excerpt of attacker-controlled mail text.
+  true. **An omitted `includeSnippet` is false on the wire**; the CLI and the MCP adapter default it
+  to true (see [§7.2](#72-surface-divergences)), so send `true` explicitly to get snippets. It is an excerpt of attacker-controlled mail text.
 
 - `attachmentMatch` on an `EnvelopeDto` is present only on search hits whose query had a positive
   `attachment:` term. It names the first attachment (lowest
@@ -451,9 +452,10 @@ Every message sharing a thread key, oldest first. An empty or blank `threadKey` 
 - `html` → `bodyHtml` plus the plaintext extraction in `bodyText`.
 - `raw` → `raw`, the base64-encoded RFC 822 bytes.
 
-When `bodyFetched` is false on the envelope and `fetchIfMissing` is true (the default), the
-daemon connects to IMAP, fetches the body once, stores and indexes it. Pass `fetchIfMissing:
-false` to stay offline.
+When `bodyFetched` is false on the envelope and `fetchIfMissing` is true, the daemon connects to
+IMAP, fetches the body once, stores and indexes it. **An omitted `fetchIfMissing` is false on the
+wire** (the CLI and the MCP adapter default it to true, see [§7.2](#72-surface-divergences)), so a
+client that wants the fetch must send `true`.
 
 `parseWarnings` are stable slugs (`missing-date`, …). They never echo mail content.
 
@@ -1009,8 +1011,8 @@ shell agent to branch:
   - Changing an Account's trusted ids clears its recorded results, except those of `import-eml` files,
     which stay `unknown`; the rest are recomputed when a message with a cached body is read or when
     mail is synced again.
-- `bodyFetched: false` means `message.get` will hit the network unless you pass
-  `fetchIfMissing: false`.
+- `bodyFetched: false` means `message.get` will hit the network only if you pass
+  `fetchIfMissing: true`; omitted, it does not.
 - `attachmentMatch` is `{ "index", "filename", "mime", "snippet" }`; see `search`. It never appears
   outside search results.
 
@@ -1022,7 +1024,7 @@ Described, not transferred; bytes come from `attachment.get`.
 
 ### `AccountDto`
 `{ id, email, displayName?, provider, auth, imap?, smtp?, secretRef?, quirks[], identities[],
-signatures[], defaultSignatureNew?, defaultSignatureReply? }` — never a credential.
+signatures[], defaultSignatureNew?, defaultSignatureReply?, saveDraftsToServer }` — never a credential.
 
 ### 7.1 The two meanings of `truncated`
 
@@ -1079,6 +1081,17 @@ The reason is in `docs/AGENT-INTERFACE.md`: agents never get a file handle to th
 blob store, and agents get plaintext only, and a backup copy is both. The RPC is the human clients'
 surface, like `message.move`; an agent that can run a shell can start its own daemon and speak this
 protocol, so a deployment that must stop that needs an OS-level sandbox, not a gate.
+
+**Snippets and the body fetch**
+
+| Surface | `includeSnippet` omitted | `fetchIfMissing` omitted |
+|---|---|---|
+| CLI `search`, `read` | snippets on (`--no-snippet` turns them off) | body fetched when missing (`read --no-fetch` stays local) |
+| MCP `search`, `read` | `include_snippet` defaults to true | body fetched when missing |
+| RPC `search`, `message.get` | **false**: no `snippet` on any hit | **false**: no network, `bodyFetched: false` |
+
+The wire never applies a C# initializer to a missing field, so an RPC client that wants either
+behaviour sends `true`. The generated TypeScript types show both as optional booleans with no default.
 
 **Correspondent suggestions**
 

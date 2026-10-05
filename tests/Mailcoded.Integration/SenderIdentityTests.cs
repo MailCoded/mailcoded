@@ -31,6 +31,7 @@ public sealed class SenderIdentityTests : IClassFixture<MailStackFixture>
 
         var accountId = await harness.AddAccountAsync(ct);
         await using var provider = await harness.ConnectProviderAsync(accountId, ct);
+        await harness.Accounts.InitialSyncAsync(provider, accountId, null, ct);
 
         Assert.True(SenderIdentity.TryCreate("sales@alias.example.net", "Sales Desk", null, out var identity, out var error), error);
         await harness.Store.EditIdentitiesAsync(accountId, list => SenderIdentities.With(list, identity), ct);
@@ -72,6 +73,7 @@ public sealed class SenderIdentityTests : IClassFixture<MailStackFixture>
         var sent = await harness.Send.SendAsync(CallerContext.Rpc, sender, provider, preview.OutboxId, preview.ConfirmToken, null, ct);
 
         Assert.Equal(OutboxState.Sent, sent.State);
+        Assert.True(sent.AppendedToSent, "The sent copy was not APPENDed to the Sent folder.");
         Assert.Equal(1, await _stack.Smtp.WaitForSubjectAsync(subject, 1, TimeSpan.FromSeconds(30), ct));
 
         var sentFolder = await _stack.ReadServerFolderAsync("Sent", ct);

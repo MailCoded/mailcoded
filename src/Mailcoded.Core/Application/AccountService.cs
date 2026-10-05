@@ -95,6 +95,8 @@ public sealed class AccountService
         if (!string.IsNullOrEmpty(request.Secret))
             await _secrets.SetAsync(secretRef, request.Secret, ct).ConfigureAwait(false);
 
+        var isNew = _store.FindAccountByEmail(email.Value, ct) is null;
+
         var config = new AccountConfig
         {
             Email = email.Value,
@@ -120,8 +122,36 @@ public sealed class AccountService
                 ("backend", _secrets.BackendName)),
             ct).ConfigureAwait(false);
 
+        if (isNew && config.TrustedAuthservIds.Count > 0)
+            await AuditTrustAsync(accountId, config.TrustedAuthservIds, caller, ct).ConfigureAwait(false);
+
         return accountId;
     }
+
+    /// <summary>The one route that changes an Account's trusted authserv-ids after it exists; false when the list was already this.</summary>
+    public async Task<bool> SetTrustedAuthservIdsAsync(
+        AccountId accountId,
+        IReadOnlyList<string> ids,
+        CallerContext caller,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+
+        var wanted = Domain.Signals.AuthservTrust.From(ids).Patterns;
+        var changed = await _store.SetTrustedAuthservIdsAsync(accountId, wanted, ct).ConfigureAwait(false);
+
+        if (changed) await AuditTrustAsync(accountId, wanted, caller, ct).ConfigureAwait(false);
+
+        return changed;
+    }
+
+    private Task AuditTrustAsync(AccountId accountId, IReadOnlyList<string> ids, CallerContext caller, CancellationToken ct) =>
+        _audit.WarnAsync(
+            AuditEvents.AccountTrustChanged,
+            accountId,
+            caller,
+            "authserv_ids=" + (ids.Count == 0 ? "none" : string.Join(' ', ids)),
+            ct);
 
     public async Task UpdateAsync(AccountConfig config, CallerContext caller, CancellationToken ct)
     {

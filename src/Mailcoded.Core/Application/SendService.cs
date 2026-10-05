@@ -2,6 +2,7 @@ using System.Runtime.ExceptionServices;
 using Mailcoded.Core.Domain.Identities;
 using Mailcoded.Core.Domain.Outbox;
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Domain.Sync;
 using Mailcoded.Core.Domain.Tags;
 using Mailcoded.Core.Parsing;
 using Mailcoded.Core.Providers;
@@ -150,6 +151,9 @@ public sealed record OutboxReconcileReport
 /// <summary>Two-phase send, the safety gates, Sent reconciliation, and the retry schedule.</summary>
 public sealed class SendService
 {
+    // Longer than a MOVE can take, so a row another process is still settling is never taken for a crashed one.
+    private static readonly TimeSpan InterruptedDraftGrace = TimeSpan.FromMinutes(10);
+
     private const int GenericPermanentCode = 554;
 
     private readonly SqliteStore _store;
@@ -317,7 +321,7 @@ public sealed class SendService
         if (drafts is null) return await SaveFailedAsync(accountId, outboxId, ServerDraftReason.NoDraftsFolder, null, ct).ConfigureAwait(false);
 
         var target = new FolderRef(drafts.Id, drafts.Path);
-        Uid? uid;
+        AppendedMessage appended;
         IMailProvider provider;
 
         try
@@ -326,7 +330,7 @@ public sealed class SendService
                 return await SaveFailedAsync(accountId, outboxId, ServerDraftReason.NotConnected, null, ct).ConfigureAwait(false);
 
             provider = connected;
-            uid = await provider.AppendAsync(target, raw, MessageFlags.Draft, _clock.UtcNow, ct).ConfigureAwait(false);
+            appended = await provider.AppendWithValidityAsync(target, raw, MessageFlags.Draft, _clock.UtcNow, ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -338,18 +342,21 @@ public sealed class SendService
         }
 
         // The copy exists on the server from here on, so it must be on record even if the UID or UIDVALIDITY is unknown.
-        UidValidity validity;
-        try
+        var uid = appended.Uid;
+        var validity = appended.UidValidity;
+        if (uid is not null && validity.IsUnknown)
         {
-            validity = (await provider.OpenFolderAsync(target, true, ct).ConfigureAwait(false)).UidValidity;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (ProviderException)
-        {
-            validity = UidValidity.Unknown;
+            try
+            {
+                validity = (await provider.OpenFolderAsync(target, true, ct).ConfigureAwait(false)).UidValidity;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (ProviderException)
+            {
+            }
         }
 
         var trackable = uid is not null && !validity.IsUnknown;
@@ -682,7 +689,7 @@ public sealed class SendService
 
     private async Task<int> LeaveInterruptedServerDraftsAsync(CancellationToken ct)
     {
-        var count = await _store.LeaveInterruptedServerDraftsAsync(ct).ConfigureAwait(false);
+        var count = await _store.LeaveInterruptedServerDraftsAsync(_clock.UtcNow - InterruptedDraftGrace, ct).ConfigureAwait(false);
 
         if (count > 0)
         {
@@ -858,7 +865,11 @@ public sealed class SendService
             settlement = ServerDraftPolicy.SettleFailure(ex.Category == FailureCategory.Network);
         }
 
-        await _store.TransitionServerDraftAsync(record.Id, ServerDraftState.Moving, settlement.State, settlement.Reason, ct).ConfigureAwait(false);
+        if (!await _store.TransitionServerDraftAsync(record.Id, ServerDraftState.Moving, settlement.State, settlement.Reason, ct).ConfigureAwait(false))
+        {
+            var current = _store.GetOutbox(record.Id, ct)?.ServerDraft;
+            if (current is not null) return Describe(current.State, current.Reason);
+        }
 
         if (settlement.State == ServerDraftState.Moved)
         {
