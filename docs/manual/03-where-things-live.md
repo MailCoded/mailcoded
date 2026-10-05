@@ -61,10 +61,66 @@ What exists **only** in your store is:
 - drafts and the outbox;
 - the `sync_log` audit trail.
 
-To back it up, copy the whole directory while nothing is running: no TUI open, `daemon.lock` free. To
+### `mailcoded backup`
+
+The safe way to back it up is a verb, and it works while a daemon or a sync is running:
+
+    MAILCODED_ALLOW_BACKUP=1 mailcoded backup ~/mail-backups/2026-10-04
+    MAILCODED_ALLOW_BACKUP=1 mailcoded backup-verify ~/mail-backups/2026-10-04
+
+`backup` writes a consistent snapshot of `store.db` (SQLite's `VACUUM INTO`, taken on its own
+read-only connection, so a long copy never stalls a sync), a copy of every external attachment file
+that snapshot points at, and a `manifest.json` recording the schema version, the sha256 and size of
+each file and the row count of every table. The destination must not exist, or be an empty folder
+whose parent exists. Nothing else goes in it: **secrets are never copied**, and neither are blob
+files written after the snapshot or orphaned by `account forget`. On Linux and macOS the files are
+readable by you alone.
+
+`backup-verify` opens the copy read-only (it adds no file to it), runs SQLite's integrity check,
+re-hashes everything and lists every difference from the manifest: a changed byte, a missing or extra
+file, a wrong row count. It exits 9 when anything differs. The manifest is not signed; it catches
+corruption and edits, not someone who rewrote the whole folder.
+
+The variable is required because a backup is a second, plaintext copy of all your mail: the command
+line is an agent surface (chapter 11) and an agent must not be able to mint one unasked. Set it for the
+one command, as above. MCP has no backup tool at all.
+
+Refused destinations, each with a message saying why: a folder inside the live store; a symbolic link;
+a non-empty folder or a file; a relative path in the daemon's RPC (the verb resolves it against your
+working directory); on Windows a device path (`\\?\`, `\\.\`), a colon in a name, a reserved name such as `CON`
+or a name ending in a dot or space; and **any folder inside a workspace** — below your home folder, a
+folder holding `.git`, `.vscode`, `.obsidian`, `.idea` or a `*.code-workspace` file, or sitting under one.
+The mail store never lives inside a workspace folder, and a backup is the mail store; pick a folder
+outside every project, for example `~/mail-backups`. A backup you write by mistake inside a workspace
+is yours to move; mailcoded will not write it there in the first place.
+
+A failed backup removes what it wrote, so you can run it again into the same folder. It fails rather
+than copy damage: if a stored attachment file is missing, or its content no longer matches its hash,
+nothing is written and the message names the file.
+
+### Restoring
+
+There is no restore verb: replacing a live store is not something a command should do unasked.
+
+1. Run `mailcoded backup-verify` on the backup.
+2. Stop the daemon, close the TUI, and make sure no `mailcoded` or `mailcoded-mcp` process is running.
+3. Move the current data directory aside (do not delete it).
+4. Copy `store.db` and the `blobs` folder from the backup into the data directory. Do not copy
+   `manifest.json` in. Do not leave an old `store.db-wal` or `store.db-shm` beside the restored
+   file.
+5. Run `mailcoded account reauth` for every account: **the backup has no credentials**. Then `mailcoded sync`.
+
+The restored database remembers where each attachment file lived on the old machine, and a store that
+cannot find one there looks under its own `blobs` folder, so restoring to a different path or user
+works.
+
+### Copying by hand
+
+You can still copy the whole directory while nothing is running (no TUI open, `daemon.lock` free). To
 move it, copy it and set `MAILCODED_DATA_DIR`. Credentials in the OS keyring do not travel with the
 directory, and on Windows neither does a DPAPI-protected `secrets.enc`; on a new machine — or as a
-different Windows user — run `mailcoded account reauth`.
+different Windows user — run `mailcoded account reauth`. Copying `store.db` alone while a daemon runs
+can yield a torn file; use `backup`.
 
 For experiments, use a throwaway store:
 

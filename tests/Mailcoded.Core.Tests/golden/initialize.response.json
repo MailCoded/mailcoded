@@ -4,6 +4,7 @@
   "result": {
     "capabilities": {
       "attachments": true,
+      "backup": true,
       "htmlBodies": true,
       "maxSearchLimit": 200,
       "methods": [
@@ -27,6 +28,8 @@
         "account.test",
         "outbox.list",
         "provider.detect",
+        "store.backup",
+        "store.backupVerify",
         "shutdown"
       ],
       "notifications": [

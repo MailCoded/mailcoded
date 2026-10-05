@@ -15,6 +15,7 @@ public enum AgentCapability
     RawSql,
     Move,
     HtmlBody,
+    Backup,
 }
 
 /// <summary>The outcome of the send gate, including the label the audit row records.</summary>
@@ -102,6 +103,7 @@ public sealed class AgentPolicy
         AgentCapability.Send => !IsAgent(caller) || Options.SendEnabled,
         AgentCapability.RawSql => Options.RawSqlEnabled,
         AgentCapability.Move or AgentCapability.HtmlBody => !IsAgent(caller),
+        AgentCapability.Backup => AllowsBackup(caller),
         _ => false,
     };
 
@@ -114,6 +116,14 @@ public sealed class AgentPolicy
     /// </summary>
     public bool AllowsMove(CallerKind caller) => !IsAgent(caller) || Options.MoveEnabled;
 
+    /// <summary>A backup is a second copy of the store, so it is never on for MCP and needs an unlock on the CLI.</summary>
+    public bool AllowsBackup(CallerKind caller) => caller switch
+    {
+        CallerKind.Mcp => false,
+        CallerKind.Cli => Options.BackupEnabled,
+        _ => true,
+    };
+
     public void RequireCapability(AgentCapability capability, CallerContext caller)
     {
         if (IsEnabled(capability, caller.Kind)) return;
@@ -123,12 +133,15 @@ public sealed class AgentPolicy
             AgentCapability.Send => PolicyDenialReason.SendDisabled,
             AgentCapability.RawSql => PolicyDenialReason.RawSqlDisabled,
             AgentCapability.HtmlBody => PolicyDenialReason.HtmlBodyDenied,
+            AgentCapability.Backup => PolicyDenialReason.BackupDisabled,
             _ => PolicyDenialReason.OperationNotAvailable,
         };
 
-        throw new PolicyDeniedException(
-            reason,
-            $"'{capability}' is not available to a '{caller.InterfaceName}' caller under the current policy.");
+        var detail = capability == AgentCapability.Backup && caller.Kind == CallerKind.Cli
+            ? $"A backup copies the whole mail store, so the agent surface needs {AgentPolicyOptions.AllowBackupEnvVar}=1."
+            : $"'{capability}' is not available to a '{caller.InterfaceName}' caller under the current policy.";
+
+        throw new PolicyDeniedException(reason, detail);
     }
 
     /// <summary>Evaluates the send gate without consuming budget, so a preview can report the posture.</summary>

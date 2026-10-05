@@ -43,6 +43,7 @@ internal sealed class DaemonHost : IAsyncDisposable
         Send = new SendService(store, Parser, clock, Audit, Policy, Tokens);
         Accounts = new AccountService(store, secrets, Sync, Audit);
         Health = new HealthMonitor(store, Connections, Policy, Tokens, Audit, clock, secrets.BackendName);
+        Backups = new BackupService(store, Policy, Audit, clock, DaemonInfo.Version);
         Providers = new ProviderPool(store, secrets, Connections, Transport, clock, log);
     }
 
@@ -65,6 +66,7 @@ internal sealed class DaemonHost : IAsyncDisposable
     public SendService Send { get; }
     public AccountService Accounts { get; }
     public HealthMonitor Health { get; }
+    public BackupService Backups { get; }
     public ProviderPool Providers { get; }
 
     /// <summary>Attached by <see cref="AttachWatch"/>; notifications need the stdout channel first.</summary>

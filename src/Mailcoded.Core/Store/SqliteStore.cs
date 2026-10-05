@@ -21,6 +21,7 @@ public sealed partial class SqliteStore : IDisposable
     private readonly IClock _clock;
     private readonly string _writerConnectionString;
     private readonly string _readerConnectionString;
+    private readonly string _snapshotConnectionString;
     private readonly WriterQueue _writer;
     private readonly ReaderPool _readers;
     private bool _disposed;
@@ -67,6 +68,14 @@ public sealed partial class SqliteStore : IDisposable
             Cache = SqliteCacheMode.Private,
             Pooling = false,
             ForeignKeys = true,
+        }.ToString();
+
+        _snapshotConnectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = DatabasePath,
+            Mode = SqliteOpenMode.ReadOnly,
+            Cache = SqliteCacheMode.Private,
+            Pooling = false,
         }.ToString();
 
         DbSession writerSession;

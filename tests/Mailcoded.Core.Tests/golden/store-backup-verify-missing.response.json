@@ -1,0 +1,19 @@
+{
+  "id": 13,
+  "jsonrpc": "2.0",
+  "result": {
+    "blobFilesChecked": 0,
+    "bytesChecked": "<normalized>",
+    "directory": "<normalized>",
+    "integrity": "not run",
+    "ok": false,
+    "problemCount": 1,
+    "problems": [
+      {
+        "kind": "directory_missing",
+        "message": "There is no directory at that path."
+      }
+    ],
+    "problemsTruncated": false
+  }
+}

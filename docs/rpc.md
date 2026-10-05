@@ -145,6 +145,7 @@ Result:
     "watch": true,
     "send": false,
     "rawSql": false,
+    "backup": true,
     "htmlBodies": true,
     "semantic": false,
     "maxSearchLimit": 200,
@@ -162,11 +163,14 @@ Result:
 - **`methods` is the authoritative method list for this build.** Do not call a method that is
   absent; it will answer `-32601`.
 - **An absent capability is an absent feature, not a toggle to flip.** There is no way to turn one
-  on over the wire. `send`, `rawSql` and `htmlBodies` reflect Core-side gates evaluated for *this
-  caller's `interface`*, so the same daemon returns different values to a `cli` caller than to an
-  `rpc` one.
+  on over the wire. `send`, `rawSql`, `backup` and `htmlBodies` reflect Core-side gates evaluated
+  for *this caller's `interface`*, so the same daemon returns different values to a `cli` caller than
+  to an `rpc` one.
 - `send: false` means `send` will answer **1006**, not that the method is missing. Ask for a
   `send.preview` anyway if you want to show the user why.
+- `backup: false` means `store.backup` and `store.backupVerify` will answer **1006**. It is `true`
+  for `rpc`, always `false` for `mcp`, and for `cli` only when the daemon was started with
+  `MAILCODED_ALLOW_BACKUP=1`.
 - `htmlBodies: false` means `message.get` with `format: "html"` or `"raw"` answers **1006**;
   agent interfaces (`cli`, `mcp`) get plaintext only.
 - `semantic: false` means no embedding model is installed. `search` still works; it just ranks by
@@ -535,6 +539,78 @@ would never fall.
 `health` succeeds even when the daemon is unhealthy — branch on `status`, not on the presence of
 an error. `lastError` is redacted: never a credential, never mail content.
 
+### `store.backup`
+`{ "directory": "/abs/path" }` → `{ "backup": BackupDto, "secretsIncluded": false }`
+
+Writes a verifiable copy of the store into `directory` and returns what its `manifest.json`
+records. The directory holds `store.db` (a consistent snapshot taken with `VACUUM INTO` while sync
+and the writer keep running), `blobs/<xx>/<sha256>.blob` for every external blob file the snapshot
+points at, and `manifest.json` (format version, mailcoded version, schema version, creation time,
+sha256 and size of the database, row counts per table, and the hash and size of every blob file).
+`BackupDto` carries the same facts minus the per-blob list: `directory`, `formatVersion`,
+`mailcodedVersion`, `schemaVersion`, `createdUtc`, `databaseBytes`, `databaseSha256`,
+`externalBlobCount`, `externalBlobBytes`, `tableCounts`.
+
+- `directory` must be an **absolute** path (a relative one is `-32602`: the daemon's working
+  directory is not something a client can know). It must not exist, or be an empty folder, and its
+  parent must exist.
+- Refused with `-32602`: a path inside (or containing) the live store, a symbolic link, a non-empty
+  folder, a file, any folder that sits inside a workspace (an ancestor below the user's home that
+  holds `.git`, `.vscode`, `.obsidian`, `.idea` or a `*.code-workspace` file), and on Windows the
+  device, extended-length and alternate-data-stream forms. The mail store must never live inside a
+  workspace folder, and a backup is a full copy of it.
+- **Secrets are never copied.** `secretsIncluded` is always `false`; after a restore every account
+  must be signed in again (`account.test` then `secret.set`, or `mailcoded account reauth`).
+- A backup is a second copy of every message and attachment in plaintext. It is gated: allowed
+  for `interface: rpc`, refused with **1006** for `mcp` always and for `cli` unless the daemon runs
+  with `MAILCODED_ALLOW_BACKUP=1`. A connection that never called `initialize` is treated as `mcp`.
+  Every call, allowed or refused, writes `sync_log` rows (`backup_started`, `backup_completed`,
+  `backup_failed`, `backup_denied`).
+- If an external blob file the snapshot refers to is missing, or does not match its hash, nothing is
+  left behind and the call fails with `1004`: a backup that cannot be verified is not written. Blob
+  files written after the snapshot are not needed and not copied. At most one backup runs per
+  daemon at a time (`1005` for a second).
+- Files are created with owner-only permissions on Unix.
+
+### `store.backupVerify`
+`{ "directory": "/abs/path" }` → `StoreBackupVerifyResult`
+
+Opens the copy read-only and immutable (it adds no file to the directory), runs
+`PRAGMA integrity_check`, recomputes the sha256 and size of `store.db` and every blob file, and
+compares them, the schema version, the per-table row counts and the set of blob files with the
+manifest. **A mismatch is a result, not an error:** `ok: false` with every problem found, so a
+client can show them all.
+
+```json
+{ "ok": false, "directory": "/abs/path", "formatVersion": 1, "schemaVersion": 11,
+  "createdUtc": "2026-10-04T01:02:03.456Z", "integrity": "ok",
+  "blobFilesChecked": 3, "bytesChecked": 8412345,
+  "problemCount": 2, "problemsTruncated": false,
+  "problems": [ { "kind": "blob_hash", "subject": "blobs/ab/ab12....blob",
+                  "message": "The file hashes to ..., not to the name it is filed under." },
+                { "kind": "unexpected_file", "subject": "notes.txt",
+                  "message": "The manifest does not account for this file." } ] }
+```
+
+`problems` is capped at 200 (`problemsTruncated`). `kind` is a stable slug: `directory_missing`,
+`manifest_missing`, `manifest_invalid`, `unsupported_format`, `database_missing`,
+`database_size`, `database_hash`, `database_unreadable`, `integrity`, `schema_version`,
+`schema_newer`, `table_missing`, `table_unlisted`, `row_count`, `blob_missing`, `blob_size`,
+`blob_hash`, `blob_unlisted`, `blob_unreferenced`, `unexpected_file`, `link_refused`,
+`too_many_files`. Links inside a backup are never followed. `integrity` is `ok`, the
+integrity_check messages, or `not run`.
+
+The manifest is **not signed**. It detects corruption and edits that left it behind; someone who can
+rewrite the whole directory can rewrite the manifest too. Same gate and the same audit rows
+(`backup_verified`, `backup_verify_failed`) as `store.backup`.
+
+**Restoring is not a method.** Stop the daemon and every other mailcoded process, keep the old
+store directory aside, copy `store.db` and the `blobs` directory from the backup into the store
+directory, and start again. Do not copy `manifest.json` in. The `ext_path` column inside the
+database holds the path the blob had on the machine that made it; a store that cannot find a file
+there looks for it under its own `blobs/<xx>/<sha256>.blob`, so a restore to a different location
+works.
+
 ### `shutdown`
 `{}` → `{}`
 
@@ -660,7 +736,7 @@ a row here in the same PR.**
 | unknown method | `-32601` |
 | missing/expired confirm token | `1003` (`requiresUserAction: true`) |
 | policy denial, rate-limited | `1005` (with `retryAfterMs` when known) |
-| any other policy denial | `1006` (`requiresUserAction: true`) |
+| any other policy denial (including `store.backup` for an agent caller) | `1006` (`requiresUserAction: true`) |
 | provider: auth | `1000` · network or protocol → `1001` · notFound → `1002` · busy → `1005` · full → `1007` · unsupported or permanent → `1008` |
 | store: notFound | `1002` · full → `1007` · busy → `1005` · auth → `1000` · network → `1001` · unsupported → `1008` · anything else → `1004` |
 | secret store | `1000` (`requiresUserAction: true`) |
@@ -799,6 +875,19 @@ that moves between surfaces must pass `limit` explicitly rather than rely on any
 
 So "at most 1 MiB" is a CLI rule, not a mailcoded rule. Do not document it as a property of the
 engine, and do not assume the MCP surface will reject an oversized body — it will not.
+
+**Store backup**
+
+| Surface | Offered | Gate |
+|---|---|---|
+| CLI `mailcoded backup`, `backup-verify` | yes | off unless `MAILCODED_ALLOW_BACKUP=1` (exit 4, refusal audited) |
+| MCP | **no tool at all**, and the policy refuses an `mcp` caller even with the variable set | — |
+| RPC `store.backup`, `store.backupVerify` | yes | open to `interface: rpc`; `cli` needs the variable; `mcp` never |
+
+The reason is in `docs/AGENT-INTERFACE.md`: agents never get a file handle to the database or the
+blob store, and agents get plaintext only, and a backup copy is both. The RPC is the human clients'
+surface, like `message.move`; an agent that can run a shell can start its own daemon and speak this
+protocol, so a deployment that must stop that needs an OS-level sandbox, not a gate.
 
 ---
 

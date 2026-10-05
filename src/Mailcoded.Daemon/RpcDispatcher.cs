@@ -27,7 +27,7 @@ internal sealed class RpcDispatcher
         RpcMethods.MessageGet, RpcMethods.AttachmentGet, RpcMethods.TagsSet, RpcMethods.MessageMove,
         RpcMethods.SendPreview, RpcMethods.Send, RpcMethods.WatchSubscribe, RpcMethods.Stats,
         RpcMethods.Health, RpcMethods.AccountTest, RpcMethods.OutboxList, RpcMethods.ProviderDetect,
-        RpcMethods.Shutdown,
+        RpcMethods.StoreBackup, RpcMethods.StoreBackupVerify, RpcMethods.Shutdown,
     ];
 
     /// <summary>Before initialize the caller is the most restricted kind, never the permissive 'rpc' one:
@@ -91,6 +91,8 @@ internal sealed class RpcDispatcher
             RpcMethods.AccountTest => await AccountTestAsync(parameters, ct).ConfigureAwait(false),
             RpcMethods.OutboxList => OutboxList(parameters, ct),
             RpcMethods.ProviderDetect => ProviderDetect(parameters),
+            RpcMethods.StoreBackup => await StoreBackupAsync(parameters, ct).ConfigureAwait(false),
+            RpcMethods.StoreBackupVerify => await StoreBackupVerifyAsync(parameters, ct).ConfigureAwait(false),
             RpcMethods.Shutdown => Shutdown(),
             _ => throw new MethodNotFoundException(method),
         };
@@ -127,6 +129,7 @@ internal sealed class RpcDispatcher
                 Watch = host.Watch.WatchEnabled,
                 Send = host.Policy.IsEnabled(AgentCapability.Send, kind),
                 RawSql = host.Policy.IsEnabled(AgentCapability.RawSql, kind),
+                Backup = host.Policy.IsEnabled(AgentCapability.Backup, kind),
                 Semantic = host.Search.SemanticAvailable,
                 HtmlBodies = host.Policy.AllowsHtmlBody(kind),
                 MaxSearchLimit = SearchServiceOptions.Default.MaxLimit,
@@ -241,6 +244,24 @@ internal sealed class RpcDispatcher
         return RpcPayloads.Value(
             new OutboxListResult { Entries = entries },
             ProtocolJsonContext.Default.OutboxListResult);
+    }
+
+    private async Task<byte[]> StoreBackupAsync(JsonElement? parameters, CancellationToken ct)
+    {
+        var request = Require(parameters, ProtocolJsonContext.Default.StoreBackupParams, RpcMethods.StoreBackup);
+        var result = await host.Backups.CreateAsync(Caller, request.Directory, ct).ConfigureAwait(false);
+
+        return RpcPayloads.Value(
+            new StoreBackupResult { Backup = WireMapper.ToDto(result) },
+            ProtocolJsonContext.Default.StoreBackupResult);
+    }
+
+    private async Task<byte[]> StoreBackupVerifyAsync(JsonElement? parameters, CancellationToken ct)
+    {
+        var request = Require(parameters, ProtocolJsonContext.Default.StoreBackupVerifyParams, RpcMethods.StoreBackupVerify);
+        var result = await host.Backups.VerifyAsync(Caller, request.Directory, ct).ConfigureAwait(false);
+
+        return RpcPayloads.Value(WireMapper.ToDto(result), ProtocolJsonContext.Default.StoreBackupVerifyResult);
     }
 
     private byte[] Shutdown()

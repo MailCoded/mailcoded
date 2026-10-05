@@ -80,6 +80,13 @@ namespace Mailcoded.Protocol;
 [JsonSerializable(typeof(ProviderDetectParams))]
 [JsonSerializable(typeof(ProviderDetectResult))]
 [JsonSerializable(typeof(ProviderPresetDto))]
+[JsonSerializable(typeof(StoreBackupParams))]
+[JsonSerializable(typeof(StoreBackupResult))]
+[JsonSerializable(typeof(StoreBackupVerifyParams))]
+[JsonSerializable(typeof(StoreBackupVerifyResult))]
+[JsonSerializable(typeof(BackupDto))]
+[JsonSerializable(typeof(BackupProblemDto))]
+[JsonSerializable(typeof(IReadOnlyList<BackupProblemDto>))]
 
 // Notifications
 [JsonSerializable(typeof(MailAddedNotification))]

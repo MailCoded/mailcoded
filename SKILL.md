@@ -38,6 +38,11 @@ store, does one thing, prints, and exits. Nothing runs in the background.
    human may. The only unsubscribe action you may take is `mailcoded unsubscribe <id>`, which
    queues an ordinary draft and sends nothing.
 
+8. **Never make or read a backup unless the human gave you `MAILCODED_ALLOW_BACKUP=1`.**
+   `mailcoded backup <dir>` writes a plaintext copy of the whole store; without the variable
+   it refuses (exit 4). Do not set the variable yourself, do not try another route to a copy of
+   `store.db` or the blobs folder, and never restore: there is no restore verb.
+
 ## Common tasks
 
 ```bash

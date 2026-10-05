@@ -16,6 +16,8 @@ public sealed record AgentPolicyOptions
     /// </summary>
     public const string AllowMoveEnvVar = "MAILCODED_ALLOW_MOVE";
 
+    public const string AllowBackupEnvVar = "MAILCODED_ALLOW_BACKUP";
+
     public const int DefaultMaxSendsPerHour = 5;
     public const int DefaultSqlRowCap = 200;
     public const int MaxSqlRowCap = 1000;
@@ -30,6 +32,9 @@ public sealed record AgentPolicyOptions
 
     /// <summary>Whether an agent-surface caller may move mail between folders. Default false.</summary>
     public bool MoveEnabled { get; init; }
+
+    /// <summary>Whether a CLI caller may write a backup of the store. Never consulted for MCP, which has no such tool.</summary>
+    public bool BackupEnabled { get; init; }
 
     public int MaxSendsPerHour { get; init; } = DefaultMaxSendsPerHour;
 
@@ -46,6 +51,7 @@ public sealed record AgentPolicyOptions
             SendEnabled = IsTruthy(Read(SendEnvVar)),
             RawSqlEnabled = IsTruthy(Read(EnableSqlEnvVar)),
             MoveEnabled = IsTruthy(Read(AllowMoveEnvVar)),
+            BackupEnabled = IsTruthy(Read(AllowBackupEnvVar)),
             ApprovedRecipients = ParseRecipientPatterns(Read(ApprovedRecipientsEnvVar)),
         };
     }
@@ -92,5 +98,6 @@ public sealed record AgentPolicyOptions
         "send=" + (SendEnabled ? "on" : "off")
         + " allowlist=" + ApprovedRecipients.Count.ToString(CultureInfo.InvariantCulture)
         + " sql=" + (RawSqlEnabled ? "on" : "off")
-        + " move=" + (MoveEnabled ? "on" : "off");
+        + " move=" + (MoveEnabled ? "on" : "off")
+        + " backup=" + (BackupEnabled ? "on" : "off");
 }

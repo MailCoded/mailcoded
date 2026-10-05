@@ -105,6 +105,10 @@ internal sealed record CliError
             RpcErrorCode.Forbidden, "forbidden", ExitCodes.Forbidden, policy.Message,
             hint: "Set MAILCODED_ENABLE_SQL=1, or use the search/read/thread verbs instead."),
 
+        PolicyDenialReason.BackupDisabled => Make(
+            RpcErrorCode.Forbidden, "forbidden", ExitCodes.Forbidden, policy.Message,
+            hint: "Set MAILCODED_ALLOW_BACKUP=1 for the command; a backup is a second copy of every message and attachment."),
+
         _ => Make(RpcErrorCode.Forbidden, "forbidden", ExitCodes.Forbidden, policy.Message),
     };
 

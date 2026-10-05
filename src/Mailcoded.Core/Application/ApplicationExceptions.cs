@@ -25,6 +25,9 @@ public enum PolicyDenialReason
 
     /// <summary>The operation is not part of this caller's surface.</summary>
     OperationNotAvailable,
+
+    /// <summary>MAILCODED_ALLOW_BACKUP is not set, so the agent surface may not write a backup.</summary>
+    BackupDisabled,
 }
 
 /// <summary>Send was attempted without a valid one-time confirm token. Maps to RPC code 1003.</summary>

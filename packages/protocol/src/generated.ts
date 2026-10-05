@@ -125,6 +125,27 @@ export interface AuthDto {
   kind?: string;
 }
 
+/** What the manifest of a backup records. */
+export interface BackupDto {
+  directory: string;
+  formatVersion: number;
+  mailcodedVersion: string;
+  schemaVersion: number;
+  createdUtc: string;
+  databaseBytes: number;
+  databaseSha256: string;
+  externalBlobCount: number;
+  externalBlobBytes: number;
+  tableCounts: Readonly<Record<string, number>>;
+}
+
+export interface BackupProblemDto {
+  /** A stable slug such as `database_hash`, `blob_missing` or `row_count`. */
+  kind: string;
+  subject?: string;
+  message: string;
+}
+
 /**
  * What the daemon can do in this session. Absent capabilities are absent features, not toggles.
  */
@@ -141,6 +162,8 @@ export interface CapabilitiesDto {
   send: boolean;
   /** Read-only, row-capped SQL, off unless MAILCODED_ENABLE_SQL=1. */
   rawSql: boolean;
+  /** Whether this connection may call `store.backup` and `store.backupVerify`. */
+  backup: boolean;
   /**
    * False when no embedding model is installed; `search` with `semantic: true` then returns
    * `1008` rather than quietly answering with lexical hits.
@@ -637,6 +660,47 @@ export interface StatsResult {
   stats: StatsDto;
 }
 
+/** `store.backup` — write a verifiable copy of the store into a new or empty directory. */
+export interface StoreBackupParams {
+  /**
+   * Absolute path. Must not exist or must be empty, and must lie outside the live store and
+   * every workspace folder.
+   */
+  directory: string;
+}
+
+export interface StoreBackupResult {
+  backup: BackupDto;
+  /**
+   * Always false: secrets are never copied, so a restore needs every account signed in again.
+   */
+  secretsIncluded: boolean;
+}
+
+/** `store.backupVerify` — re-read a backup and compare it with its manifest. */
+export interface StoreBackupVerifyParams {
+  directory: string;
+}
+
+export interface StoreBackupVerifyResult {
+  /**
+   * True only when no problem was found. A mismatch is a result, not an error, so every problem
+   * is reported.
+   */
+  ok: boolean;
+  directory: string;
+  formatVersion?: number;
+  schemaVersion?: number;
+  createdUtc?: string;
+  /** `ok`, the integrity_check messages, or `not run` when no database could be read. */
+  integrity: string;
+  blobFilesChecked: number;
+  bytesChecked: number;
+  problemCount: number;
+  problemsTruncated: boolean;
+  problems: readonly BackupProblemDto[];
+}
+
 /** `notify.sync.error` — a background sync or watch failed. Carries no mail content. */
 export interface SyncErrorNotification {
   accountId: number;
@@ -826,6 +890,8 @@ export const RpcMethods = {
   AccountTest: "account.test",
   OutboxList: "outbox.list",
   ProviderDetect: "provider.detect",
+  StoreBackup: "store.backup",
+  StoreBackupVerify: "store.backupVerify",
   Shutdown: "shutdown",
 } as const;
 export type RpcMethodsValue = (typeof RpcMethods)[keyof typeof RpcMethods];
@@ -926,6 +992,8 @@ export interface RpcMethodMap {
   "account.test": { params: AccountTestParams; result: AccountTestResult };
   "outbox.list": { params: OutboxListParams; result: OutboxListResult };
   "provider.detect": { params: ProviderDetectParams; result: ProviderDetectResult };
+  "store.backup": { params: StoreBackupParams; result: StoreBackupResult };
+  "store.backupVerify": { params: StoreBackupVerifyParams; result: StoreBackupVerifyResult };
   "shutdown": { params: ShutdownParams; result: ShutdownResult };
 }
 export type RpcMethodName = keyof RpcMethodMap;

@@ -13,6 +13,7 @@
 | `MAILCODED_APPROVED_RECIPIENTS` | CLI, MCP | addresses and `@domain` or `*@domain` patterns every recipient must match; empty approves nobody |
 | `MAILCODED_ENABLE_SQL` | CLI | `1` enables `query --sql` |
 | `MAILCODED_ALLOW_MOVE` | CLI | `1`, `true` or `yes`; required for `move` and `archive` on the CLI at all. A terminal still confirms; `--yes` skips the prompt |
+| `MAILCODED_ALLOW_BACKUP` | CLI | `1`, `true` or `yes`; required for `backup` and `backup-verify` on the CLI at all. Never honoured over MCP, which has no such tool |
 | `MAILCODED_ALLOW_FORGET` | CLI | the same, for `account forget --yes` |
 | `MAILCODED_ALLOW_TRUST_CHANGE` | CLI | the same, for `account trust --yes`: changing which servers' `Authentication-Results` are believed |
 | `MAILCODED_SECRET_BACKEND` | all | `auto` (default), `file`, `libsecret`, `keychain`, `wincred` |
@@ -107,6 +108,7 @@ key-bar entry · shift for the terminal's own selection.
 | `account list`, `test`, `reauth`, `add`, `forget` | accounts |
 | `sync` | pull changes |
 | `import-eml <dir>` | load `.eml` files |
+| `backup <dir>`, `backup-verify <dir>` | a verifiable copy of the store; check one (gated, chapter 3) |
 | `query --sql` | read-only SQL, gated |
 | `version`, `help [verb]` | |
 

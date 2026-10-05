@@ -125,37 +125,37 @@ public sealed partial class SqliteStore
     /// <summary>Reads a blob whole. Prefer <see cref="OpenBlob"/> for anything attachment-sized.</summary>
     public byte[]? ReadBlobBytes(BlobId id, CancellationToken ct = default)
     {
-        var located = Read<(byte[]? Inline, string? Path)?>(session =>
+        var located = Read<(byte[]? Inline, string? Path, string? Sha)?>(session =>
         {
             using var reader = session
-                .Prepare("SELECT bytes, ext_path FROM blobs WHERE id = $id", "$id")
+                .Prepare("SELECT bytes, ext_path, sha256 FROM blobs WHERE id = $id", "$id")
                 .SetInt(0, id.Value)
                 .ExecuteReader();
             if (!reader.Read()) return null;
-            return (Db.Blob(reader, 0), Db.Str(reader, 1));
+            return (Db.Blob(reader, 0), Db.Str(reader, 1), Db.Str(reader, 2));
         }, ct);
 
         if (located is not { } blob) return null;
         if (blob.Inline is { } inline) return inline;
-        return blob.Path is { } path && File.Exists(path) ? File.ReadAllBytes(path) : (byte[]?)null;
+        return ResolveExternal(blob.Path, blob.Sha) is { } path ? File.ReadAllBytes(path) : null;
     }
 
     /// <summary>Opens a blob for streaming; the caller owns the returned stream.</summary>
     public Stream? OpenBlob(BlobId id, CancellationToken ct = default)
     {
-        var located = Read<(byte[]? Inline, string? Path)?>(session =>
+        var located = Read<(byte[]? Inline, string? Path, string? Sha)?>(session =>
         {
             using var reader = session
-                .Prepare("SELECT bytes, ext_path FROM blobs WHERE id = $id", "$id")
+                .Prepare("SELECT bytes, ext_path, sha256 FROM blobs WHERE id = $id", "$id")
                 .SetInt(0, id.Value)
                 .ExecuteReader();
             if (!reader.Read()) return null;
-            return (Db.Blob(reader, 0), Db.Str(reader, 1));
+            return (Db.Blob(reader, 0), Db.Str(reader, 1), Db.Str(reader, 2));
         }, ct);
 
         if (located is not { } blob) return null;
         if (blob.Inline is { } inline) return new MemoryStream(inline, writable: false);
-        if (blob.Path is not { } path || !File.Exists(path)) return null;
+        if (ResolveExternal(blob.Path, blob.Sha) is not { } path) return null;
         return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, CopyBufferSize, useAsync: true);
     }
 
@@ -253,12 +253,21 @@ public sealed partial class SqliteStore
         catch (UnauthorizedAccessException) { /* best effort */ }
     }
 
-    private static BlobRef MapBlob(SqliteDataReader reader)
+    private string? ResolveExternal(string? storedPath, string? sha256Hex)
+    {
+        if (storedPath is null) return null;
+        if (File.Exists(storedPath)) return storedPath;
+        if (!Domain.Backup.BackupManifest.IsSha256Hex(sha256Hex)) return null;
+
+        var canonical = StorePaths.ExternalBlobPath(BlobDirectory, sha256Hex!);
+        return File.Exists(canonical) ? canonical : null;
+    }
+
+    private BlobRef MapBlob(SqliteDataReader reader)
     {
         var externalPath = Db.Str(reader, 2);
-        var size = externalPath is not null && File.Exists(externalPath)
-            ? new FileInfo(externalPath).Length
-            : Db.Int(reader, 3);
+        var resolved = ResolveExternal(externalPath, Db.Str(reader, 1));
+        var size = resolved is not null ? new FileInfo(resolved).Length : Db.Int(reader, 3);
 
         return new BlobRef
         {

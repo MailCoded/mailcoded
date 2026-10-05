@@ -30,6 +30,12 @@ public static class AuditEvents
     public const string OutboxInvestigate = "outbox_investigate";
     public const string SqlQuery = "sql_query";
     public const string Metrics = "metrics";
+    public const string BackupStarted = "backup_started";
+    public const string BackupCompleted = "backup_completed";
+    public const string BackupFailed = "backup_failed";
+    public const string BackupDenied = "backup_denied";
+    public const string BackupVerified = "backup_verified";
+    public const string BackupVerifyFailed = "backup_verify_failed";
 }
 
 /// <summary>One audit row before it becomes a <see cref="SyncLogEntry"/>.</summary>

@@ -44,6 +44,15 @@ That is why two TUI windows on one store both work but only one of them shows ne
 is also why the lock is a real OS lock rather than a pid file: when the owner dies, the lock dies with
 it, and the next daemon takes over without guessing.
 
+## Backing up while it runs
+
+You do not have to stop anything to back up. `mailcoded backup <dir>` (chapter 3) takes its snapshot on
+a separate read-only connection, so the daemon keeps syncing and the TUI keeps working; mail that
+arrives after the snapshot is simply not in that backup, and attachment files written after it are not
+copied. The same operation is the `store.backup` method in the wire protocol, which the daemon serves
+to a client that identified itself as a human one (`docs/rpc.md`); it runs at most one backup at a
+time. A backup holds no credentials, so a restore is followed by `account reauth`.
+
 ## Live updates
 
 When the TUI subscribes, the daemon opens one IDLE connection per watched folder — the account's

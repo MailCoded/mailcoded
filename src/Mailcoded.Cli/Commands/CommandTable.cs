@@ -115,6 +115,10 @@ internal static class CommandTable
             new VerbSpec(["account"], ["yes"]),
             AccountForgetCommand.RunAsync),
 
+        new CliCommandDefinition("backup", new VerbSpec([], []), BackupCommand.RunAsync),
+
+        new CliCommandDefinition("backup-verify", new VerbSpec([], []), BackupVerifyCommand.RunAsync),
+
         new CliCommandDefinition("import-eml",
             new VerbSpec(["account", "folder", "email"], ["recursive"]),
             ImportEmlCommand.RunAsync),

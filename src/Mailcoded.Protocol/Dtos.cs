@@ -336,6 +336,9 @@ public sealed record CapabilitiesDto
     /// <summary>Read-only, row-capped SQL, off unless MAILCODED_ENABLE_SQL=1.</summary>
     public bool RawSql { get; init; }
 
+    /// <summary>Whether this connection may call <c>store.backup</c> and <c>store.backupVerify</c>.</summary>
+    public bool Backup { get; init; }
+
     /// <summary>False when no embedding model is installed; <c>search</c> with <c>semantic: true</c>
     /// then returns <c>1008</c> rather than quietly answering with lexical hits.</summary>
     public bool Semantic { get; init; }

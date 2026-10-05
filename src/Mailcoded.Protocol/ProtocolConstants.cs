@@ -32,6 +32,8 @@ public static class RpcMethods
     public const string AccountTest = "account.test";
     public const string OutboxList = "outbox.list";
     public const string ProviderDetect = "provider.detect";
+    public const string StoreBackup = "store.backup";
+    public const string StoreBackupVerify = "store.backupVerify";
     public const string Shutdown = "shutdown";
 }
 

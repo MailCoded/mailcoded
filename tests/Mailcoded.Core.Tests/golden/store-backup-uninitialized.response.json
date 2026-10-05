@@ -1,0 +1,12 @@
+{
+  "error": {
+    "code": 1006,
+    "data": {
+      "category": "unsupported",
+      "requiresUserAction": true
+    },
+    "message": "'Backup' is not available to a 'mcp' caller under the current policy."
+  },
+  "id": 9,
+  "jsonrpc": "2.0"
+}

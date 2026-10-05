@@ -284,6 +284,8 @@ JSON-RPC 2.0 over stdio with **`Content-Length` framing (LSP-style)** so `vscode
 | `watch.subscribe` | `{accountId}` → `{}`; notifications `notify.mail.added`, `notify.folder.updated`, `notify.sync.error` |
 | `stats` / `health` | `{}` → metrics (see `RELIABILITY.md`) |
 | `provider.detect` | `{email}` → `{preset}` — built-in IMAP/SMTP settings and credential guidance; pure lookup, no network |
+| `store.backup` | `{directory}` → `{backup, secretsIncluded:false}` — a consistent copy of `store.db` (`VACUUM INTO`), the external blob files it points at, and a `manifest.json`; never secrets; gated (CLI needs `MAILCODED_ALLOW_BACKUP=1`, MCP never); audited |
+| `store.backupVerify` | `{directory}` → `{ok, problems[], ...}` — re-hashes the copy and compares it with its manifest; a mismatch is a result, not an error |
 | `shutdown` | `{}` → `{}` |
 
 Error codes are stable and numeric (`1000` auth, `1001` network, `1002` not-found, `1003` confirm-required, `1004` store-corrupt, `1005` rate-limited). Document each in `docs/rpc.md` when introduced.
@@ -339,6 +341,7 @@ Threat model: incoming email is attacker-controlled input. An agent with mail ac
 - **Agents receive plaintext bodies only** — never HTML.
 - **Send** requires: `MAILCODED_SEND=1`, a two-phase preview→one-time-token exchange, all recipients matching `MAILCODED_APPROVED_RECIPIENTS`, ≤5 sends/hour, and a `sync_log` entry per attempt.
 - **Raw SQL read** (`mailcoded query --sql`) is off unless `MAILCODED_ENABLE_SQL=1`; always `PRAGMA query_only`, always row-capped. Agents never get a raw file handle to the DB, Maildir, or blob store.
+- **Store backup** (`mailcoded backup`, `backup-verify`; RPC `store.backup`, `store.backupVerify`) is a second plaintext copy of the store, so it is off for the CLI agent surface unless `MAILCODED_ALLOW_BACKUP=1`, absent from MCP, audited, and never writes inside the live store or a workspace folder. Secrets are never copied.
 - **Gates live in `Mailcoded.Core`**, never in an adapter.
 
 ---

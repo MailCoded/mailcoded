@@ -79,6 +79,7 @@ CLI and MCP are "agent surfaces"; the editor's RPC client is not.
 | draft | ON | — |
 | send | **OFF** | `MAILCODED_SEND=1` + `MAILCODED_APPROVED_RECIPIENTS` + a one-time token + ≤5/hour |
 | raw SQL read | **OFF** | `MAILCODED_ENABLE_SQL=1`; read-only and row-capped even then |
+| store backup (`backup`, `backup-verify`) | **OFF** on the CLI, **absent** from MCP | `MAILCODED_ALLOW_BACKUP=1`, CLI only |
 | HTML bodies | **never on this surface** | not available to an agent at all |
 | move between folders | **never on this surface** | not available to an agent at all |
 | delete / expunge / trash | **does not exist** | never; there is no such verb or tool |
@@ -232,6 +233,26 @@ Leave it off unless you have a reason. It exposes internal column names that cha
 migrations, so an agent that learns them writes queries that break later — and it hands
 the agent the whole corpus in one call rather than one search at a time.
 
+## Turning backup on
+
+```bash
+MAILCODED_ALLOW_BACKUP=1 mailcoded backup ~/mail-backups/2026-10-04 --json
+MAILCODED_ALLOW_BACKUP=1 mailcoded backup-verify ~/mail-backups/2026-10-04 --json
+```
+
+A backup is a copy of `store.db` and every attachment file: exactly the file handle and the
+non-plaintext-only content that "the agent never gets a handle to the database or the blob store"
+rules out. So the CLI refuses an agent (exit 4) unless the variable is set, the MCP server has no such
+tool and refuses an MCP caller even with the variable set, and every attempt is audited. Give an agent
+this only when you want it to take backups on a schedule, and point it at a folder only you can read.
+
+The folder must be new or empty, outside the live store, not a symbolic link, and not inside a
+workspace folder (one with `.git`, `.vscode`, `.obsidian`, `.idea` or a `*.code-workspace` file) —
+the mail store may not live in a workspace and neither may its copy. Secrets are never copied. The
+manifest is not signed, so `backup-verify` is a check against corruption and accidents, not against
+someone who can rewrite the folder. An agent must not restore: there is no restore verb, and restoring
+is a human procedure (chapter 3 of the manual).
+
 ## What is audited, and where to read it
 
 Audit rows are appended to the `sync_log` table in `store.db`. The table is append-only:
@@ -240,7 +261,9 @@ nothing in the codebase rewrites or deletes a row. Columns are `id`, `ts`, `acco
 `internal`), and `agent_host`.
 
 Recorded from the agent surface: `cli_read`, `cli_thread`, `cli_folders`, `cli_stats`,
-`cli_health`, `cli_import`, `tags_set`, `body_fetched`, `sql_query`, and the send trail —
+`cli_health`, `cli_import`, `tags_set`, `body_fetched`, `sql_query`, the backup trail
+(`backup_started`, `backup_completed`, `backup_failed`, `backup_denied`, `backup_verified`,
+`backup_verify_failed`), and the send trail —
 `send_preview`, `send_attempt`, `send_result`, `sent_append`. Send rows carry the
 decision (`allowed` / `denied` / `rate-limited`), the recipient count, whether a token was
 consumed, and a digest of the message; **the body itself is never written to the log**.
@@ -358,8 +381,8 @@ you want mail access from a phone, this is not the mechanism.
 
 ## Turning it back off
 
-Unset `MAILCODED_SEND`, `MAILCODED_APPROVED_RECIPIENTS`, and `MAILCODED_ENABLE_SQL` in
-the agent host's environment (for MCP, remove the `env` entries and restart the client).
+Unset `MAILCODED_SEND`, `MAILCODED_APPROVED_RECIPIENTS`, `MAILCODED_ENABLE_SQL`, and
+`MAILCODED_ALLOW_BACKUP` in the agent host's environment (for MCP, remove the `env` entries and restart the client).
 Everything returns to the default posture immediately — the gates are read from the
 environment at process start, and no "unlocked" state is persisted in the store. An
 outstanding confirm token and the spent-send window *are* rows in the store and survive a

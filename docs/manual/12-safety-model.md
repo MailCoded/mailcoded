@@ -43,6 +43,15 @@ they cannot end up in your shell history. For a password account, `setup` verifi
 storing anything, and a failed attempt stores nothing; a Microsoft sign-in stores its grant as soon as
 the browser step completes, before the mailbox is checked (chapter 2).
 
+## A backup is a copy of everything
+
+`mailcoded backup` (chapter 3) writes a plaintext copy of the whole store and its attachments, which is
+exactly what the agent rules keep an agent away from. So it follows the raw-SQL pattern: off for an
+agent unless you set `MAILCODED_ALLOW_BACKUP=1`, absent from MCP, audited whether allowed or refused,
+and never written inside the live store or a workspace folder. It never contains a credential. Like
+every gate here it stops an agent that plays by the rules; an agent that can set its own environment or
+start its own daemon can pass it, so where that matters, run the agent in an OS sandbox.
+
 ## "Verified" is not "safe"
 
 `is:verified` (chapter 5) means a mail server you chose to trust reported that the sender's domain

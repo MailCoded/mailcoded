@@ -71,6 +71,53 @@ internal static class WireMapper
         };
     }
 
+    public static BackupDto ToDto(App.BackupResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        var manifest = result.Manifest;
+        var counts = new Dictionary<string, long>(manifest.Tables.Count, StringComparer.Ordinal);
+        foreach (var table in manifest.Tables) counts[table.Name] = table.Rows;
+
+        return new BackupDto
+        {
+            Directory = result.Directory,
+            FormatVersion = manifest.FormatVersion,
+            MailcodedVersion = manifest.MailcodedVersion,
+            SchemaVersion = manifest.SchemaVersion,
+            CreatedUtc = Instant(manifest.CreatedUtc),
+            DatabaseBytes = manifest.DatabaseBytes,
+            DatabaseSha256 = manifest.DatabaseSha256,
+            ExternalBlobCount = manifest.Blobs.Count,
+            ExternalBlobBytes = manifest.BlobBytes,
+            TableCounts = counts,
+        };
+    }
+
+    public static StoreBackupVerifyResult ToDto(App.BackupVerification result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        var problems = new List<BackupProblemDto>(result.Problems.Count);
+        foreach (var problem in result.Problems)
+            problems.Add(new BackupProblemDto { Kind = problem.Kind, Subject = problem.Subject, Message = problem.Message });
+
+        return new StoreBackupVerifyResult
+        {
+            Ok = result.Ok,
+            Directory = result.Directory,
+            FormatVersion = result.Manifest?.FormatVersion,
+            SchemaVersion = result.Manifest?.SchemaVersion,
+            CreatedUtc = result.Manifest is { } manifest ? Instant(manifest.CreatedUtc) : null,
+            Integrity = result.Integrity,
+            BlobFilesChecked = result.BlobFilesChecked,
+            BytesChecked = result.BytesChecked,
+            ProblemCount = result.ProblemCount,
+            ProblemsTruncated = result.ProblemCount > result.Problems.Count,
+            Problems = problems,
+        };
+    }
+
     public static EnvelopeDto ToDto(StoreSearchHit hit, AccountId accountId, IReadOnlyList<Tag> tags)
     {
         ArgumentNullException.ThrowIfNull(hit);

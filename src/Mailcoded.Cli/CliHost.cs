@@ -39,6 +39,7 @@ internal sealed class CliHost : IAsyncDisposable
         Send = new SendService(store, Parser, Clock, Audit, Policy, Tokens, SendOptions.Default);
         Accounts = new AccountService(store, secrets, Sync, Audit);
         Health = new HealthMonitor(store, Connections, Policy, Tokens, Audit, Clock, secrets.BackendName);
+        Backups = new BackupService(store, Policy, Audit, Clock, Commands.VersionCommand.ProductVersion);
         Caller = CallerContext.For(CallerKind.Cli, CallerContext.DetectAgentHost());
     }
 
@@ -79,6 +80,7 @@ internal sealed class CliHost : IAsyncDisposable
     public SendService Send { get; }
     public AccountService Accounts { get; }
     public HealthMonitor Health { get; }
+    public BackupService Backups { get; }
 
     /// <summary>A search service that also ranks by meaning, or the ordinary one when no model is
     /// installed. Loading a model costs a read of every weight, so this is built only when asked for

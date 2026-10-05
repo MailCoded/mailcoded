@@ -54,8 +54,9 @@ are the stable contract. Use SQL for the aggregates the verbs do not expose.
 ### Reading the audit trail
 
 `sync_log` is append-only and records, among other things, every send attempt — allowed or denied —
-every tag change, every body fetch, and every read made from the agent surface. The body of a message
-is never written to it.
+every tag change, every body fetch, every read made from the agent surface, and every backup or
+backup verification (`backup_started`, `backup_completed`, `backup_failed`, `backup_denied`,
+`backup_verified`, `backup_verify_failed`). The body of a message is never written to it.
 
     MAILCODED_ENABLE_SQL=1 mailcoded query --max-rows 50 --json \
       --sql "SELECT ts, level, interface, agent_host, event, detail FROM sync_log ORDER BY id DESC"

@@ -1,0 +1,17 @@
+{
+  "id": 12,
+  "jsonrpc": "2.0",
+  "result": {
+    "blobFilesChecked": 0,
+    "bytesChecked": "<normalized>",
+    "createdUtc": "2000-01-01T00:00:00.000Z",
+    "directory": "<normalized>",
+    "formatVersion": 1,
+    "integrity": "ok",
+    "ok": true,
+    "problemCount": 0,
+    "problems": [],
+    "problemsTruncated": false,
+    "schemaVersion": 11
+  }
+}

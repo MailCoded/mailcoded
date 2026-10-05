@@ -32,7 +32,7 @@ internal sealed class DaemonTranscript : IAsyncDisposable
 
     public string StoreDirectory => _workspace.Root;
 
-    public static async Task<DaemonTranscript> StartAsync(CancellationToken ct)
+    public static async Task<DaemonTranscript> StartAsync(CancellationToken ct, bool backupUnlocked = false)
     {
         DaemonInfo.EnableTranscriptMode();
 
@@ -46,7 +46,8 @@ internal sealed class DaemonTranscript : IAsyncDisposable
         using (EnvironmentScope.Set(
                    (AgentPolicyOptions.SendEnvVar, null),
                    (AgentPolicyOptions.EnableSqlEnvVar, null),
-                   (AgentPolicyOptions.ApprovedRecipientsEnvVar, null)))
+                   (AgentPolicyOptions.ApprovedRecipientsEnvVar, null),
+                   (AgentPolicyOptions.AllowBackupEnvVar, backupUnlocked ? "1" : null)))
         {
             host = DaemonHost.Create(workspace.DatabasePath, null, log, isPrimary: true);
         }
@@ -68,7 +69,10 @@ internal sealed class DaemonTranscript : IAsyncDisposable
     }
 
     /// <summary>Frames one request, runs the server loop to EOF, and returns the single response frame.</summary>
-    public async Task<string> ExchangeAsync(byte[] requestBody, CancellationToken ct)
+    public Task<string> ExchangeAsync(byte[] requestBody, CancellationToken ct) => ExchangeAsync(requestBody, null, ct);
+
+    /// <summary>With an interface name the connection first completes <c>initialize</c> as that caller.</summary>
+    public async Task<string> ExchangeAsync(byte[] requestBody, string? asInterface, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(requestBody);
 
@@ -78,10 +82,19 @@ internal sealed class DaemonTranscript : IAsyncDisposable
 
         try
         {
+            var dispatcher = new RpcDispatcher(_host, _log);
+
+            if (asInterface is not null)
+            {
+                using var parameters = System.Text.Json.JsonDocument.Parse(
+                    "{\"clientName\":\"transcript\",\"clientVersion\":\"0\",\"interface\":\"" + asInterface + "\"}");
+                await dispatcher.DispatchAsync("initialize", parameters.RootElement.Clone(), ct).ConfigureAwait(false);
+            }
+
             var server = new JsonRpcServer(
                 new FrameReader(PipeReader.Create(input)),
                 channel,
-                new RpcDispatcher(_host, _log),
+                dispatcher,
                 _log);
 
             await server.RunAsync(ct, ct).ConfigureAwait(false);

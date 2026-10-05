@@ -77,6 +77,20 @@ connection test.
 | `A message can only move within its own account.` (TUI) | you picked a folder under another account | pick one under the same account |
 | you are looking for delete | there is none, by design | chapter 6 |
 
+### Backups
+
+| You see | It means | Do |
+|---|---|---|
+| `A backup copies the whole mail store, so the agent surface needs MAILCODED_ALLOW_BACKUP=1.` (exit 4) | the CLI backup gate is closed | `MAILCODED_ALLOW_BACKUP=1 mailcoded backup <dir>` |
+| `The backup destination is not empty.` / `... is a file, not a directory.` (exit 2) | the folder already holds something | name a new or empty folder |
+| `The backup destination overlaps the live mail store.` | the folder is inside the data directory, or contains it | choose a folder elsewhere |
+| `The backup destination sits inside a workspace folder ...` | an ancestor holds `.git`, `.vscode`, `.obsidian`, `.idea` or a `*.code-workspace` file | choose a folder outside every project; there is no override |
+| `The backup destination is a symbolic link; ...` | the last path component is a link | name the real folder |
+| `N attachment file(s) the store refers to are missing ...` (exit 9) | something removed files from `blobs/`, so those messages were already unreadable; a backup that cannot be verified is not written | put the files back from an earlier backup (they are named by their hash), or `account forget` and `sync` to rebuild the store, then retry |
+| `An attachment file on disk does not match its recorded hash ...` (exit 9) | a blob file is damaged; the message names it by the first digits of its hash | replace `blobs/<xx>/<hash>.blob` from an earlier backup, or `account forget` and `sync` to rebuild the store, then retry |
+| `backup-verify` exits 9 and lists `[database_hash]`, `[blob_missing]`, `[unexpected_file]` ... | the copy differs from its manifest | restore the folder from another copy; do not restore from this one |
+| `Another backup is already running in this process.` | a second backup in one daemon | wait |
+
 ### Raw SQL
 
 | You see | Do |

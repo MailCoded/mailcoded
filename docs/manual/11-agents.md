@@ -30,6 +30,7 @@ you cannot loosen one by choosing the other.
 | raw SQL | **off** | `MAILCODED_ENABLE_SQL=1`; read-only and row-capped even then |
 | HTML bodies | never | agents get plaintext only |
 | move between folders | never on MCP; **off** on the CLI | `MAILCODED_ALLOW_MOVE=1`; a terminal then confirms, and `--yes` skips the prompt |
+| backup, backup-verify | never on MCP; **off** on the CLI | `MAILCODED_ALLOW_BACKUP=1`; a backup is a full plaintext copy of the store |
 | delete, expunge, trash | **does not exist** | there is no such verb or tool |
 
 Set `MAILCODED_AGENT_HOST=<label>` in the agent's environment and it is recorded on every audit row.

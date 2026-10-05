@@ -29,6 +29,10 @@ internal static class GoldenJson
         "databaseSizeBytes",
         "walSizeBytes",
         "blobDirectorySizeBytes",
+        "directory",
+        "databaseSha256",
+        "databaseBytes",
+        "bytesChecked",
     };
 
     private static readonly JsonWriterOptions Options = new()

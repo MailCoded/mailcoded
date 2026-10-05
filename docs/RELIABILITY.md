@@ -48,7 +48,7 @@ PRAGMA journal_size_limit = 67108864; -- cap -wal reuse at 64 MB
 
 `synchronous=NORMAL` under WAL is consistent; it can lose the last transaction on power loss, which is fine because IMAP re-supplies it. **Connection model:** one long-lived writer with all mutations serialized through a single queue, plus a small reader pool (WAL supports many readers). Never `Cache=Shared` with WAL. Never mmap a network filesystem.
 
-**Long-term health.** WAL growth comes from checkpoint starvation by long-lived read transactions — keep read transactions short, run `PRAGMA wal_checkpoint(TRUNCATE)` after big syncs and periodically when idle. Run `PRAGMA quick_check` weekly. Prefer `auto_vacuum=INCREMENTAL` + chunked `incremental_vacuum` over full `VACUUM` (2x disk + exclusive lock); reserve `VACUUM INTO` for the `backup` RPC. FTS5: run `INSERT INTO msg_fts(msg_fts) VALUES('optimize')` after large churn; keep write batches modest so a crisis-merge doesn't stall a user-visible write.
+**Long-term health.** WAL growth comes from checkpoint starvation by long-lived read transactions — keep read transactions short, run `PRAGMA wal_checkpoint(TRUNCATE)` after big syncs and periodically when idle. Run `PRAGMA quick_check` weekly. Prefer `auto_vacuum=INCREMENTAL` + chunked `incremental_vacuum` over full `VACUUM` (2x disk + exclusive lock); reserve `VACUUM INTO` for `mailcoded backup` and the `store.backup` RPC. FTS5: run `INSERT INTO msg_fts(msg_fts) VALUES('optimize')` after large churn; keep write batches modest so a crisis-merge doesn't stall a user-visible write.
 
 **The safety valve: IMAP is the source of truth.** On corruption, drop the local DB and re-sync. The only unrecoverable local state is **tags** and the **outbox** — back those up separately (small sidecar DB or periodic export).
 
@@ -109,7 +109,7 @@ Every row needs a fixture and a table-driven test against the pure planner.
 | 31 | IPv6 advertised but broken | connect stalls | happy-eyeballs race (`DualStackConnector`), then timeout |
 | 32 | 500k+ message account initial sync | high UIDNEXT | newest-first windowed backfill, resumable per-folder cursor |
 | 33 | Disk full (SQLITE_FULL) | error code | pause sync, surface notification, never corrupt |
-| 34 | User copies DB while running | n/a | document `VACUUM INTO`; provide a `backup` RPC |
+| 34 | User copies DB while running | n/a | `mailcoded backup` / `store.backup`: `VACUUM INTO` on a read-only connection plus the referenced external blob files and a verifiable manifest; `backup-verify` / `store.backupVerify` re-checks it |
 
 ## 14.6 Observability
 

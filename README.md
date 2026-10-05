@@ -233,6 +233,9 @@ three legs of the lethal trifecta — private data, untrusted content, external 
 - **Raw SQL reads** are off unless `MAILCODED_ENABLE_SQL=1`, and are then read-only, single-
   statement, and row-capped. Agents never get a file handle to the database, the blob store, or a
   Maildir.
+- **Store backup** (`mailcoded backup <dir>`, with `backup-verify`) copies the whole store and an
+  attachment-hash manifest, so it is off for the agent surface unless `MAILCODED_ALLOW_BACKUP=1`, is
+  never offered over MCP, and never copies a secret.
 - **All gates live in Core**, never in an adapter, so no host can route around them.
 
 Design and rationale: [docs/AGENT-INTERFACE.md](docs/AGENT-INTERFACE.md).

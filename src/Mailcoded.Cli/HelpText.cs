@@ -49,6 +49,8 @@ ACCOUNT ADMINISTRATION
 STORE ADMINISTRATION
   sync                      pull new mail for an account or one folder
   import-eml <dir>          load .eml files from a directory into the store
+  backup <dir>              copy the whole store, with a manifest (off for agents unless MAILCODED_ALLOW_BACKUP=1)
+  backup-verify <dir>       re-hash a backup and compare it with its manifest
   query --sql '<select>'    read-only, row-capped SQL (off unless MAILCODED_ENABLE_SQL=1)
   version                   version and protocol numbers
   help [verb]               this text, or one verb in detail
@@ -99,6 +101,7 @@ ENVIRONMENT
   MAILCODED_SEND=1                unlocks send from the agent surface
   MAILCODED_APPROVED_RECIPIENTS   comma list of addresses or @domain patterns
   MAILCODED_ENABLE_SQL=1          unlocks 'query --sql'
+  MAILCODED_ALLOW_BACKUP=1        unlocks 'backup' and 'backup-verify' from the agent surface
   MAILCODED_SECRET_BACKEND        auto | file | libsecret | keychain | wincred
   MAILCODED_AGENT_HOST            label recorded in the audit trail
 
@@ -514,6 +517,52 @@ EXAMPLE
   mailcoded search 'term' --json
 """;
 
+    private const string Backup = """
+mailcoded backup <dir> [--json]
+
+  Writes a consistent copy of the store into <dir>: store.db (a snapshot taken with
+  VACUUM INTO while the daemon and sync keep running), every external attachment file that
+  snapshot points at, and manifest.json (format, versions, row counts, sizes and sha256 of
+  every file). <dir> must not exist, or be empty; its parent must exist.
+
+  A backup is a second copy of every message and attachment in plaintext, so it is OFF
+  for the agent surface unless MAILCODED_ALLOW_BACKUP=1 (exit 4 otherwise, and the refusal
+  is audited). It is never offered over MCP.
+
+REFUSED DESTINATIONS
+  Anything inside the live store, a symbolic link, a non-empty folder, a file, a relative
+  path component that cannot be resolved, and any folder inside a workspace (a folder
+  holding .git, .vscode, .obsidian, .idea or a *.code-workspace file). The mail store must
+  never live inside a workspace folder; pick a folder outside every one.
+
+NOT IN THE BACKUP
+  Secrets (secrets.vault, the OS keyring). After a restore every account must be signed in
+  again ('mailcoded account reauth').
+
+RESTORE
+  There is no restore verb. Stop the daemon and every mailcoded process, keep the old store
+  folder aside, then copy store.db and the blobs folder from the backup into the store
+  folder. Never copy manifest.json into it. Run 'mailcoded backup-verify' on the backup first.
+
+EXAMPLE
+  MAILCODED_ALLOW_BACKUP=1 mailcoded backup ~/mail-backups/2026-10-04 --json
+""";
+
+    private const string BackupVerify = """
+mailcoded backup-verify <dir> [--json]
+
+  Opens the copy read-only (it adds no file to the folder), runs PRAGMA integrity_check,
+  recomputes sha256 and size of store.db and every attachment file, and compares row
+  counts, schema version and the set of attachment files with manifest.json. Every
+  mismatch is reported, not just the first. Exit 0 when nothing differs, 9 otherwise.
+
+  The manifest is not signed: it catches corruption and edits that left it behind, not
+  someone who rewrote the whole folder. Same gate as 'backup'.
+
+EXAMPLE
+  MAILCODED_ALLOW_BACKUP=1 mailcoded backup-verify ~/mail-backups/2026-10-04 --json
+""";
+
     private const string Version = """
 mailcoded version [--json]
 
@@ -563,6 +612,8 @@ mailcoded version [--json]
         "account trust" => AccountTrust,
         "account" or "account add" => AccountAdd,
         "import-eml" => ImportEml,
+        "backup" => Backup,
+        "backup-verify" => BackupVerify,
         "version" => Version,
         "help" => Overview,
         _ => Overview,

@@ -50,13 +50,13 @@ internal sealed class CliOutput : IDisposable
         Json = json;
     }
 
-    public Utf8JsonWriter BeginJson()
+    public Utf8JsonWriter BeginJson(bool ok = true)
     {
         _text.Flush();
         var writer = new Utf8JsonWriter(_stdout, WriterOptions);
         writer.WriteStartObject();
         writer.WriteNumber("schema_version", SchemaVersion);
-        writer.WriteBoolean("ok", true);
+        writer.WriteBoolean("ok", ok);
         writer.WriteString("command", Command);
         return writer;
     }

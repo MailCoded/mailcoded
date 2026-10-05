@@ -78,31 +78,6 @@ public sealed partial class SqliteStore
     public Task AnalyzeAsync(CancellationToken ct) =>
         WriteUnwrappedAsync(session => session.Exec("ANALYZE"), ct);
 
-    /// <summary>
-    /// Consistent hot backup via <c>VACUUM INTO</c> — the documented answer to "user copied the DB
-    /// while it was running" (edge case 34). The destination is a bound parameter, never concatenated.
-    /// </summary>
-    public Task BackupToAsync(string destinationPath, CancellationToken ct)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
-        var fullPath = Path.GetFullPath(destinationPath);
-
-        if (File.Exists(fullPath))
-            throw new StoreException(FailureCategory.Protocol, "The backup destination already exists.");
-
-        var directory = Path.GetDirectoryName(fullPath);
-        if (directory is not null) Directory.CreateDirectory(directory);
-
-        return WriteUnwrappedAsync(session =>
-        {
-            using var command = session.Connection.CreateCommand();
-            command.CommandText = "VACUUM INTO $destination";
-            command.Parameters.AddWithValue("$destination", fullPath);
-            command.ExecuteNonQuery();
-            return true;
-        }, ct);
-    }
-
     /// <summary>Numbers for the <c>stats</c> RPC (RELIABILITY §14.6).</summary>
     public StoreStats GetStats(CancellationToken ct = default) =>
         Read(session =>

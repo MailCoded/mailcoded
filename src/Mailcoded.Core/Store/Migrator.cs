@@ -12,6 +12,14 @@ internal static class Migrator
 {
     private const string ResourcePrefix = "Mailcoded.Core.Store.Migrations.";
 
+    private static readonly Lazy<int> Latest = new(() =>
+    {
+        var all = Discover();
+        return all.Count == 0 ? 0 : all[^1].Version;
+    });
+
+    public static int LatestVersion => Latest.Value;
+
     public static int Apply(DbSession session)
     {
         var current = (int)session.ExecScalarInt64("PRAGMA user_version");
