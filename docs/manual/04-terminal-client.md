@@ -147,10 +147,17 @@ the confirmation screen shows the From.
 | `tab`, `shift-tab` | next, previous field |
 | `enter` | a new line in the body; the next field elsewhere |
 | arrows, `home`, `end`, `backspace` | edit |
+| `ctrl-n` | in To, Cc or Bcc: complete the address under the caret from people you have written to; press again for the next one |
 | `ctrl-s` | preview the send |
 | `esc`, `ctrl-c` | discard — it asks `discard the draft? y/n:` first |
 
 Addresses are comma-separated. Attachments cannot be added in this release.
+
+`ctrl-n` completes the address the caret is in. Type a few letters of an address or a name and press it:
+the best match from the people you have written to (chapter 5, `correspondents`) replaces what you typed,
+and each further press shows the next match, up to eight, skipping anyone already in the field. With
+nothing typed it offers the best overall. It only ever offers people you have written to, never senders
+of mail you received, and it needs a daemon that advertises `correspondent.suggest`.
 
 `ctrl-s` sends the draft to the daemon for a **preview** and opens the confirmation screen:
 

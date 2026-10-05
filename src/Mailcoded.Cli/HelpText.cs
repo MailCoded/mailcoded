@@ -24,6 +24,7 @@ READ AND TRIAGE
   move <messageId>          move to another folder (--folder); needs confirmation
   archive <messageId>       shortcut for moving to the Archive folder
   folders                   folder tree of an account with unread/total counts
+  correspondents [prefix]   people you have written to, best first (from Sent mail only)
   stats                     process, store and per-folder counters
   health                    per-account connection, auth and outbox state
 
@@ -397,6 +398,25 @@ mailcoded folders [--account <id>] [--json]
   (null at the top), and "delimiter" the server's delimiter (null for a flat namespace).
 """;
 
+    private const string Correspondents = """
+mailcoded correspondents [prefix] [--account <id>] [--limit <n>] [--json]
+
+  The people this account has written to, best first, to complete a recipient. Learned from
+  outgoing mail only: every message mailcoded sends, and every message in a Sent folder that
+  you wrote (From is the account address or one of its identities). Received mail adds no one.
+  To and Cc count; Bcc does not. Your own addresses, robot senders (noreply, mailer-daemon,
+  ...) and messages to more than 25 people are skipped.
+
+  The prefix matches an address, a display name, or any word of a name. With none, the best
+  overall are listed. Ranking is how often and how recently, so someone written to last week
+  outranks someone written to once, long ago. --limit is 1..100, default 10. A name is the one
+  on the most recent message that carried it; it is untrusted text.
+
+  Examples:
+    mailcoded correspondents ada
+    mailcoded correspondents --limit 5 --json
+""";
+
     private const string Sync = """
 mailcoded sync [--account <id>] [--folder <id>] [--json]
 
@@ -707,6 +727,7 @@ mailcoded version [--json]
         "health" => Health,
         "tui" => Tui,
         "folders" => Folders,
+        "correspondents" => Correspondents,
         "setup" => Setup,
         "sync" => Sync,
         "account forget" => AccountForget,

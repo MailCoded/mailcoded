@@ -61,6 +61,7 @@ public sealed partial class SqliteStore
         {
             var accountId = RequireAccountForFolder(context.Session, batch.FolderId.Value);
             var adoptUnlinked = HasUnlinkedRows(context.Session, batch.FolderId.Value);
+            var learner = SentFolderLearner.For(context.Session, accountId, batch.FolderId.Value, context.Clock);
             var added = 0;
             var updated = 0;
             var expunged = 0;
@@ -68,7 +69,7 @@ public sealed partial class SqliteStore
             foreach (var envelope in batch.Added)
             {
                 ct.ThrowIfCancellationRequested();
-                if (UpsertEnvelope(context, accountId, batch.FolderId.Value, envelope, threader, adoptUnlinked: adoptUnlinked)) added++;
+                if (UpsertEnvelope(context, accountId, batch.FolderId.Value, envelope, threader, adoptUnlinked: adoptUnlinked, learner: learner)) added++;
                 else updated++;
             }
 
@@ -116,13 +117,14 @@ public sealed partial class SqliteStore
         {
             var accountId = RequireAccountForFolder(context.Session, folderId.Value);
             var adoptUnlinked = HasUnlinkedRows(context.Session, folderId.Value);
+            var learner = SentFolderLearner.For(context.Session, accountId, folderId.Value, context.Clock);
             var inserted = 0;
             var updated = 0;
 
             foreach (var envelope in envelopes)
             {
                 ct.ThrowIfCancellationRequested();
-                if (UpsertEnvelope(context, accountId, folderId.Value, envelope, threader, adoptUnlinked: adoptUnlinked)) inserted++;
+                if (UpsertEnvelope(context, accountId, folderId.Value, envelope, threader, adoptUnlinked: adoptUnlinked, learner: learner)) inserted++;
                 else updated++;
             }
 
@@ -459,7 +461,8 @@ public sealed partial class SqliteStore
         RemoteEnvelope envelope,
         IThreader? threader,
         bool deferFts = false,
-        bool adoptUnlinked = false)
+        bool adoptUnlinked = false,
+        SentFolderLearner? learner = null)
     {
         var session = context.Session;
         var flags = (long)(int)envelope.Flags;
@@ -541,6 +544,7 @@ public sealed partial class SqliteStore
                     session, accountId, folderId, existingId, envelope.Uid,
                     oldSubject, oldFrom, oldTo, ftsWritten, context.Clock.UtcNow);
                 AssignAutoCategory(session, existingId, envelope, replace: true);
+                learner?.Learn(session, envelope);
             }
 
             session.Prepare(UpdateMessage,
@@ -623,6 +627,7 @@ public sealed partial class SqliteStore
         else Fts.Insert(session, insertedId, subject, string.Empty, from, to);
 
         AssignAutoCategory(session, insertedId, envelope, replace: false);
+        learner?.Learn(session, envelope);
 
         context.AddFolderDelta(folderId, 1, unread);
         return true;

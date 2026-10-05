@@ -13,6 +13,7 @@ internal static class CliAuditEvents
     public const string Read = "cli_read";
     public const string Thread = "cli_thread";
     public const string Folders = "cli_folders";
+    public const string Correspondents = "cli_correspondents";
     public const string Stats = "cli_stats";
     public const string Health = "cli_health";
     public const string Import = "cli_import";
@@ -67,6 +68,10 @@ internal static class CommandTable
         new CliCommandDefinition("health", new VerbSpec([], []), HealthCommand.RunAsync),
 
         new CliCommandDefinition("folders", new VerbSpec(["account"], []), FoldersCommand.RunAsync),
+
+        new CliCommandDefinition("correspondents",
+            new VerbSpec(["account", "limit"], []),
+            CorrespondentsCommand.RunAsync),
 
         new CliCommandDefinition("sync", new VerbSpec(["account", "folder"], []), SyncCommand.RunAsync),
 

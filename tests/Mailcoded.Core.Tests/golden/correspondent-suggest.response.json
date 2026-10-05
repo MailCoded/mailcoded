@@ -1,0 +1,19 @@
+{
+  "id": 30,
+  "jsonrpc": "2.0",
+  "result": {
+    "correspondents": [
+      {
+        "address": "ada@example.test",
+        "count": 3,
+        "displayName": "Ada",
+        "lastUsedUtc": "2000-01-01T00:00:00.000Z"
+      },
+      {
+        "address": "ada.lovelace@example.net",
+        "count": 2,
+        "lastUsedUtc": "2000-01-01T00:00:00.000Z"
+      }
+    ]
+  }
+}

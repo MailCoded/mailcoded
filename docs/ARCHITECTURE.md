@@ -97,7 +97,7 @@ No `Result<T>` library (ErrorOr/FluentResults/OneOf).
 
 ## 12.6 Ubiquitous language
 
-Normative glossary: **Account, Folder, Envelope, Message, Blob, Tag** (local, notmuch-style) vs **Flag** (server IMAP), **Plan, SyncEvent, Outbox, Quirk**. SPEC terms = C# type names = JSON-RPC names, exactly. Doubly load-bearing because an AI agent implements the spec: consistent vocabulary keeps generated code converging instead of inventing synonyms.
+Normative glossary: **Account, Folder, Envelope, Message, Blob, Tag** (local, notmuch-style) vs **Flag** (server IMAP), **Plan, SyncEvent, Outbox, Quirk**, and **Correspondent** (someone the user has written to, learned from outgoing mail only; never "contact" — contacts are out of scope). SPEC terms = C# type names = JSON-RPC names, exactly. Doubly load-bearing because an AI agent implements the spec: consistent vocabulary keeps generated code converging instead of inventing synonyms.
 
 ## 12.7 Enforcement
 

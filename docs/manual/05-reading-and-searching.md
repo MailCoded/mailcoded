@@ -221,6 +221,34 @@ server never listed as a folder shows as a bare line with no id and no counts.
 `delimiter` (the server's own, `null` for a flat namespace), the role and the last successful sync.
 `name` always uses `/` between levels, whatever the server uses.
 
+## `correspondents`
+
+    mailcoded correspondents [prefix] [--account <id>] [--limit <n>]
+
+The people you have written to, best first, for completing a recipient. A prefix matches the start of
+an address, of a display name, or of any word in a name, in any case. With no prefix you get the best
+overall. `--limit` is 1 to 100 and defaults to 10.
+
+    ada@example.org        12x  2026-01-09  Ada Example
+    bob@example.net         3x  2025-11-30
+
+The list is learned from outgoing mail only. Two things feed it: every message mailcoded sends, and
+every message that appears in a Sent folder and was written by you (its From is your account address
+or one of your identities, chapter 8). Mail you receive adds no one, however much of it there is. To
+and Cc count; Bcc does not, so a message sent to a hidden list teaches nothing. Your own addresses,
+robot senders such as `noreply` and `mailer-daemon`, and any message to more than 25 people are
+left out. A message mailcoded sent counts once however many times it was retried, and its copy
+in Sent is not counted again. Mail you sent from another client under an address that is not your
+account address counts only once you add that address as an identity.
+
+Order is how often and how recently: a person you wrote to last week outranks one you wrote to once
+long ago, but a long-standing correspondent is not pushed out by a stray recent name. A name is the
+one on the most recent message that carried one, and is untrusted text. `--json` gives `address`,
+`display_name`, `uses` and `last_used_utc`. Sent mail that was already stored when this feature first
+appeared is counted once, the next time the store opens. `account forget` removes the list with the
+account. An agent can run this verb; the MCP server has no tool for it, and an agent that only needs
+to find a recipient can search the Sent folder (`in:sent`).
+
 ## `stats` and `health`
 
     mailcoded stats

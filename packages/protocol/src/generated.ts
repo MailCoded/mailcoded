@@ -186,6 +186,37 @@ export interface CapabilitiesDto {
   secretBackend?: string;
 }
 
+export interface CorrespondentDto {
+  /** The whole address, lower-cased. */
+  address: string;
+  /**
+   * The name on the most recent message that carried one. Untrusted text: render as plain text.
+   */
+  displayName?: string;
+  /** How many outgoing messages named this address in To or Cc. */
+  count: number;
+  lastUsedUtc: string;
+}
+
+/**
+ * `correspondent.suggest` — people the Account's user has written to, best first. Learned from
+ * outgoing mail only; received mail never adds anyone.
+ */
+export interface CorrespondentSuggestParams {
+  accountId: number;
+  /**
+   * Matches an address, a display name, or any word of one, case-insensitively. Absent or empty
+   * lists the best overall.
+   */
+  prefix?: string;
+  /** `1..100`, default 10. */
+  limit?: number;
+}
+
+export interface CorrespondentSuggestResult {
+  correspondents: readonly CorrespondentDto[];
+}
+
 /**
  * A message a client wants sent. Plaintext body only — HTML compose and attachment upload are
  * out of scope for v0.1. Addresses are validated into `EmailAddress` before anything is built.
@@ -979,6 +1010,7 @@ export const RpcMethods = {
   AccountTest: "account.test",
   OutboxList: "outbox.list",
   ProviderDetect: "provider.detect",
+  CorrespondentSuggest: "correspondent.suggest",
   StoreBackup: "store.backup",
   StoreBackupVerify: "store.backupVerify",
   Shutdown: "shutdown",
@@ -1090,6 +1122,7 @@ export interface RpcMethodMap {
   "account.test": { params: AccountTestParams; result: AccountTestResult };
   "outbox.list": { params: OutboxListParams; result: OutboxListResult };
   "provider.detect": { params: ProviderDetectParams; result: ProviderDetectResult };
+  "correspondent.suggest": { params: CorrespondentSuggestParams; result: CorrespondentSuggestResult };
   "store.backup": { params: StoreBackupParams; result: StoreBackupResult };
   "store.backupVerify": { params: StoreBackupVerifyParams; result: StoreBackupVerifyResult };
   "shutdown": { params: ShutdownParams; result: ShutdownResult };

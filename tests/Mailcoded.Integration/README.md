@@ -22,6 +22,7 @@ Every test carries `integration=docker`; each also names its scenario:
 | `scenario=signals` | `MessageSignalsTests`, `ListUnsubscribeTests` | the envelope FETCH asks for the signal headers: `is:automated`, `is:encrypted` and, through a trusted authserv-id, `is:verified` after a plain sync; the folded `List-Unsubscribe` and `-Post` headers are stored with the envelope |
 | `scenario=progress` | `SyncProgressTests` | `notify.sync.progress` through the real daemon: an opted-in Folder sync and an account sync open and close their indicators before the response; a sync that did not ask gets none; a watched Folder reports before `notify.mail.added` |
 | `scenario=identities` | `SenderIdentityTests` | a draft sent as a configured identity reaches the SMTP sink and the Sent copy with that From and its signature, in any case of the address; a From the account does not own is refused and queues nothing |
+| `scenario=correspondents` | `CorrespondentTests` | a send and its synced Sent copy teach a recipient once; mail another client left in Sent teaches its recipient; mail in the Inbox teaches nobody; syncing again adds no use |
 
 ## When Docker is missing
 

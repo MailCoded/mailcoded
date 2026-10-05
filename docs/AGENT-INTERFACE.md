@@ -116,6 +116,7 @@ Built with the official MCP C# SDK **inside the same binary** (`mailcoded --mcp`
 | read / search / thread | ON | — |
 | tag / triage | ON | — |
 | draft | ON | — |
+| correspondents (`correspondents`: people the user has written to) | ON on the CLI; **absent from MCP** | — |
 | send | **OFF** | `MAILCODED_SEND=1` + `MAILCODED_APPROVED_RECIPIENTS` + one-time token + <=5/hr |
 | raw SQL read | **OFF** | `MAILCODED_ENABLE_SQL=1`, read-only, row-capped |
 | delete / expunge | **does not exist** | never |

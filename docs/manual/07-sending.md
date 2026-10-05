@@ -104,6 +104,10 @@ signed by hand is not signed twice. The signature is part of the draft, so `send
 and the confirm token covers it. The terminal client puts the default signature into the compose
 buffer, where you can edit it. HTML mail and per-message signature files are not supported.
 
+Recipients you have written to before can be completed from the terminal client (`ctrl-n`, chapter 4)
+or listed with `mailcoded correspondents` (chapter 5). Each successful send adds its To and Cc
+recipients to that list, once.
+
 ## `reply`
 
     mailcoded reply <id> [--all] [--body <text> | --body-file <path>] [--no-quote] [--no-fetch]

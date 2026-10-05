@@ -277,6 +277,28 @@ a literal `/` under another delimiter cannot be mapped to `name` and is not list
 
 Unknown `accountId` → **1002**.
 
+### `correspondent.suggest`
+`{ "accountId": 1, "prefix": "ad"?, "limit": 10? }` → `{ "correspondents": [CorrespondentDto] }`
+
+People the account's user has written to, best first, for completing a recipient field.
+`CorrespondentDto`: `{ address, displayName?, count, lastUsedUtc }`. `address` is the whole address,
+lower-cased. `displayName` is the name on the most recent message that carried one; it is untrusted
+text, so render it as plain text. `count` is how many outgoing messages named the address in To or Cc.
+
+`prefix` matches case-insensitively when it begins the address, begins the display name, or begins
+any word of the name; absent or empty lists the best overall. Order is an exact address match first,
+then frequency weighted by recency (a recent use counts for more, and the weight decays with a
+90-day half-life toward a floor, so a long-standing contact still outranks a one-off). `limit` is
+`1..100`, default 10; outside that range → **-32602**. Unknown `accountId` → **1002**.
+
+Learned from outgoing mail only, so received mail never adds anyone: every message mailcoded sends
+(counted once, when the outbox row is marked sent, however many retries or crash reconciliations it
+took) and every message that appears in a Sent-role folder whose From is the account address or one of
+its identities. Bcc is not counted. The account's own addresses, robot senders (`noreply`,
+`mailer-daemon`, ...) and messages to more than 25 distinct To and Cc addresses are skipped. Sent mail
+that was already stored when the daemon first opened a store with this feature is counted once, at
+that open. `account forget` removes the account's list with the account.
+
 ### `sync`
 `{ "accountId": 1, "folderId": 12, "progress": true }` → `{ "added": 0, "updated": 0, "expunged": 0, "durationMs": 0 }`
 
@@ -992,6 +1014,14 @@ The reason is in `docs/AGENT-INTERFACE.md`: agents never get a file handle to th
 blob store, and agents get plaintext only, and a backup copy is both. The RPC is the human clients'
 surface, like `message.move`; an agent that can run a shell can start its own daemon and speak this
 protocol, so a deployment that must stop that needs an OS-level sandbox, not a gate.
+
+**Correspondent suggestions**
+
+| Surface | Offered |
+|---|---|
+| CLI `mailcoded correspondents [prefix]` | yes, `--limit 1..100`, default 10 |
+| MCP | **no tool.** An agent that needs a recipient searches Sent mail (`search 'in:sent ...'`); a ready-made list of the user's correspondents is not something to hand out by default |
+| RPC `correspondent.suggest` | yes, `limit` `1..100`, default 10 |
 
 ---
 

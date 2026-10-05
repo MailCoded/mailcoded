@@ -140,10 +140,13 @@ internal sealed partial class App
     {
         if (_state.Draft is not { } draft) { _state.Focus = Pane.Messages; return true; }
 
+        if (!(key.Modifiers.HasFlag(ConsoleModifiers.Control) && key.Key == ConsoleKey.N)) _cycle = null;
+
         if (key.Modifiers.HasFlag(ConsoleModifiers.Control))
         {
             switch (key.Key)
             {
+                case ConsoleKey.N: CompleteRecipient(); return true;
                 case ConsoleKey.S: PreviewSend(); return true;
                 case ConsoleKey.C: Ask(DiscardPrompt); return true;
             }

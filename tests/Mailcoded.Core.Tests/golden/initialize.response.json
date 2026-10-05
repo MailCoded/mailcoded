@@ -28,6 +28,7 @@
         "account.test",
         "outbox.list",
         "provider.detect",
+        "correspondent.suggest",
         "store.backup",
         "store.backupVerify",
         "shutdown"

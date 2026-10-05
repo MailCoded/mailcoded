@@ -25,7 +25,7 @@ the manual has a bug — please report it.
 2. [Your first account](02-first-account.md) — `setup`, provider quirks, app passwords, Microsoft sign-in, scripted setup
 3. [Where your mail lives](03-where-things-live.md) — the data directory, what is in it, secrets, backups, editors
 4. [The terminal client](04-terminal-client.md) — `mailcoded tui`: the screen, keys, mouse, reading, triage, compose
-5. [Reading and searching from the command line](05-reading-and-searching.md) — `search`, `read`, `thread`, `attachments`, `folders`
+5. [Reading and searching from the command line](05-reading-and-searching.md) — `search`, `read`, `thread`, `attachments`, `folders`, `correspondents`
 6. [Triage](06-triage.md) — Tags and Flags, `tag`, `move`, `archive`, and why there is no delete
 7. [Sending](07-sending.md) — drafts, the two-phase send, the outbox, and who the send gate applies to
 8. [Accounts](08-accounts.md) — `account list`, `test`, `reauth`, `trust`, `identity`, `signature`, `add`, `forget`

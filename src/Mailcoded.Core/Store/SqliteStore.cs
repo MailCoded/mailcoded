@@ -91,6 +91,7 @@ public sealed partial class SqliteStore : IDisposable
         try
         {
             SchemaVersion = Migrator.Apply(writerSession);
+            BackfillCorrespondents(writerSession, clock);
         }
         catch (SqliteException ex)
         {

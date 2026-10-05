@@ -68,7 +68,7 @@ PRAGMA journal_size_limit = 67108864; -- cap -wal reuse at 64 MB
 
 **OAuth.** Refresh tokens expire or get revoked (Google: unused 6 months, password change with Gmail scopes, or 7 days while the consent screen is in Testing; Microsoft: sliding windows + revocation). On silent-refresh failure emit an `auth-required` notification — never crash-loop. Persist the token cache encrypted per-OS.
 
-**Send crash-safety.** `queued → sending → sent | failed`, **`Message-ID` pre-assigned at creation**. Dangerous window: crash after SMTP 250 but before DB commit → on startup, reconcile any row stuck in `sending` against the Sent folder (and by Message-ID) before re-sending. 451/4xx greylisting → backoff retry (1, 5, 15, 30 min) capped at 24 h; 421 → reconnect; 5xx → permanent failure surfaced with the enhanced status code. Pre-check the server `SIZE` capability.
+**Send crash-safety.** `queued → sending → sent | failed`, **`Message-ID` pre-assigned at creation**. Dangerous window: crash after SMTP 250 but before DB commit → on startup, reconcile any row stuck in `sending` against the Sent folder (and by Message-ID) before re-sending. 451/4xx greylisting → backoff retry (1, 5, 15, 30 min) capped at 24 h; 421 → reconnect; 5xx → permanent failure surfaced with the enhanced status code. Pre-check the server `SIZE` capability. A send teaches the Correspondent list in the same transaction that records `sent`, only on the transition into `sent`, so retries and reconciliation count it once; its Sent copy is skipped because the Outbox row owns that Message-ID.
 
 ## 14.5 Edge-case matrix
 

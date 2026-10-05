@@ -81,6 +81,17 @@ public sealed partial class SqliteStore
 
         return WriteAsync(context =>
         {
+            string? previousState;
+            string? storedEnvelope;
+            using (var reader = context.Session
+                .Prepare("SELECT state, envelope_json FROM outbox WHERE id = $id", "$id")
+                .SetInt(0, record.Id)
+                .ExecuteReader())
+            {
+                previousState = reader.Read() ? Db.Str(reader, 0) : null;
+                storedEnvelope = previousState is null ? null : Db.Str(reader, 1);
+            }
+
             // COALESCE so a record whose Envelope is null cannot erase the stored Bcc.
             var affected = context.Session
                 .Prepare(
@@ -104,6 +115,13 @@ public sealed partial class SqliteStore
 
             if (affected == 0)
                 throw new StoreException(FailureCategory.NotFound, $"No outbox row with id {record.Id}.");
+
+            if (record.State == OutboxState.Sent
+                && !string.Equals(previousState, OutboxState.Sent.ToWireValue(), StringComparison.Ordinal)
+                && (record.Envelope ?? OutboxEnvelopeJson.Read(storedEnvelope)) is { } sentEnvelope)
+            {
+                LearnFromSentOutbox(context.Session, record.AccountId.Value, sentEnvelope, context.Clock.UtcNow);
+            }
         }, ct);
     }
 

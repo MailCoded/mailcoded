@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO.Pipelines;
 using System.Text;
 using Mailcoded.Core.Application;
+using Mailcoded.Core.Domain.Correspondents;
 using Mailcoded.Core.Domain.Identities;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Signals;
@@ -204,6 +205,20 @@ internal sealed class DaemonTranscript : IAsyncDisposable
 
         await host.Store.RecountFolderAsync(folderId, ct).ConfigureAwait(false);
         await host.Store.RecountFolderAsync(junkIds[0], ct).ConfigureAwait(false);
+
+        // Each later row has fewer uses and an older last use, so the order holds whatever today's date is.
+        var ada = new NamedAddress(EmailAddress.Parse("ada@example.test"), "Ada");
+        var lovelace = new NamedAddress(EmailAddress.Parse("Ada.Lovelace@example.net"), null);
+        var bob = new NamedAddress(EmailAddress.Parse("bob@example.test"), "Bob Builder");
+
+        await host.Store.RecordCorrespondentsAsync(accountId, [bob], new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero), ct).ConfigureAwait(false);
+        await host.Store.RecordCorrespondentsAsync(accountId, [lovelace], new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero), ct).ConfigureAwait(false);
+        await host.Store.RecordCorrespondentsAsync(accountId, [lovelace], new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero), ct).ConfigureAwait(false);
+
+        for (var day = 1; day <= 3; day++)
+        {
+            await host.Store.RecordCorrespondentsAsync(accountId, [ada], new DateTimeOffset(2024, 4, day, 0, 0, 0, TimeSpan.Zero), ct).ConfigureAwait(false);
+        }
     }
 
     private static byte[] Frame(byte[] body)

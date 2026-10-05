@@ -18,7 +18,7 @@ Three overrides, in increasing order of specificity: the `MAILCODED_DATA_DIR` en
 
 | | |
 |---|---|
-| `store.db`, `store.db-wal`, `store.db-shm` | the SQLite database: accounts, folders, every envelope, the search index, Tags, drafts and the outbox, and the append-only `sync_log` audit trail. It runs in WAL mode, so the `-wal` and `-shm` files are normal. |
+| `store.db`, `store.db-wal`, `store.db-shm` | the SQLite database: accounts, folders, every envelope, the search index, Tags, drafts and the outbox, and the people you have written to (learned from sent mail only), and the append-only `sync_log` audit trail. It runs in WAL mode, so the `-wal` and `-shm` files are normal. |
 | `blobs/` | raw message bytes, fetched on demand |
 | `model/` | where an embedding model for search-by-meaning would live. No model is pinned yet, so this directory does not exist on a current checkout ([chapter 5](05-reading-and-searching.md)). If one is ever installed, deleting it is safe: search falls back to words alone. |
 | `secrets.enc`, `secrets.key` | the encrypted-file credential vault and, on Linux and macOS, the machine key that unlocks it. They appear only once a credential has actually been written to the file backend; with a working keyring their absence is normal. On Windows there is no `secrets.key` — the vault key is DPAPI-wrapped inside `secrets.enc` |

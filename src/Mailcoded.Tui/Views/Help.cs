@@ -36,6 +36,7 @@ internal static class Help
         "",
         "  c             compose         r / R         reply / reply-all",
         "  tab           next field      ctrl-s        preview the send",
+        "  ctrl-n        complete the recipient from people you have written to",
         "  Y             sends, and only from the confirmation screen",
         "",
         "  Opening a message marks it read. There is no delete key, in this",

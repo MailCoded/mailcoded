@@ -77,6 +77,7 @@ CLI and MCP are "agent surfaces"; the editor's RPC client is not.
 | search / read / thread | ON | — |
 | tag / triage | ON | — |
 | draft | ON | — |
+| correspondents (people the user has written to) | ON on the CLI, **absent** from MCP | — |
 | send | **OFF** | `MAILCODED_SEND=1` + `MAILCODED_APPROVED_RECIPIENTS` + a one-time token + ≤5/hour |
 | raw SQL read | **OFF** | `MAILCODED_ENABLE_SQL=1`; read-only and row-capped even then |
 | store backup (`backup`, `backup-verify`) | **OFF** on the CLI, **absent** from MCP | `MAILCODED_ALLOW_BACKUP=1`, CLI only |
@@ -267,7 +268,7 @@ nothing in the codebase rewrites or deletes a row. Columns are `id`, `ts`, `acco
 `level` (`info`/`warn`/`error`), `event`, `detail`, `interface` (`cli` | `mcp` | `rpc` |
 `internal`), and `agent_host`.
 
-Recorded from the agent surface: `cli_read`, `cli_thread`, `cli_folders`, `cli_stats`,
+Recorded from the agent surface: `cli_read`, `cli_thread`, `cli_folders`, `cli_correspondents`, `cli_stats`,
 `cli_health`, `cli_import`, `tags_set`, `body_fetched`, `sql_query`, the backup trail
 (`backup_started`, `backup_completed`, `backup_failed`, `backup_denied`, `backup_verified`,
 `backup_verify_failed`), and the send trail —

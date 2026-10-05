@@ -52,6 +52,15 @@ terminal confirmation, or `MAILCODED_ALLOW_IDENTITY_CHANGE=1` with `--yes`, and 
 tool for it. Your mail server still decides whether it accepts the address. Signatures are not gated;
 their text is in every send preview, and they change neither the sender nor the recipients.
 
+## The people you write to
+
+`mailcoded correspondents` and the terminal client's `ctrl-n` offer the people you have written to. The
+list is built from outgoing mail only, so received mail, which anyone can send you, can never put an
+address on it. It lives in `store.db` beside the mail it was learned from, goes with the account on
+`account forget`, and is covered by a backup. The CLI will print it to an agent that runs it, but it
+holds nothing an agent cannot already read by searching Sent mail, and the MCP server has no tool for
+it.
+
 ## A backup is a copy of everything
 
 `mailcoded backup` (chapter 3) writes a plaintext copy of the whole store and its attachments, which is

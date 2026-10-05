@@ -77,7 +77,7 @@ failed), 4 (the daemon refused the connection).
 **Move picker** — `j` `k` choose · `enter` move here · `esc` cancel.
 
 **Composer** — `tab` `shift-tab` field · `enter` a new line in the body, otherwise the next field ·
-arrows `home` `end` `backspace` edit · `ctrl-s` preview · `esc` or `ctrl-c` discard, after a `y/n`.
+arrows `home` `end` `backspace` edit · `ctrl-n` complete the recipient · `ctrl-s` preview · `esc` or `ctrl-c` discard, after a `y/n`.
 
 **Confirmation** — `Y` sends · anything else goes back.
 
@@ -99,6 +99,7 @@ key-bar entry · shift for the terminal's own selection.
 | `move <id> --folder <f>` | move on the server, confirmed |
 | `archive <id>` | move to Archive, confirmed |
 | `folders` | the folder tree with counts |
+| `correspondents [prefix]` | people you have written to, best first |
 | `stats`, `health` | counters; state |
 | `tui` | the terminal client |
 | `draft`, `reply <id>` | build a draft |

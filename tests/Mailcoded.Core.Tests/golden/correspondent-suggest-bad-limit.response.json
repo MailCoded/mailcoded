@@ -1,0 +1,11 @@
+{
+  "error": {
+    "code": -32602,
+    "data": {
+      "category": "protocol"
+    },
+    "message": "limit must be between 1 and 100."
+  },
+  "id": 33,
+  "jsonrpc": "2.0"
+}

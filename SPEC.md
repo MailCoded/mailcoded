@@ -49,6 +49,7 @@ Backend first (M0–M2); the extension consumes released daemon binaries from M3
 - Incremental sync: UIDVALIDITY tracking, QRESYNC/CONDSTORE fast resync, full-fetch fallback, lazy body fetch.
 - FTS5 search, notmuch-compatible tags (`unread`, `flagged`, `replied`, custom). Search leaves out Trash- and Junk-role Folders unless the query names a Folder, says `in:anywhere`, or is scoped to one Folder.
 - Send via SMTP with mandatory confirmation + outbox state machine. A draft's From is the account address or a configured sender identity, checked in Core; plaintext signatures per account, with defaults for new messages and replies.
+- Compose suggestions: the people you have written to, learned from outgoing mail only (mailcoded's own sends and messages in Sent-role Folders you wrote), ranked by frequency and recency. Received mail never adds anyone. This is not a contacts feature.
 - JSON-RPC daemon (stdio) + thin one-shot CLI (`mailcoded`, JSON output).
 - Secrets in OS keyring with encrypted-file fallback.
 - VS Code extension: sidebar, threaded list, reader (plaintext-first, sanitized HTML toggle, remote images blocked), tag/archive, compose/reply/send.
@@ -62,7 +63,7 @@ Backend first (M0–M2); the extension consumes released daemon binaries from M3
 - Maildir export/import (POSIX `:`, Windows `!`), optional notmuch interop on POSIX.
 
 ### 3.3 Explicitly out of scope (v0.x)
-POP3, JMAP (v0.3+), calendars/contacts, PGP, S/MIME (also excluded from the AOT path), HTML compose, attachment upload in composer, mobile/web clients, IMAP server mode, message-rules engine, attachment-content indexing (disclose this gap in the README as roadmap).
+POP3, JMAP (v0.3+), calendars/contacts (the Correspondent suggestion list in §3.1 is derived from sent mail and is not an address book), PGP, S/MIME (also excluded from the AOT path), HTML compose, attachment upload in composer, mobile/web clients, IMAP server mode, message-rules engine, attachment-content indexing (disclose this gap in the README as roadmap).
 
 **The extension never opens network connections to mail servers.** Only the daemon does.
 
@@ -228,6 +229,8 @@ FTS5 tables and the full index list are in `docs/PERFORMANCE.md` §3 — use tho
 
 **Rules.** Tag↔flag mapping is bidirectional: `\Seen`↔absence of `unread`, `\Flagged`↔`flagged`, `\Answered`↔`replied`, `\Draft`↔`draft`. Custom IMAP keywords map to same-name tags, except the reserved local-only `auto.` prefix: the four built-in category Tags (`auto.social`, `auto.news`, `auto.marketing`, `auto.notifications`) are assigned once at first insert from fixed rules, never pushed as keywords and never taken from one. Threading v0.1 uses normalized `References`/`In-Reply-To` root, falling back to normalized subject + participants, behind `IThreader`. Migrations are embedded, forward-only, keyed on `PRAGMA user_version`.
 
+**Correspondents.** `correspondents(account_id, address, display_name, use_count, last_used_utc)` holds, per Account, the people the user has written to: the lower-cased address, the display name on the most recent message that carried one, how many outgoing messages named it in To or Cc, and when. It is learned from outgoing mail only, never from received mail: once per Outbox row, in the same transaction that marks the row `sent` (so retries and crash reconciliation cannot count it twice); and once per Message newly inserted into a Sent-role Folder whose From is the Account's address or a configured identity, unless an Outbox row owns that Message-ID. Bcc is not counted; the Account's own addresses, robot senders and messages to more than 25 distinct recipients are skipped. The rows go with the Account (`ON DELETE CASCADE`). Sent mail already stored when the table first exists is counted once, when the store next opens.
+
 ### 5.4 Provider abstraction
 
 ```csharp
@@ -284,6 +287,7 @@ JSON-RPC 2.0 over stdio with **`Content-Length` framing (LSP-style)** so `vscode
 | `send` | `{accountId, draftId, confirmToken}` → `{messageId}` — **rejects without a valid token**; logs to `sync_log` |
 | `watch.subscribe` | `{accountId}` → `{}`; notifications `notify.mail.added`, `notify.folder.updated`, `notify.sync.error`; `notify.sync.progress` also for `sync` with `progress: true` |
 | `stats` / `health` | `{}` → metrics (see `RELIABILITY.md`) |
+| `correspondent.suggest` | `{accountId, prefix?, limit?}` → `{correspondents:[{address,displayName?,count,lastUsedUtc}]}` — people you have written to, best first (frequency and recency), for completing a recipient; learned from outgoing mail only |
 | `provider.detect` | `{email}` → `{preset}` — built-in IMAP/SMTP settings and credential guidance; pure lookup, no network |
 | `store.backup` | `{directory}` → `{backup, secretsIncluded:false}` — a consistent copy of `store.db` (`VACUUM INTO`), the external blob files it points at, and a `manifest.json`; never secrets; gated (CLI needs `MAILCODED_ALLOW_BACKUP=1`, MCP never); audited |
 | `store.backupVerify` | `{directory}` → `{ok, problems[], ...}` — re-hashes the copy and compares it with its manifest; a mismatch is a result, not an error |

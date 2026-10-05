@@ -103,7 +103,9 @@ The extra addresses an account may send as. The account's own address is always 
 forgotten. A draft whose From is neither it nor an identity is refused with exit 2 (chapter 7), whoever
 drafts it. `add` again for the same address, in any case, updates it. `--name` is the display name used
 in From for that address (at most 100 characters, no control characters), and `--reply-to` adds a
-Reply-To header to mail sent as it. An account can have 32 identities.
+Reply-To header to mail sent as it. An account can have 32 identities. Identities also decide which Sent
+mail counts as yours when mailcoded learns whom you write to (chapter 5, `correspondents`): a message in a
+Sent folder teaches nothing unless its From is the account address or an identity.
 
 mailcoded cannot discover your aliases; IMAP has no way to ask. Your mail server decides whether it
 accepts a From address, so add only the ones it lets this login use.
@@ -139,7 +141,7 @@ length, never the text.
     mailcoded account forget --account <id|email> [--yes]
 
 Removes one account **from this machine**: its folders, cached messages, search-index entries,
-unreferenced blobs, and its stored credential — the password or the OAuth grant, whichever it had.
+its list of correspondents, unreferenced blobs, and its stored credential — the password or the OAuth grant, whichever it had.
 Use it to undo a mistaken `setup`, or to stop reading an account here.
 
 **Nothing is removed from the mail server.** This is not a delete command for mail — there is none —

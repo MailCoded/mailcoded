@@ -28,7 +28,7 @@ internal sealed class RpcDispatcher
         RpcMethods.MessageGet, RpcMethods.AttachmentGet, RpcMethods.TagsSet, RpcMethods.MessageMove,
         RpcMethods.SendPreview, RpcMethods.Send, RpcMethods.WatchSubscribe, RpcMethods.Stats,
         RpcMethods.Health, RpcMethods.AccountTest, RpcMethods.OutboxList, RpcMethods.ProviderDetect,
-        RpcMethods.StoreBackup, RpcMethods.StoreBackupVerify, RpcMethods.Shutdown,
+        RpcMethods.CorrespondentSuggest, RpcMethods.StoreBackup, RpcMethods.StoreBackupVerify, RpcMethods.Shutdown,
     ];
 
     /// <summary>Before initialize the caller is the most restricted kind, never the permissive 'rpc' one:
@@ -92,6 +92,7 @@ internal sealed class RpcDispatcher
             RpcMethods.AccountTest => await AccountTestAsync(parameters, ct).ConfigureAwait(false),
             RpcMethods.OutboxList => OutboxList(parameters, ct),
             RpcMethods.ProviderDetect => ProviderDetect(parameters),
+            RpcMethods.CorrespondentSuggest => CorrespondentSuggest(parameters, ct),
             RpcMethods.StoreBackup => await StoreBackupAsync(parameters, ct).ConfigureAwait(false),
             RpcMethods.StoreBackupVerify => await StoreBackupVerifyAsync(parameters, ct).ConfigureAwait(false),
             RpcMethods.Shutdown => Shutdown(),
@@ -346,6 +347,18 @@ internal sealed class RpcDispatcher
         return RpcPayloads.Value(
             new FolderListResult { Folders = WireMapper.ToDtos(folders) },
             ProtocolJsonContext.Default.FolderListResult);
+    }
+
+    private byte[] CorrespondentSuggest(JsonElement? parameters, CancellationToken ct)
+    {
+        var request = Require(parameters, ProtocolJsonContext.Default.CorrespondentSuggestParams, RpcMethods.CorrespondentSuggest);
+        var accountId = RequireAccount(request.AccountId, ct);
+
+        var found = host.Correspondents.Suggest(accountId, request.Prefix, request.Limit, ct);
+
+        return RpcPayloads.Value(
+            new CorrespondentSuggestResult { Correspondents = WireMapper.ToDtos(found) },
+            ProtocolJsonContext.Default.CorrespondentSuggestResult);
     }
 
     private static byte[] ProviderDetect(JsonElement? parameters)

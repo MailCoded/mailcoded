@@ -73,6 +73,21 @@ internal sealed class DraftBuffer
         HeaderCaret = caret + 1;
     }
 
+    /// <summary>Swaps a stretch of one header for new text and puts the caret after it. False when the range is stale or the result would be too long.</summary>
+    public bool ReplaceInHeader(DraftField field, int start, int length, string text)
+    {
+        if (field == DraftField.Body) return false;
+
+        var index = (int)field;
+        var current = _headers[index];
+        if (start < 0 || length < 0 || start + length > current.Length) return false;
+        if (current.Length - length + text.Length > MaxHeaderChars) return false;
+
+        _headers[index] = string.Concat(current.AsSpan(0, start), text, current.AsSpan(start + length));
+        HeaderCaret = start + text.Length;
+        return true;
+    }
+
     public void Backspace()
     {
         if (Field != DraftField.Body)

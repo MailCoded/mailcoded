@@ -1,3 +1,4 @@
+using Mailcoded.Core.Domain.Correspondents;
 using Mailcoded.Core.Domain.Outbox;
 using System.Globalization;
 using Mailcoded.Core.Domain.Primitives;
@@ -183,6 +184,25 @@ internal static class WireMapper
             Flags = FlagWireNames(summary.Flags),
             Tags = ToTagNames(TagFlagMap.SystemTagsOf(summary.Flags)),
         };
+    }
+
+    public static IReadOnlyList<CorrespondentDto> ToDtos(IReadOnlyList<Correspondent> correspondents)
+    {
+        ArgumentNullException.ThrowIfNull(correspondents);
+
+        var dtos = new List<CorrespondentDto>(correspondents.Count);
+        foreach (var each in correspondents)
+        {
+            dtos.Add(new CorrespondentDto
+            {
+                Address = each.Address,
+                DisplayName = each.DisplayName,
+                Count = each.Count,
+                LastUsedUtc = Instant(each.LastUsedUtc),
+            });
+        }
+
+        return dtos;
     }
 
     public static IReadOnlyList<FolderDto> ToDtos(IReadOnlyList<FolderSummary> folders)

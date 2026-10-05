@@ -45,6 +45,8 @@ namespace Mailcoded.Protocol;
 [JsonSerializable(typeof(AccountListResult))]
 [JsonSerializable(typeof(FolderListParams))]
 [JsonSerializable(typeof(FolderListResult))]
+[JsonSerializable(typeof(CorrespondentSuggestParams))]
+[JsonSerializable(typeof(CorrespondentSuggestResult))]
 [JsonSerializable(typeof(SyncParams))]
 [JsonSerializable(typeof(SyncResult))]
 [JsonSerializable(typeof(SearchParams))]

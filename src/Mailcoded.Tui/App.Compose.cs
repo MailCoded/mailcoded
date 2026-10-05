@@ -25,6 +25,76 @@ internal sealed partial class App
         _state.Say("tab moves field, ctrl-s previews, esc discards");
     }
 
+    /// <summary>Where Ctrl-N is in cycling through what it offered, so another press shows the next one.</summary>
+    private RecipientCycle? _cycle;
+
+    private sealed record RecipientCycle(DraftField Field, int Start, int Length, IReadOnlyList<string> Candidates, int Index);
+
+    private void CompleteRecipient()
+    {
+        if (_state.Draft is not { } draft) return;
+
+        if (draft.Field is not (DraftField.To or DraftField.Cc or DraftField.Bcc))
+        {
+            _state.Say("Completion works in To, Cc and Bcc.");
+            return;
+        }
+
+        if (!_client.Supports(RpcMethods.CorrespondentSuggest))
+        {
+            _state.Complain("This daemon does not offer correspondent suggestions.");
+            return;
+        }
+
+        if (_cycle is { } cycle && cycle.Field == draft.Field)
+        {
+            var next = (cycle.Index + 1) % cycle.Candidates.Count;
+            if (!draft.ReplaceInHeader(cycle.Field, cycle.Start, cycle.Length, cycle.Candidates[next]))
+            {
+                _cycle = null;
+                return;
+            }
+
+            _cycle = cycle with { Length = cycle.Candidates[next].Length, Index = next };
+            _state.Say($"{next + 1} of {cycle.Candidates.Count}: ctrl-n for the next");
+            return;
+        }
+
+        if (_state.Account is not { } account)
+        {
+            _state.Complain("No account to complete from.");
+            return;
+        }
+
+        var field = draft.Field;
+        var typed = draft.Header(field);
+        var token = RecipientCompletion.TokenAt(typed, draft.HeaderCaret);
+
+        Start("suggesting", async cancellation =>
+        {
+            var result = await _client
+                .SuggestCorrespondentsAsync(account.Id, token.Prefix, RecipientCompletion.MaxSuggestions, cancellation)
+                .ConfigureAwait(false);
+
+            return () =>
+            {
+                if (!ReferenceEquals(_state.Draft, draft) || draft.Field != field || draft.Header(field) != typed) return;
+
+                var candidates = RecipientCompletion.Unlisted(typed, token, result.Correspondents.Select(c => c.Address));
+                if (candidates.Count == 0)
+                {
+                    _state.Say("No one you have written to matches.");
+                    return;
+                }
+
+                if (!draft.ReplaceInHeader(field, token.Start, token.Length, candidates[0])) return;
+
+                _cycle = new RecipientCycle(field, token.Start, candidates[0].Length, candidates, 0);
+                _state.Say(candidates.Count == 1 ? "Completed." : $"1 of {candidates.Count}: ctrl-n for the next");
+            };
+        });
+    }
+
     private void ComposeNew()
     {
         var draft = new DraftBuffer();

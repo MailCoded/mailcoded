@@ -96,13 +96,14 @@ public sealed partial class SqliteStore
         {
             var context = new WriteContext(session, _clock);
             var accountId = RequireAccountForFolder(session, folderId.Value);
+            var learner = SentFolderLearner.For(session, accountId, folderId.Value, _clock);
             var inserted = 0;
             var updated = 0;
 
             foreach (var envelope in envelopes)
             {
                 ct.ThrowIfCancellationRequested();
-                if (UpsertEnvelope(context, accountId, folderId.Value, envelope, threader, deferFts: true)) inserted++;
+                if (UpsertEnvelope(context, accountId, folderId.Value, envelope, threader, deferFts: true, learner: learner)) inserted++;
                 else updated++;
             }
 

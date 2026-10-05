@@ -94,6 +94,22 @@ public sealed class MailcodedClient : IAsyncDisposable
         return result.Deserialize(ProtocolJsonContext.Default.AccountListResult) ?? new AccountListResult();
     }
 
+    public async Task<CorrespondentSuggestResult> SuggestCorrespondentsAsync(
+        long accountId,
+        string? prefix,
+        int limit,
+        CancellationToken ct)
+    {
+        var result = await CallAsync(
+            RpcMethods.CorrespondentSuggest,
+            Serialize(
+                new CorrespondentSuggestParams { AccountId = accountId, Prefix = prefix, Limit = limit },
+                ProtocolJsonContext.Default.CorrespondentSuggestParams),
+            ct).ConfigureAwait(false);
+
+        return result.Deserialize(ProtocolJsonContext.Default.CorrespondentSuggestResult) ?? new CorrespondentSuggestResult();
+    }
+
     public async Task<FolderListResult> ListFoldersAsync(long accountId, CancellationToken ct)
     {
         var result = await CallAsync(

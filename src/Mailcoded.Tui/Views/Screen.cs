@@ -144,7 +144,7 @@ internal static class Screen
     internal static string Hint(AppState state) => state.Focus switch
     {
         Pane.Reader => "j/k scroll   r reply   R reply-all   q back   ? help",
-        Pane.Compose => "tab field   ctrl-s preview   esc discard",
+        Pane.Compose => "tab field   ctrl-n complete   ctrl-s preview   esc discard",
         Pane.Confirm => "Y sends   anything else goes back",
         Pane.Help or Pane.Status or Pane.Outbox => "any key to close",
         Pane.Folders => "j/k move   h/l fold   enter open   c compose   / search   ? help   q quit",

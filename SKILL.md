@@ -56,6 +56,7 @@ mailcoded read 4213 --json                               # one message, plaintex
 mailcoded thread 4213 --json                             # whole conversation
 mailcoded tag 4213 +triaged -inbox                       # local Tags; +/- sign required
 mailcoded folders --json                                 # folder tree: name, leaf, depth, parent_id, unread/total
+mailcoded correspondents ada --json                      # people the user has written to (Sent mail only), best first
 mailcoded stats --json                                   # store and outbox counters
 mailcoded health --json                                  # accounts, gates, store path
 mailcoded sync --json                                    # pull new mail (network)

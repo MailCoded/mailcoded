@@ -1,0 +1,12 @@
+From: Test Account <tester@example.com>
+To: "Example, Ada" <ada@example.org>, =?UTF-8?B?WsO2ZSBNw7xsbGVy?= <zoe@example.net>, bob@example.net, noreply@example.org
+Cc: Team: carol@example.org, "Dan \"D\" Example" <dan@example.org>;, tester@example.com
+Bcc: hidden@example.net
+Subject: Sent copy with awkward recipients
+Date: Mon, 03 Feb 2025 09:30:00 +0000
+Message-ID: <053-sent-recipients@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+A copy as another client leaves it in Sent: a comma in a quoted name, an encoded name, a group,
+a robot address, the account's own address, and a Bcc that survives on the stored copy.
