@@ -10,6 +10,7 @@ public sealed record DraftSpec
 {
     public required EmailAddress From { get; init; }
     public string? FromDisplayName { get; init; }
+    public EmailAddress? ReplyTo { get; init; }
     public IReadOnlyList<EmailAddress> To { get; init; } = [];
     public IReadOnlyList<EmailAddress> Cc { get; init; } = [];
     public IReadOnlyList<EmailAddress> Bcc { get; init; } = [];

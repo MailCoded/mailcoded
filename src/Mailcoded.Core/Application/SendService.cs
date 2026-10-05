@@ -1,4 +1,5 @@
 using System.Runtime.ExceptionServices;
+using Mailcoded.Core.Domain.Identities;
 using Mailcoded.Core.Domain.Outbox;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Parsing;
@@ -15,13 +16,31 @@ public sealed record DraftRequest
     public IReadOnlyList<EmailAddress> Bcc { get; init; } = [];
     public required string Subject { get; init; }
     public required string BodyText { get; init; }
+
+    /// <summary>The quoted original of a reply, kept apart so a signature lands between the new text and the quote.</summary>
+    public string? QuotedText { get; init; }
+
+    public SignatureChoice Signature { get; init; }
+
     public MessageId? InReplyTo { get; init; }
     public IReadOnlyList<MessageId> References { get; init; } = [];
 
-    /// <summary>Overrides the account address; must still be an address the account may send as.</summary>
+    /// <summary>Overrides the account address; must be the account address or one of its identities.</summary>
     public EmailAddress? From { get; init; }
 
     public string? FromDisplayName { get; init; }
+}
+
+/// <summary>A draft after its sender was checked and its signature placed. This is what gets built and previewed.</summary>
+public sealed record PreparedDraft
+{
+    public required EmailAddress From { get; init; }
+    public string? FromDisplayName { get; init; }
+    public EmailAddress? ReplyTo { get; init; }
+    public required string BodyText { get; init; }
+
+    /// <summary>The name of the signature that was inserted, or null when none was.</summary>
+    public string? SignatureName { get; init; }
 }
 
 public sealed record SendOptions
@@ -48,6 +67,8 @@ public sealed record SendPreview
     public IReadOnlyList<EmailAddress> Bcc { get; init; } = [];
     public string Subject { get; init; } = string.Empty;
     public string BodyPreview { get; init; } = string.Empty;
+    public bool BodyTruncated { get; init; }
+    public string? SignatureName { get; init; }
     public long SizeBytes { get; init; }
     public bool RequiresSmtpUtf8 { get; init; }
     public required string Digest { get; init; }
@@ -149,21 +170,20 @@ public sealed class SendService
     {
         ArgumentNullException.ThrowIfNull(draft);
 
-        var account = _store.GetAccount(accountId, ct)
-            ?? throw new StoreException(FailureCategory.NotFound, $"No account with id {accountId.Value}.");
-
-        var from = draft.From ?? ParseAccountAddress(account);
+        var prepared = await PrepareDraftAsync(caller, accountId, draft, ct).ConfigureAwait(false);
+        var from = prepared.From;
         var messageId = MessageId.NewForDomain(from.Domain, Guid.NewGuid());
 
         var spec = new DraftSpec
         {
             From = from,
-            FromDisplayName = draft.FromDisplayName ?? account.DisplayName,
+            FromDisplayName = prepared.FromDisplayName,
+            ReplyTo = prepared.ReplyTo,
             To = draft.To,
             Cc = draft.Cc,
             Bcc = draft.Bcc,
             Subject = draft.Subject,
-            BodyText = draft.BodyText,
+            BodyText = prepared.BodyText,
             InReplyTo = draft.InReplyTo,
             References = draft.References,
             MessageId = messageId,
@@ -228,12 +248,77 @@ public sealed class SendService
             Cc = draft.Cc,
             Bcc = draft.Bcc,
             Subject = draft.Subject,
-            BodyPreview = Truncate(draft.BodyText, _defaults.BodyPreviewChars),
+            BodyPreview = Truncate(prepared.BodyText, _defaults.BodyPreviewChars),
+            BodyTruncated = prepared.BodyText.Length > _defaults.BodyPreviewChars,
+            SignatureName = prepared.SignatureName,
             SizeBytes = raw.LongLength,
             RequiresSmtpUtf8 = MessageBuilder.RequiresSmtpUtf8(spec),
             Digest = digest,
             Gate = gate,
         };
+    }
+
+    /// <summary>Decides a draft's sender and places its signature; the one place that happens, so no adapter can skip it.</summary>
+    public async Task<PreparedDraft> PrepareDraftAsync(
+        CallerContext caller,
+        AccountId accountId,
+        DraftRequest draft,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+
+        var account = _store.GetAccount(accountId, ct)
+            ?? throw new StoreException(FailureCategory.NotFound, $"No account with id {accountId.Value}.");
+
+        var own = ParseAccountAddress(account);
+        var requested = draft.From ?? DefaultFromForReply(account, own, draft, ct);
+
+        if (!SenderIdentities.TryResolve(own, account.DisplayName, account.Identities, requested, out var sender))
+        {
+            await _audit.WarnAsync(
+                AuditEvents.SenderDenied,
+                accountId,
+                caller,
+                AuditText.Fields(("from", draft.From?.Value)),
+                ct).ConfigureAwait(false);
+
+            throw new SenderNotAllowedException();
+        }
+
+        var chosen = draft.Signature;
+        var use = draft.InReplyTo is null ? SignatureUse.New : SignatureUse.Reply;
+
+        // An implicit default would sign twice when the author already wrote a signature of their own.
+        if (chosen.Kind == SignatureChoiceKind.Default && DraftBody.HasSeparator(draft.BodyText))
+            chosen = SignatureChoice.None;
+
+        var signature = account.Signatures.Select(chosen, use);
+
+        return new PreparedDraft
+        {
+            From = sender.Address,
+            FromDisplayName = draft.FromDisplayName ?? sender.DisplayName,
+            ReplyTo = sender.ReplyTo,
+            BodyText = DraftBody.Compose(draft.BodyText, signature?.Text, draft.QuotedText),
+            SignatureName = signature?.Name,
+        };
+    }
+
+    private EmailAddress DefaultFromForReply(AccountConfig account, EmailAddress own, DraftRequest draft, CancellationToken ct)
+    {
+        if (account.Identities.Count == 0 || draft.InReplyTo is not { } parent) return own;
+
+        foreach (var row in _store.FindByMessageId(parent, ct))
+        {
+            if (row.AccountId != account.Id) continue;
+
+            var recipients = new List<EmailAddress>();
+            recipients.AddRange(RecipientExtractor.ParseAddressList(row.To, out _));
+            recipients.AddRange(RecipientExtractor.ParseAddressList(row.Cc, out _));
+            return SenderIdentities.PickForReply(own, account.Identities, recipients);
+        }
+
+        return own;
     }
 
     /// <summary>Rejects without a valid token, then applies the agent gates, then dispatches once.</summary>

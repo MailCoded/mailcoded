@@ -43,6 +43,8 @@ ACCOUNT ADMINISTRATION
   account test              prove settings and credential still work
   account reauth            replace the credential or sign in again
   account trust             which Authentication-Results authserv-ids this account trusts
+  account identity          extra From addresses this account may send as
+  account signature         named plaintext signatures and their defaults
   account add               register an account non-interactively, for scripts
   account forget            remove an account and its cached mail from this machine
 
@@ -102,6 +104,7 @@ ENVIRONMENT
   MAILCODED_APPROVED_RECIPIENTS   comma list of addresses or @domain patterns
   MAILCODED_ENABLE_SQL=1          unlocks 'query --sql'
   MAILCODED_ALLOW_BACKUP=1        unlocks 'backup' and 'backup-verify' from the agent surface
+  MAILCODED_ALLOW_IDENTITY_CHANGE=1  with --yes, lets 'account identity add' run unattended
   MAILCODED_SECRET_BACKEND        auto | file | libsecret | keychain | wincred
   MAILCODED_AGENT_HOST            label recorded in the audit trail
 
@@ -231,7 +234,11 @@ OPTIONS
   --subject <text>     required
   --body-file <path>   plaintext body, UTF-8, at most 1 MiB
   --body-stdin         read the body from stdin instead of a file
-  --from <addr>        override the account's own address
+  --from <addr>        send as this address; it must be the account's address or one of its
+                       identities (see 'account identity'), else exit 2 with sender_not_allowed
+  --signature <name>   insert this signature (see 'account signature')
+  --no-signature       insert none; without either option the account's default for a new
+                       message, or for a reply, is inserted
   --reply-to <id>      local message id being replied to; sets In-Reply-To/References
   --in-reply-to <mid>  raw Message-ID being replied to, without angle brackets
   --account <id>       which account to send as
@@ -239,10 +246,36 @@ OPTIONS
 OUTPUT
   "draft_id" is the handle send-preview and send-draft take. "send" reports whether
   the send gate is currently open, so you learn before composing a whole reply chain.
+  "signature" names the signature that was inserted, or is null. When it is inserted it
+  follows the body after a "-- " line.
 
 EXAMPLE
   printf 'Thanks — looking now.\n' > /tmp/reply.txt
   mailcoded draft --to a@b.com --subject 'Re: invoice' --body-file /tmp/reply.txt --json
+""";
+
+    private const string Reply = """
+mailcoded reply <messageId> [--body <text>|--body-file <path>] [--all] [--json]
+
+  Drafts a reply: recipients, "Re:" subject, the quoted original and the In-Reply-To and
+  References that keep it threaded. It never sends; run send-preview next.
+
+  The reply is sent as the identity the original was addressed to (the account address or
+  one of its identities, matched against the original's To and Cc), else as the account
+  address. --all leaves every one of your own addresses out of Cc. A signature goes between
+  your text and the quote.
+
+OPTIONS
+  --body <text>        your reply text, placed above the quote
+  --body-file <path>   the same, read from a file
+  --all                reply to everyone, not just the sender
+  --no-quote           leave the original out
+  --no-fetch           do not go to the server for a body that is not stored yet
+  --signature <name>   insert this signature (see 'account signature')
+  --no-signature       insert none; without either option the account's reply default is used
+
+EXAMPLE
+  mailcoded reply 42 --body 'Thanks, done.' --json
 """;
 
     private const string Unsubscribe = """
@@ -503,6 +536,64 @@ OPTIONS
   --json                 machine-readable result
 """;
 
+    private const string AccountIdentity = """
+mailcoded account identity <list|add|forget> [<address>] [--account <id|email>] [--name <text>] [--reply-to <address>] [--yes] [--json]
+
+  The addresses an account may send as. The account's own address is always allowed. A draft
+  whose From is anything else is refused with exit 2 and error name sender_not_allowed, from
+  every surface: CLI, MCP and the daemon. mailcoded cannot discover aliases; your mail server
+  decides whether it accepts a From address, so add only ones it lets this login use.
+
+ACTIONS
+  list              the account address and every identity
+  add <address>     allow sending as this address; running it again for the same address updates it
+  forget <address>  stop allowing it. The account's own address cannot be forgotten.
+
+OPTIONS
+  --account <id|email>  which account (required when the store holds more than one)
+  --name <text>         display name used in From for this address (at most 100 characters)
+  --reply-to <address>  a Reply-To header added to mail sent as this address
+  --yes                 confirm 'add' unattended (needs MAILCODED_ALLOW_IDENTITY_CHANGE=1)
+  --json                machine-readable result
+
+  Adding an identity needs a terminal confirmation, or MAILCODED_ALLOW_IDENTITY_CHANGE=1
+  together with --yes: an agent must not be able to widen who mail is sent as. There is no
+  MCP tool for it. Every change writes an audit row.
+
+EXAMPLE
+  mailcoded account identity add --account me@example.com sales@example.com --name 'Sales'
+""";
+
+    private const string AccountSignature = """
+mailcoded account signature <list|set|forget|default> [<name>] [--account <id|email>] [--file <path>|--stdin] [--none] [--json]
+
+  Named plaintext signatures for an account, and which one a new message and a reply start
+  with. A signature is inserted after a line holding "-- " (RFC 3676); in a reply it sits
+  between your text and the quoted original. draft and reply take --signature <name> or
+  --no-signature; the MCP draft tools take signature and no_signature.
+
+ACTIONS
+  list                          every signature and the two defaults
+  set <name> --file <path>      create or replace a signature (or --stdin)
+  forget <name>                 drop a signature; a default that named it is cleared
+  default new <name>            the signature new messages start with
+  default reply <name>          the signature replies start with
+  default new --none            start with no signature (the same for reply)
+
+RULES
+  A name is 1 to 32 letters, digits, '.', '_' or '-', case-insensitive. A signature is at
+  most 2000 characters and 20 lines, at most 16 per account. Control characters, bidirectional
+  overrides and zero-width characters are stripped. A first line of "--" is dropped, because
+  the separator is added for you. Too long is refused, never cut. A default signature is not
+  added to a body that already holds its own "-- " line.
+
+EXAMPLE
+  printf 'Alex Example
+Example Pty
+' | mailcoded account signature set work --stdin
+  mailcoded account signature default new work
+""";
+
     private const string ImportEml = """
 mailcoded import-eml <dir> [--folder INBOX] [--json]
 
@@ -620,6 +711,9 @@ mailcoded version [--json]
         "sync" => Sync,
         "account forget" => AccountForget,
         "account trust" => AccountTrust,
+        "account identity" => AccountIdentity,
+        "account signature" => AccountSignature,
+        "reply" => Reply,
         "account" or "account add" => AccountAdd,
         "import-eml" => ImportEml,
         "backup" => Backup,

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Mailcoded.Core.Domain.Identities;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Sync;
 using Mailcoded.Core.Providers;
@@ -15,6 +16,8 @@ public sealed class AccountStoreTests
         "imap", "smtp", "quirks",
         "host", "port", "security", "username", "watchFolders",
         "latched", "pinnedCertificateSha256",
+        "identities", "address", "displayName", "replyTo",
+        "signatures", "name", "text", "defaultSignature", "new", "reply",
     ];
 
     private static AccountConfig FullConfig(string email = "tester@example.com") => new()
@@ -44,6 +47,18 @@ public sealed class AccountStoreTests
             Latched = ServerQuirks.QresyncBroken | ServerQuirks.RequiresId,
             PinnedCertificateSha256 = new string('a', 64),
         },
+        Identities =
+        [
+            new SenderIdentity
+            {
+                Address = EmailAddress.Parse("alias@example.com"),
+                DisplayName = "Alias",
+                ReplyTo = EmailAddress.Parse("replies@example.com"),
+            },
+        ],
+        Signatures = SignatureBook.Empty.Set("work", "Test Account\nExample Pty")
+            .WithDefault(SignatureUse.New, "work")
+            .WithDefault(SignatureUse.Reply, "work"),
     };
 
     [Fact]
@@ -76,6 +91,15 @@ public sealed class AccountStoreTests
 
         Assert.Equal(ServerQuirks.QresyncBroken | ServerQuirks.RequiresId, loaded.Quirks.Latched);
         Assert.Equal(new string('a', 64), loaded.Quirks.PinnedCertificateSha256);
+
+        var identity = Assert.Single(loaded.Identities);
+        Assert.Equal("alias@example.com", identity.Address.Value);
+        Assert.Equal("Alias", identity.DisplayName);
+        Assert.Equal("replies@example.com", identity.ReplyTo?.Value);
+
+        Assert.Equal("Test Account\nExample Pty", Require.Ref(loaded.Signatures.Find("work"), "the signature").Text);
+        Assert.Equal("work", loaded.Signatures.DefaultForNew);
+        Assert.Equal("work", loaded.Signatures.DefaultForReply);
     }
 
     [Fact]
@@ -159,7 +183,11 @@ public sealed class AccountStoreTests
     [Fact]
     public void NoConfigTypeExposesACredentialBearingProperty()
     {
-        Type[] persisted = [typeof(AccountConfig), typeof(ImapConfig), typeof(SmtpConfig), typeof(ServerQuirksConfig)];
+        Type[] persisted =
+        [
+            typeof(AccountConfig), typeof(ImapConfig), typeof(SmtpConfig), typeof(ServerQuirksConfig),
+            typeof(SenderIdentity), typeof(SignatureBook), typeof(NamedSignature),
+        ];
 
         foreach (var type in persisted)
         {

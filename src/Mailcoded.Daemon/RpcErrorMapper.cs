@@ -71,6 +71,9 @@ internal static class RpcErrorMapper
             case SecretStoreException secret:
                 return Build(RpcErrorCode.Auth, Safe(secret.Message), "auth", requiresUserAction: true);
 
+            case SenderNotAllowedException sender:
+                return Build(RpcErrorCode.InvalidParams, Safe(sender.Message), "protocol", reason: SenderNotAllowedException.Reason);
+
             case JsonException json:
                 return Build(RpcErrorCode.InvalidParams, Safe(json.Message), "protocol");
 
@@ -143,13 +146,14 @@ internal static class RpcErrorMapper
         int? retryAfterMs = null,
         bool? requiresUserAction = null,
         long? accountId = null,
-        long? folderId = null) =>
+        long? folderId = null,
+        string? reason = null) =>
         new()
         {
             Code = (int)code,
             Message = message,
             Data = category is null && retryAfterMs is null && requiresUserAction is null
-                   && accountId is null && folderId is null
+                   && accountId is null && folderId is null && reason is null
                 ? null
                 : new RpcErrorData
                 {
@@ -158,6 +162,7 @@ internal static class RpcErrorMapper
                     RequiresUserAction = requiresUserAction,
                     AccountId = accountId,
                     FolderId = folderId,
+                    Reason = reason,
                 },
         };
 

@@ -6,6 +6,8 @@
     mailcoded account test    [--account <id|email>] [--no-smtp]
     mailcoded account reauth  [--account <id|email>] [--client-id <guid>] [--tenant <name>]
     mailcoded account trust   [--account <id|email>] [--authserv-id <id>]... [--none] [--yes]
+    mailcoded account identity  <list|add|forget> [<address>] [--name <text>] [--reply-to <addr>] [--yes]
+    mailcoded account signature <list|set|forget|default> [<name>] [--file <path> | --stdin] [--none]
     mailcoded account add     ...                              (chapter 2)
     mailcoded account forget  --account <id|email> [--yes]
 
@@ -90,6 +92,47 @@ Changing the list clears the recorded DMARC results of that account, so nothing 
 a list you no longer hold. A message whose body is stored gets a result again the next time you read
 it; other mail gets one when it is synced or its body is fetched. Mail loaded with `import-eml` is
 never verified, and changing the list does not change that.
+
+## `account identity`
+
+    mailcoded account identity list
+    mailcoded account identity add sales@example.com [--name 'Sales Desk'] [--reply-to help@example.com] [--yes]
+    mailcoded account identity forget sales@example.com
+
+The extra addresses an account may send as. The account's own address is always allowed and cannot be
+forgotten. A draft whose From is neither it nor an identity is refused with exit 2 (chapter 7), whoever
+drafts it. `add` again for the same address, in any case, updates it. `--name` is the display name used
+in From for that address (at most 100 characters, no control characters), and `--reply-to` adds a
+Reply-To header to mail sent as it. An account can have 32 identities.
+
+mailcoded cannot discover your aliases; IMAP has no way to ask. Your mail server decides whether it
+accepts a From address, so add only the ones it lets this login use.
+
+An identity widens who your mail can claim to be from, so `add` is gated like `account trust`: it asks
+for confirmation at a terminal, and an unattended run needs `--yes` **and**
+`MAILCODED_ALLOW_IDENTITY_CHANGE=1`. It is absent from the MCP surface, and an agent must not run it.
+`forget` only narrows the list and needs no confirmation. Every change writes an audit row. `setup` and
+`account add` leave an existing account's identities alone.
+
+## `account signature`
+
+    mailcoded account signature list
+    mailcoded account signature set work --file ~/signature.txt        (or --stdin)
+    mailcoded account signature default new work
+    mailcoded account signature default reply short
+    mailcoded account signature default new --none
+    mailcoded account signature forget work
+
+Named plain-text signatures, with a default for new messages and another for replies (chapter 7 shows
+where one lands). A name is 1 to 32 letters, digits, `.`, `_` or `-` and is not case-sensitive. A
+signature is at most 2000 characters and 20 lines, and an account holds 16. Control characters, bidi
+overrides and zero-width characters are stripped, and a first line of `--` is dropped because the
+separator is added for you. A signature over the limit is refused, never cut short. `forget` clears
+any default that named the signature.
+
+Changing a signature needs no confirmation: its text appears in every `send-preview`, and it changes
+neither who the mail is from nor who receives it. Each change writes an audit row with the name and the
+length, never the text.
 
 ## `account forget`
 

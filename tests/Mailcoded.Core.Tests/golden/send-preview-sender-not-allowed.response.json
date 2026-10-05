@@ -1,0 +1,12 @@
+{
+  "error": {
+    "code": -32602,
+    "data": {
+      "category": "protocol",
+      "reason": "sender_not_allowed"
+    },
+    "message": "The From address is not this account's address or one of its configured sender identities."
+  },
+  "id": 8,
+  "jsonrpc": "2.0"
+}

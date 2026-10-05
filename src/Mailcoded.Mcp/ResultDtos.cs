@@ -137,6 +137,7 @@ internal sealed record DraftResultDto
     [JsonPropertyName("subject")] public string Subject { get; init; } = string.Empty;
     [JsonPropertyName("body_preview")] public string BodyPreview { get; init; } = string.Empty;
     [JsonPropertyName("body_chars")] public int BodyChars { get; init; }
+    [JsonPropertyName("signature")] public string? Signature { get; init; }
     [JsonPropertyName("in_reply_to")] public string? InReplyTo { get; init; }
     [JsonPropertyName("persisted")] public bool Persisted { get; init; }
     [JsonPropertyName("send_gate")] public SendGateDto SendGate { get; init; } = new();
@@ -156,6 +157,7 @@ internal sealed record SendPreviewResultDto
     [JsonPropertyName("bcc")] public IReadOnlyList<string> Bcc { get; init; } = [];
     [JsonPropertyName("subject")] public string Subject { get; init; } = string.Empty;
     [JsonPropertyName("body_preview")] public string BodyPreview { get; init; } = string.Empty;
+    [JsonPropertyName("signature")] public string? Signature { get; init; }
     [JsonPropertyName("size_bytes")] public long SizeBytes { get; init; }
     [JsonPropertyName("requires_smtputf8")] public bool RequiresSmtpUtf8 { get; init; }
     [JsonPropertyName("digest")] public string Digest { get; init; } = string.Empty;

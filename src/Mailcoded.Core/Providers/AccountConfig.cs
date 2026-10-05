@@ -1,3 +1,4 @@
+using Mailcoded.Core.Domain.Identities;
 using Mailcoded.Core.Domain.Primitives;
 
 namespace Mailcoded.Core.Providers;
@@ -28,6 +29,11 @@ public sealed record AccountConfig
 
     /// <summary>authserv-ids the human added for this Account, on top of what the provider preset implies.</summary>
     public IReadOnlyList<string> TrustedAuthservIds { get; init; } = [];
+
+    /// <summary>Extra From addresses this Account may send as. The account address needs no entry.</summary>
+    public IReadOnlyList<SenderIdentity> Identities { get; init; } = [];
+
+    public SignatureBook Signatures { get; init; } = SignatureBook.Empty;
 
     public Domain.Signals.AuthservTrust EffectiveAuthservTrust() =>
         ProviderPresets.TrustedAuthservIdsForImapHost(Imap.Host).Union(Domain.Signals.AuthservTrust.From(TrustedAuthservIds));

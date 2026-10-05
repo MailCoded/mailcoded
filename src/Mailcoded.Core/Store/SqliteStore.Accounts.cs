@@ -1,3 +1,4 @@
+using Mailcoded.Core.Domain.Identities;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Providers;
 using Microsoft.Data.Sqlite;
@@ -26,7 +27,7 @@ public sealed partial class SqliteStore
 
             if (existing is { } id)
             {
-                var json = AccountConfigJson.Write(config with { TrustedAuthservIds = StoredTrustedAuthservIds(context.Session, id) });
+                var json = AccountConfigJson.Write(AccountConfigJson.CarryOver(config, StoredConfigJson(context.Session, id)));
 
                 context.Session
                     .Prepare(
@@ -62,7 +63,7 @@ public sealed partial class SqliteStore
 
         return WriteAsync(context =>
         {
-            var json = AccountConfigJson.Write(config with { TrustedAuthservIds = StoredTrustedAuthservIds(context.Session, config.Id.Value) });
+            var json = AccountConfigJson.Write(AccountConfigJson.CarryOver(config, StoredConfigJson(context.Session, config.Id.Value)));
 
             var affected = context.Session
                 .Prepare(
@@ -117,15 +118,75 @@ public sealed partial class SqliteStore
         }, ct);
     }
 
-    private static IReadOnlyList<string> StoredTrustedAuthservIds(DbSession session, long accountId)
+    /// <summary>Replaces the Account's identity list with what <paramref name="edit"/> returns; false when nothing changed.</summary>
+    public Task<bool> EditIdentitiesAsync(
+        AccountId accountId,
+        Func<IReadOnlyList<SenderIdentity>, IReadOnlyList<SenderIdentity>> edit,
+        CancellationToken ct)
     {
-        var json = session
+        ArgumentNullException.ThrowIfNull(edit);
+
+        return EditAccountSettingAsync(
+            accountId,
+            current =>
+            {
+                var edited = edit(current.Identities);
+                return IdentitiesEqual(current.Identities, edited) ? null : current with { Identities = edited };
+            },
+            ct);
+    }
+
+    public Task<bool> EditSignaturesAsync(AccountId accountId, Func<SignatureBook, SignatureBook> edit, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(edit);
+
+        return EditAccountSettingAsync(
+            accountId,
+            current =>
+            {
+                var edited = edit(current.Signatures);
+                return SignaturesEqual(current.Signatures, edited) ? null : current with { Signatures = edited };
+            },
+            ct);
+    }
+
+    private Task<bool> EditAccountSettingAsync(AccountId accountId, Func<AccountConfig, AccountConfig?> change, CancellationToken ct) =>
+        WriteAsync(context =>
+        {
+            AccountConfig current;
+            using (var stored = context.Session
+                .Prepare(SelectAccount + " WHERE id = $id", "$id")
+                .SetInt(0, accountId.Value)
+                .ExecuteReader())
+            {
+                if (!stored.Read())
+                    throw new StoreException(FailureCategory.NotFound, $"No account with id {accountId.Value}.");
+
+                current = MapAccount(stored);
+            }
+
+            if (change(current) is not { } edited) return false;
+
+            context.Session
+                .Prepare("UPDATE accounts SET config_json = $config WHERE id = $id", "$config", "$id")
+                .SetText(0, AccountConfigJson.Write(edited))
+                .SetInt(1, accountId.Value)
+                .Execute();
+
+            return true;
+        }, ct);
+
+    private static bool IdentitiesEqual(IReadOnlyList<SenderIdentity> a, IReadOnlyList<SenderIdentity> b) =>
+        a.SequenceEqual(b);
+
+    private static bool SignaturesEqual(SignatureBook a, SignatureBook b) =>
+        a.Items.SequenceEqual(b.Items) && a.DefaultForNew == b.DefaultForNew && a.DefaultForReply == b.DefaultForReply;
+
+    private static string? StoredConfigJson(DbSession session, long accountId) =>
+        session
             .Prepare("SELECT config_json FROM accounts WHERE id = $id", "$id")
             .SetInt(0, accountId)
             .ExecuteString();
-
-        return json is null ? [] : AccountConfigJson.ReadTrustedAuthservIds(json);
-    }
 
     public IReadOnlyList<AccountConfig> ListAccounts(CancellationToken ct = default) =>
         Read(session =>

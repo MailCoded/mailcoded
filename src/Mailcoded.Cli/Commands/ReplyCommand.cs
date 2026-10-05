@@ -1,5 +1,6 @@
 using System.Globalization;
 using Mailcoded.Core.Application;
+using Mailcoded.Core.Domain.Identities;
 using Mailcoded.Core.Parsing;
 using Mailcoded.Core.Providers;
 
@@ -40,18 +41,19 @@ internal static class ReplyCommand
             }
         }
 
-        var self = Mailcoded.Core.Domain.Primitives.EmailAddress.TryParse(account.Email, out var me)
-            ? me
-            : (Mailcoded.Core.Domain.Primitives.EmailAddress?)null;
+        var selves = Mailcoded.Core.Domain.Primitives.EmailAddress.TryParse(account.Email, out var me)
+            ? SenderIdentities.OwnAddresses(me, account.Identities)
+            : [];
 
         var context = await host.Messages
-            .BuildReplyAsync(provider, id, line.Flag("all"), self, host.Caller, ct)
+            .BuildReplyAsync(provider, id, line.Flag("all"), selves, host.Caller, ct)
             .ConfigureAwait(false);
 
         if (context.To.Count == 0)
             throw new CliUsageException("The original message has no usable reply address.");
 
-        var body = ComposeBody(line, context);
+        var lead = ReadLead(line);
+        var quote = line.Flag("no-quote") ? string.Empty : context.QuotedBody;
 
         var preview = await host.Send.PreviewAsync(
             host.Caller,
@@ -61,7 +63,9 @@ internal static class ReplyCommand
                 To = context.To,
                 Cc = context.Cc,
                 Subject = context.Subject,
-                BodyText = body,
+                BodyText = lead,
+                QuotedText = quote,
+                Signature = SignatureOptions.Read(line),
                 InReplyTo = context.InReplyTo,
                 References = context.References,
             },
@@ -79,6 +83,8 @@ internal static class ReplyCommand
             JsonFields.WriteAddresses(writer, "to", context.To);
             JsonFields.WriteAddresses(writer, "cc", context.Cc);
             writer.WriteNumber("quoted_chars", context.QuotedBody.Length);
+            writer.WriteString("from", preview.From.Value);
+            JsonFields.WriteText(writer, "signature", preview.SignatureName);
             if (context.RejectedAddresses.Count > 0)
             {
                 writer.WriteStartArray("dropped_addresses");
@@ -92,6 +98,7 @@ internal static class ReplyCommand
         }
 
         output.Line($"draft {preview.OutboxId.ToString(CultureInfo.InvariantCulture)} — {context.Subject}");
+        output.Line($"  from {preview.From.Value}");
         output.Line($"  to   {string.Join(", ", context.To)}");
         if (context.Cc.Count > 0) output.Line($"  cc   {string.Join(", ", context.Cc)}");
         if (context.RejectedAddresses.Count > 0)
@@ -102,7 +109,7 @@ internal static class ReplyCommand
         return ExitCodes.Ok;
     }
 
-    private static string ComposeBody(CommandLine line, ReplyContext context)
+    private static string ReadLead(CommandLine line)
     {
         var lead = line.Value("body");
         if (lead is null && line.Value("body-file") is { } path)
@@ -111,8 +118,6 @@ internal static class ReplyCommand
             lead = File.ReadAllText(path);
         }
 
-        var quote = line.Flag("no-quote") ? string.Empty : context.QuotedBody;
-        if (string.IsNullOrEmpty(lead)) return quote;
-        return quote.Length == 0 ? lead : lead.TrimEnd() + "\n\n" + quote;
+        return lead ?? string.Empty;
     }
 }

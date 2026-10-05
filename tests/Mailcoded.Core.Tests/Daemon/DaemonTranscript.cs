@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO.Pipelines;
 using System.Text;
 using Mailcoded.Core.Application;
+using Mailcoded.Core.Domain.Identities;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Signals;
 using Mailcoded.Core.Providers;
@@ -112,6 +113,16 @@ internal sealed class DaemonTranscript : IAsyncDisposable
     private static async Task SeedAsync(DaemonHost host, CancellationToken ct)
     {
         var accountId = await StoreSeeder.AddAccountAsync(host.Store, ct).ConfigureAwait(false);
+
+        if (!SenderIdentity.TryCreate("sales@example.test", "Sales Desk", "help@example.test", out var identity, out var identityError))
+            throw new InvalidOperationException(identityError);
+
+        await host.Store.EditIdentitiesAsync(accountId, list => SenderIdentities.With(list, identity), ct).ConfigureAwait(false);
+        await host.Store.EditSignaturesAsync(
+            accountId,
+            book => book.Set("work", "Golden Tester\nExample Pty").WithDefault(SignatureUse.New, "work").WithDefault(SignatureUse.Reply, "work"),
+            ct).ConfigureAwait(false);
+
         var folderId = await StoreSeeder.AddInboxAsync(host.Store, accountId, ct).ConfigureAwait(false);
 
         await StoreSeeder.AddMessageAsync(

@@ -51,6 +51,7 @@ internal static class DraftCommand
                 Bcc = bcc,
                 Subject = subject,
                 BodyText = body,
+                Signature = SignatureOptions.Read(line),
                 From = from,
                 InReplyTo = inReplyTo,
                 References = references,
@@ -73,7 +74,8 @@ internal static class DraftCommand
             JsonFields.WriteAddresses(writer, "bcc", preview.Bcc);
             writer.WriteString("subject", preview.Subject);
             writer.WriteString("body_preview", preview.BodyPreview);
-            writer.WriteBoolean("body_truncated", preview.BodyPreview.Length < body.Length);
+            writer.WriteBoolean("body_truncated", preview.BodyTruncated);
+            JsonFields.WriteText(writer, "signature", preview.SignatureName);
             writer.WriteNumber("size_bytes", preview.SizeBytes);
             writer.WriteBoolean("requires_smtputf8", preview.RequiresSmtpUtf8);
             writer.WriteBoolean("confirm_token_issued", false);
@@ -97,6 +99,7 @@ internal static class DraftCommand
         if (preview.Bcc.Count > 0) output.Line($"bcc:        {Join(preview.Bcc)}");
         output.Line($"subject:    {SafeText.Line(preview.Subject, 200)}");
         output.Line($"size:       {preview.SizeBytes} bytes");
+        if (preview.SignatureName is { } signed) output.Line($"signature:  {signed}");
         output.Line($"send gate:  {preview.Gate.Label}");
         output.Line($"next:       mailcoded send-preview {preview.OutboxId}");
         return ExitCodes.Ok;

@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Text;
 using System.Text.Json;
+using Mailcoded.Core.Domain.Identities;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Sync;
 using Mailcoded.Core.Providers;
@@ -55,6 +56,43 @@ internal static class AccountConfigJson
                 writer.WriteStartArray("trustedAuthservIds");
                 foreach (var id in config.TrustedAuthservIds) writer.WriteStringValue(id);
                 writer.WriteEndArray();
+            }
+
+            if (config.Identities.Count > 0)
+            {
+                writer.WriteStartArray("identities");
+                foreach (var identity in config.Identities)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("address", identity.Address.Value);
+                    if (identity.DisplayName is { } name) writer.WriteString("displayName", name);
+                    if (identity.ReplyTo is { } replyTo) writer.WriteString("replyTo", replyTo.Value);
+                    writer.WriteEndObject();
+                }
+
+                writer.WriteEndArray();
+            }
+
+            if (!config.Signatures.IsEmpty)
+            {
+                writer.WriteStartArray("signatures");
+                foreach (var signature in config.Signatures.Items)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("name", signature.Name);
+                    writer.WriteString("text", signature.Text);
+                    writer.WriteEndObject();
+                }
+
+                writer.WriteEndArray();
+
+                if (config.Signatures.DefaultForNew is not null || config.Signatures.DefaultForReply is not null)
+                {
+                    writer.WriteStartObject("defaultSignature");
+                    if (config.Signatures.DefaultForNew is { } forNew) writer.WriteString("new", forNew);
+                    if (config.Signatures.DefaultForReply is { } forReply) writer.WriteString("reply", forReply);
+                    writer.WriteEndObject();
+                }
             }
 
             writer.WriteEndObject();
@@ -115,13 +153,81 @@ internal static class AccountConfigJson
             SecretRef = String(root, "secretRef") ?? string.Empty,
             Quirks = quirks,
             TrustedAuthservIds = StringArray(root, "trustedAuthservIds"),
+            Identities = ReadIdentities(root),
+            Signatures = ReadSignatures(root),
         };
     }
 
-    public static IReadOnlyList<string> ReadTrustedAuthservIds(string json)
+    /// <summary>The settings a re-registration of the Account must not wipe: they are edited elsewhere.</summary>
+    public static AccountConfig CarryOver(AccountConfig incoming, string? storedJson)
     {
-        using var document = JsonDocument.Parse(json);
-        return StringArray(document.RootElement, "trustedAuthservIds");
+        if (storedJson is null) return incoming;
+
+        using var document = JsonDocument.Parse(storedJson);
+        var root = document.RootElement;
+
+        return incoming with
+        {
+            TrustedAuthservIds = StringArray(root, "trustedAuthservIds"),
+            Identities = ReadIdentities(root),
+            Signatures = ReadSignatures(root),
+        };
+    }
+
+    private static IReadOnlyList<SenderIdentity> ReadIdentities(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty("identities", out var array)
+            || array.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var identities = new List<SenderIdentity>();
+        foreach (var item in array.EnumerateArray())
+        {
+            if (identities.Count >= SenderIdentities.MaxIdentities) break;
+
+            var entry = (JsonElement?)item;
+            if (!SenderIdentity.TryCreate(String(entry, "address"), String(entry, "displayName"), String(entry, "replyTo"), out var identity, out _))
+                continue;
+
+            identities.Add(identity);
+        }
+
+        return identities;
+    }
+
+    private static SignatureBook ReadSignatures(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty("signatures", out var array)
+            || array.ValueKind != JsonValueKind.Array)
+        {
+            return SignatureBook.Empty;
+        }
+
+        var book = SignatureBook.Empty;
+        foreach (var item in array.EnumerateArray())
+        {
+            var entry = (JsonElement?)item;
+            try
+            {
+                book = book.Set(String(entry, "name"), String(entry, "text"));
+            }
+            catch (ArgumentException)
+            {
+            }
+        }
+
+        var defaults = Child(root, "defaultSignature");
+        foreach (var (use, key) in new[] { (SignatureUse.New, "new"), (SignatureUse.Reply, "reply") })
+        {
+            if (String(defaults, key) is not { } name || book.Find(name) is null) continue;
+            book = book.WithDefault(use, name);
+        }
+
+        return book;
     }
 
     private static JsonElement? Child(JsonElement parent, string name) =>

@@ -26,6 +26,7 @@ you cannot loosen one by choosing the other.
 | search, read, thread | on | — |
 | tag | on | — |
 | draft | on | — |
+| add a sender identity | off | a terminal confirmation, or `MAILCODED_ALLOW_IDENTITY_CHANGE=1` and `--yes`; absent from MCP |
 | send | **off** | `MAILCODED_SEND=1`, `MAILCODED_APPROVED_RECIPIENTS`, a one-time token, at most 5 an hour |
 | raw SQL | **off** | `MAILCODED_ENABLE_SQL=1`; read-only and row-capped even then |
 | HTML bodies | never | agents get plaintext only |

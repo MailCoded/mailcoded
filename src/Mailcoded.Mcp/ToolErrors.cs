@@ -33,6 +33,14 @@ internal static class ToolErrors
             ToolFailureException failure => Error(failure.Code, failure.Message),
             ConfirmRequiredException => Error(ToolErrorCodes.ConfirmRequired, exception.Message),
             PolicyDeniedException denied => FromPolicy(denied),
+            SenderNotAllowedException sender => new ToolErrorDto
+            {
+                SchemaVersion = ProtocolConstants.Version,
+                Ok = false,
+                ErrorCode = ToolErrorCodes.InvalidParams,
+                Message = sender.Message,
+                Reason = SenderNotAllowedException.Reason,
+            },
             SmtpDeliveryException smtp => Error(ToolErrorCodes.SendFailed, smtp.Message),
             StoreException store => Error(CodeFor(store.Category, ToolErrorCodes.StoreError), store.Message),
             ProviderException provider => Error(CodeFor(provider.Category, ToolErrorCodes.Network), provider.Message),

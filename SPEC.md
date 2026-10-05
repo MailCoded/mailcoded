@@ -48,7 +48,7 @@ Backend first (M0–M2); the extension consumes released daemon binaries from M3
 - One IMAP account (app password or XOAUTH2), sync to local SQLite store.
 - Incremental sync: UIDVALIDITY tracking, QRESYNC/CONDSTORE fast resync, full-fetch fallback, lazy body fetch.
 - FTS5 search, notmuch-compatible tags (`unread`, `flagged`, `replied`, custom). Search leaves out Trash- and Junk-role Folders unless the query names a Folder, says `in:anywhere`, or is scoped to one Folder.
-- Send via SMTP with mandatory confirmation + outbox state machine.
+- Send via SMTP with mandatory confirmation + outbox state machine. A draft's From is the account address or a configured sender identity, checked in Core; plaintext signatures per account, with defaults for new messages and replies.
 - JSON-RPC daemon (stdio) + thin one-shot CLI (`mailcoded`, JSON output).
 - Secrets in OS keyring with encrypted-file fallback.
 - VS Code extension: sidebar, threaded list, reader (plaintext-first, sanitized HTML toggle, remote images blocked), tag/archive, compose/reply/send.

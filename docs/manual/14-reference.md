@@ -16,6 +16,7 @@
 | `MAILCODED_ALLOW_BACKUP` | CLI | `1`, `true` or `yes`; required for `backup` and `backup-verify` on the CLI at all. Never honoured over MCP, which has no such tool |
 | `MAILCODED_ALLOW_FORGET` | CLI | the same, for `account forget --yes` |
 | `MAILCODED_ALLOW_TRUST_CHANGE` | CLI | the same, for `account trust --yes`: changing which servers' `Authentication-Results` are believed |
+| `MAILCODED_ALLOW_IDENTITY_CHANGE` | CLI | the same, for `account identity add --yes`: widening which addresses mail can be sent as |
 | `MAILCODED_SECRET_BACKEND` | all | `auto` (default), `file`, `libsecret`, `keychain`, `wincred` |
 | `MAILCODED_SECRET_KEY` | all | a passphrase for the encrypted-file vault, instead of the machine key |
 | `MAILCODED_SECRET_KEY_FILE` | all | a file holding that passphrase |
@@ -105,7 +106,7 @@ key-bar entry · shift for the terminal's own selection.
 | `send-preview <draft>` | preview, and mint the token |
 | `send-draft <draft> --confirm-token <t>` | send |
 | `outbox` | queued, sending, sent, failed |
-| `account list`, `test`, `reauth`, `add`, `forget` | accounts |
+| `account list`, `test`, `reauth`, `trust`, `identity`, `signature`, `add`, `forget` | accounts |
 | `sync` | pull changes |
 | `import-eml <dir>` | load `.eml` files |
 | `backup <dir>`, `backup-verify <dir>` | a verifiable copy of the store; check one (gated, chapter 3) |

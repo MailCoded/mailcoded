@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Mailcoded.Core.Application;
+using Mailcoded.Core.Domain.Identities;
 using Mailcoded.Core.Domain.Outbox;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Signals;
@@ -231,12 +232,13 @@ internal sealed class MailTools
             McpJsonContext.Default.TagResultDto);
     }
 
-    public Task<string> DraftAsync(ToolArgs args, CancellationToken ct)
+    public async Task<string> DraftAsync(ToolArgs args, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
 
         var accountId = args.RequirePositiveInt64("account_id");
         var draft = ReadDraft(args);
+        var prepared = await _host.Send.PrepareDraftAsync(_host.Caller, new AccountId(accountId), draft, ct).ConfigureAwait(false);
 
         var recipients = new List<EmailAddress>(draft.To.Count + draft.Cc.Count + draft.Bcc.Count);
         recipients.AddRange(draft.To);
@@ -245,24 +247,25 @@ internal sealed class MailTools
 
         var gate = _host.Policy.EvaluateSend(_host.Caller, recipients);
 
-        return Task.FromResult(Json(
+        return Json(
             new DraftResultDto
             {
                 SchemaVersion = ProtocolConstants.Version,
                 AccountId = accountId,
-                From = draft.From?.Value,
+                From = prepared.From.Value,
                 To = Wire.Addresses(draft.To),
                 Cc = Wire.Addresses(draft.Cc),
                 Bcc = Wire.Addresses(draft.Bcc),
                 Subject = draft.Subject,
-                BodyPreview = Wire.Truncate(draft.BodyText, BodyPreviewChars),
-                BodyChars = draft.BodyText.Length,
+                BodyPreview = Wire.Truncate(prepared.BodyText, BodyPreviewChars),
+                BodyChars = prepared.BodyText.Length,
+                Signature = prepared.SignatureName,
                 InReplyTo = draft.InReplyTo?.Value,
                 Persisted = false,
                 SendGate = ToGate(gate),
                 NextStep = "Show this to the human. Call send_preview with the same arguments only when they ask you to send.",
             },
-            McpJsonContext.Default.DraftResultDto));
+            McpJsonContext.Default.DraftResultDto);
     }
 
     public async Task<string> SendPreviewAsync(ToolArgs args, CancellationToken ct)
@@ -286,6 +289,7 @@ internal sealed class MailTools
                 Bcc = Wire.Addresses(preview.Bcc),
                 Subject = preview.Subject,
                 BodyPreview = preview.BodyPreview,
+                Signature = preview.SignatureName,
                 SizeBytes = preview.SizeBytes,
                 RequiresSmtpUtf8 = preview.RequiresSmtpUtf8,
                 Digest = preview.Digest,
@@ -432,6 +436,10 @@ internal sealed class MailTools
             from = parsed;
         }
 
+        var signature = args.OptionalString("signature") is { Length: > 0 } signatureName
+            ? SignatureChoice.Named(signatureName)
+            : args.OptionalBool("no_signature", false) ? SignatureChoice.None : SignatureChoice.UseDefault;
+
         MessageId? inReplyTo = null;
         if (args.OptionalString("in_reply_to") is { } replyArgument)
         {
@@ -447,6 +455,7 @@ internal sealed class MailTools
             Bcc = ParseAddresses(args.StringArray("bcc"), "bcc"),
             Subject = subject,
             BodyText = body,
+            Signature = signature,
             From = from,
             InReplyTo = inReplyTo,
             References = ParseMessageIds(args.StringArray("references"), "references"),

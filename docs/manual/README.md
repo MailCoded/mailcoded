@@ -28,7 +28,7 @@ the manual has a bug — please report it.
 5. [Reading and searching from the command line](05-reading-and-searching.md) — `search`, `read`, `thread`, `attachments`, `folders`
 6. [Triage](06-triage.md) — Tags and Flags, `tag`, `move`, `archive`, and why there is no delete
 7. [Sending](07-sending.md) — drafts, the two-phase send, the outbox, and who the send gate applies to
-8. [Accounts](08-accounts.md) — `account list`, `test`, `reauth`, `add`, `forget`
+8. [Accounts](08-accounts.md) — `account list`, `test`, `reauth`, `trust`, `identity`, `signature`, `add`, `forget`
 9. [Sync and the daemon](09-sync-and-daemon.md) — `sync`, live updates, one daemon per store, running the daemon yourself
 10. [Importing mail and raw SQL](10-import-and-sql.md) — `import-eml`, `query --sql`, reading the audit trail
 11. [Agents](11-agents.md) — the two-minute version, and where the real document is

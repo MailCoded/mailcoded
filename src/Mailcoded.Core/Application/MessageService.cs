@@ -202,7 +202,7 @@ public sealed class MessageService
         IMailProvider? provider,
         LocalMessageId id,
         bool replyAll,
-        EmailAddress? self,
+        IReadOnlyList<EmailAddress> selves,
         CallerContext caller,
         CancellationToken ct)
     {
@@ -220,7 +220,7 @@ public sealed class MessageService
         }
 
         var parsed = _parser.Parse(raw, envelope.DateUtc, ct);
-        return ReplyBuilder.Create(parsed, self, replyAll);
+        return ReplyBuilder.Create(parsed, selves, replyAll);
     }
 
     /// <summary>

@@ -258,6 +258,12 @@ internal static class WireMapper
                 },
             SecretRef = account.SecretRef,
             Quirks = QuirkNames(account.Quirks.Latched),
+            Identities = account.Identities
+                .Select(i => new IdentityDto { Address = i.Address.Value, DisplayName = i.DisplayName, ReplyTo = i.ReplyTo?.Value })
+                .ToArray(),
+            Signatures = account.Signatures.Items.Select(x => new SignatureDto { Name = x.Name, Text = x.Text }).ToArray(),
+            DefaultSignatureNew = account.Signatures.DefaultForNew,
+            DefaultSignatureReply = account.Signatures.DefaultForReply,
         };
     }
 

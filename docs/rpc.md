@@ -238,7 +238,13 @@ credential here is impossible by design.
 `{}` → `{ "accounts": [AccountDto] }`
 
 `AccountDto` carries `secretRef` (an opaque handle) and `quirks` (latched server-quirk names for
-diagnostics). It never carries a credential.
+diagnostics). It never carries a credential. It also lists what the account may send as and with:
+`identities` (`[{ address, displayName?, replyTo? }]`, besides `email`, which is always allowed),
+`signatures` (`[{ name, text }]`, plain text without the `-- ` separator line) and
+`defaultSignatureNew` / `defaultSignatureReply`, the names of the signatures a new message and a
+reply start with (absent when none is set). There is no method that changes them: a human does that
+with `mailcoded account identity` and `mailcoded account signature`, and the daemon reads the
+current values on every call. An older daemon sends none of these fields; treat them as absent.
 
 ### `folder.list`
 `{ "accountId": 1 }` → `{ "folders": [FolderDto] }`
@@ -484,7 +490,8 @@ whose `role` is `trash` is as close as the protocol gets, and that is a normal m
 { "accountId": 1,
   "draft": { "from": null, "to": ["a@b.com"], "cc": [], "bcc": [],
              "subject": "Re: invoice", "bodyText": "Thanks — looking now.\n",
-             "inReplyTo": null, "references": [], "replyToMessageId": 4213 } }
+             "inReplyTo": null, "references": [], "replyToMessageId": 4213,
+             "quotedText": null, "signature": null, "useDefaultSignature": null } }
 ```
 →
 ```json
@@ -507,6 +514,26 @@ brackets; it is immutable and is the idempotency key for the send. `warnings` ar
 
 At least one recipient across `to`/`cc`/`bcc` is required. `replyToMessageId` makes the daemon
 derive `In-Reply-To`/`References` for you; `inReplyTo` is the raw form (no angle brackets).
+
+**Who the message is from.** `from` must be the account's own address or one of its `identities`,
+compared without regard to case; the message goes out with the configured spelling, that
+identity's display name (else the account's) and its `replyTo` as a `Reply-To` header. Any other
+address answers **-32602** with `error.data.reason = "sender_not_allowed"` (and nothing is queued).
+Omitted, `from` is the account address, or, when the draft is a reply (`replyToMessageId` or
+`inReplyTo` names a message this account holds), the first address in that message's `To` then `Cc`
+that the account owns, so a reply to mail sent to an alias comes from the alias. The check is made
+in Core for every caller; no client can skip it.
+
+**Signatures.** With none of the three fields set, `bodyText` is built exactly as sent. `signature`
+names one of the account's signatures; `useDefaultSignature: true` asks for the account's default
+for a new message or for a reply (a reply is a draft with `inReplyTo` or `replyToMessageId`).
+`signature` wins when both are given; an unknown name answers **-32602**. The signature goes after
+a line holding `-- ` (RFC 3676), after your text; send the quoted original of a reply in `quotedText`
+rather than inside `bodyText` and it goes below the signature. `useDefaultSignature` adds nothing to
+a `bodyText` that already holds its own `-- ` line. `preview.bodyPreview` shows the final body,
+signature included, and `bodyTruncated` refers to that final body. A client that composes a whole
+body itself, as an editor does, can instead insert the text from `account.list` and leave all three
+fields unset.
 
 **Show the preview to a human. The preview is the supervision.** Do not mint a token and consume
 it in the same automated step.
@@ -769,7 +796,10 @@ the same convention as `notify.mail.added`; `folderId` and `folderName` are abse
 ```
 
 `error.data` is present only when the daemon has something machine-readable to say; treat every
-field in it as optional. `data.detail` is extra context that is safe to display.
+field in it as optional. `data.detail` is extra context that is safe to display. `data.reason` is a
+stable slug for a refusal a client can branch on without reading prose; today the only one is
+`sender_not_allowed` (-32602: a draft's `from` is neither the account address nor one of its
+identities).
 
 `message` is short, stable prose, control characters stripped, capped at 240 characters. **No
 error message ever carries a credential or mail content** — do not try to parse mail data out of
@@ -789,7 +819,7 @@ a row here in the same PR.**
 | `-32700` | ParseError | Malformed JSON, or a malformed frame. | **Fatal for the stream.** The pipe is desynchronized and the daemon stops reading. Kill the process and respawn; do not retry on the same pipe. Fix the framing bug. |
 | `-32600` | InvalidRequest | Valid JSON, not a valid JSON-RPC request object (missing `method`, `jsonrpc` ≠ `"2.0"`, a batch array). | Client bug. Do not retry. Fix the request shape. |
 | `-32601` | MethodNotFound | No such method on this protocol version. | Client bug or a version mismatch. Do not retry. Check `capabilities.methods` from `initialize` and degrade the feature. |
-| `-32602` | InvalidParams | Params missing, wrong type, or failed validation (also raised for a bad `interface`, a blank `threadKey`, an unparseable address). | Client bug. Do not retry unchanged. Surface the message to a developer, not to an end user. |
+| `-32602` | InvalidParams | Params missing, wrong type, or failed validation (also raised for a bad `interface`, a blank `threadKey`, an unparseable address, an unknown signature name, and a draft `from` the account does not own, which also carries `data.reason: "sender_not_allowed"`). | Client bug. Do not retry unchanged. Surface the message to a developer, not to an end user. |
 | `-32603` | InternalError | An unhandled daemon failure, or a cancelled request. The message never carries mail content. | Retry once at most. If it repeats, capture the daemon's stderr (which has the stack trace) and file a bug. |
 | `1000` | Auth | Authentication to the mail server failed, or the stored credential is gone. | **Stop and ask the human.** Never retry in a loop — repeated failures lock accounts. Prompt for a new app password, write it with `secret.set`, then retry once. Surface the account in the UI as needing attention. |
 | `1001` | Network | Transient network or TLS failure. | Retry with **exponential backoff and jitter**, honouring `data.retryAfterMs` when present. Keep the UI in a "reconnecting" state rather than showing an error dialog. Timeouts are reconnect triggers, not fatal errors. |
@@ -814,7 +844,7 @@ a row here in the same PR.**
 | provider: auth | `1000` · network or protocol → `1001` · notFound → `1002` · busy → `1005` · full → `1007` · unsupported or permanent → `1008` |
 | store: notFound | `1002` · full → `1007` · busy → `1005` · auth → `1000` · network → `1001` · unsupported → `1008` · anything else → `1004` |
 | secret store | `1000` (`requiresUserAction: true`) |
-| JSON, argument, format, overflow, not-supported | `-32602` |
+| JSON, argument, format, overflow, not-supported | `-32602` (a `from` the account does not own adds `data.reason: "sender_not_allowed"`) |
 | cancellation | `-32603`, `category: "busy"` |
 | anything else | `-32603` with a generic message; the stack trace goes to stderr only |
 
@@ -904,8 +934,8 @@ shell agent to branch:
 Described, not transferred; bytes come from `attachment.get`.
 
 ### `AccountDto`
-`{ id, email, displayName?, provider, auth, imap?, smtp?, secretRef?, quirks[] }` — never a
-credential.
+`{ id, email, displayName?, provider, auth, imap?, smtp?, secretRef?, quirks[], identities[],
+signatures[], defaultSignatureNew?, defaultSignatureReply? }` — never a credential.
 
 ### 7.1 The two meanings of `truncated`
 

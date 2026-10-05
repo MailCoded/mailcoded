@@ -137,7 +137,10 @@ A Tag name is lower-cased, at most 128 characters, printable ASCII, with no whit
 
 `c` starts a blank message. `r` and `R` in the reader start a reply with the recipients, a `Re:`
 subject, the quoted original and the threading headers already filled in. The composer has To, Cc,
-Bcc, Subject and a body.
+Bcc, Subject and a body. When the account has a default signature (chapter 8) it is already in the
+body, after a `-- ` line, with room above it to type; in a reply it sits between your text and the quote.
+Edit or delete it like any other text. A reply is sent as the identity the original was addressed to;
+the confirmation screen shows the From.
 
 | Key | |
 |---|---|

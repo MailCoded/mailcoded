@@ -56,6 +56,9 @@ public sealed record RpcErrorData
     /// <summary>Adapter failure category: <c>network|protocol|auth|busy|full|notFound|unsupported</c>.</summary>
     public string? Category { get; init; }
 
+    /// <summary>Stable slug for a refusal a client can branch on, e.g. <c>sender_not_allowed</c>.</summary>
+    public string? Reason { get; init; }
+
     /// <summary>Extra context that is safe to display. Never mail content, never a credential.</summary>
     public string? Detail { get; init; }
 

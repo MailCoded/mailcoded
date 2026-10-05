@@ -1,0 +1,11 @@
+{
+  "error": {
+    "code": -32602,
+    "data": {
+      "category": "protocol"
+    },
+    "message": "There is no signature with that name."
+  },
+  "id": 9,
+  "jsonrpc": "2.0"
+}

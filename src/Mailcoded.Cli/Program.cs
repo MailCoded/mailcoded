@@ -50,7 +50,7 @@ internal static class Program
         if (tokens.Count == 0 || tokens[0] is "help" or "--help" or "-h")
         {
             var topic = tokens.Count > 1 ? tokens[1] : null;
-            if (topic == "account" && tokens.Count > 2 && tokens[2] is "forget" or "trust") topic = "account " + tokens[2];
+            if (topic == "account" && tokens.Count > 2 && tokens[2] is "forget" or "trust" or "identity" or "signature") topic = "account " + tokens[2];
             output.WriteHelp(HelpText.For(NormalizeTopic(topic)));
             return ExitCodes.Ok;
         }
@@ -63,7 +63,7 @@ internal static class Program
         if (verb == "account")
         {
             if (tokens.Count == 0)
-                throw new CliUsageException("'account' needs a subcommand; the only one is 'account add'.");
+                throw new CliUsageException($"'account' needs a subcommand: {CommandTable.AccountSubcommands()}.");
 
             var sub = tokens[0];
             tokens.RemoveAt(0);

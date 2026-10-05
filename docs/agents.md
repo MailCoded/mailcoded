@@ -195,7 +195,14 @@ mailcoded send-preview <draft_id> --json
 mailcoded send-draft <draft_id> --confirm-token <token> --json
 ```
 
-`draft` never prints a token. `send-preview` shows you exactly who would receive the
+`draft` never prints a token. `--from` must be the account's own address or a sender identity the
+human configured (`mailcoded account identity list`); anything else exits 2 with the error name
+`sender_not_allowed` and queues nothing. You may use an identity but not add one: `account identity add`
+needs a terminal confirmation or `MAILCODED_ALLOW_IDENTITY_CHANGE=1` with `--yes`, and the MCP server has
+no such tool. `draft`, `reply` and the MCP `draft` / `send_preview` tools append the account's default
+plaintext signature after a `-- ` line, above the quote in a reply; `--signature <name>` /
+`signature` picks another and `--no-signature` / `no_signature` leaves it out. `send-preview` shows
+you exactly who would receive the
 message and mints the token; you are meant to read that preview and decide. `send-draft`
 without a valid, unexpired, unconsumed token fails with exit 6 (RPC 1003); with a closed
 gate it fails with exit 4 (RPC 1006); over budget it fails with exit 5 and a

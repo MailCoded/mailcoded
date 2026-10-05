@@ -42,8 +42,8 @@ internal static class CommandTable
 
         new CliCommandDefinition("draft",
             new VerbSpec(
-                ["to", "cc", "bcc", "subject", "body-file", "from", "reply-to", "in-reply-to", "account"],
-                ["body-stdin"]),
+                ["to", "cc", "bcc", "subject", "body-file", "from", "reply-to", "in-reply-to", "account", "signature"],
+                ["body-stdin", "no-signature"]),
             DraftCommand.RunAsync),
 
         new CliCommandDefinition("unsubscribe",
@@ -93,6 +93,14 @@ internal static class CommandTable
             new VerbSpec(["account", "authserv-id"], ["none", "yes"]),
             AccountTrustCommand.RunAsync),
 
+        new CliCommandDefinition("account identity",
+            new VerbSpec(["account", "name", "reply-to"], ["yes"]),
+            AccountIdentityCommand.RunAsync),
+
+        new CliCommandDefinition("account signature",
+            new VerbSpec(["account", "file"], ["stdin", "none"]),
+            AccountSignatureCommand.RunAsync),
+
         new CliCommandDefinition("account reauth",
             new VerbSpec(["account", "client-id", "tenant"], []),
             AccountReauthCommand.RunAsync),
@@ -102,7 +110,7 @@ internal static class CommandTable
             AttachmentsCommand.RunAsync),
 
         new CliCommandDefinition("reply",
-            new VerbSpec(["body", "body-file"], ["all", "no-quote", "no-fetch"]),
+            new VerbSpec(["body", "body-file", "signature"], ["all", "no-quote", "no-fetch", "no-signature"]),
             ReplyCommand.RunAsync),
 
         new CliCommandDefinition("outbox", new VerbSpec(["state"], []), OutboxCommand.RunAsync),

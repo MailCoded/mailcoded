@@ -53,6 +53,16 @@ export interface AccountDto {
   secretRef?: string;
   /** Latched server quirk names, for diagnostics. */
   quirks: readonly string[];
+  /**
+   * Extra From addresses this account may send as, besides AccountDto.Email, which is always
+   * allowed.
+   */
+  identities: readonly IdentityDto[];
+  signatures: readonly SignatureDto[];
+  /** Name of the signature a new message starts with, when one is set. */
+  defaultSignatureNew?: string;
+  /** Name of the signature a reply starts with, when one is set. */
+  defaultSignatureReply?: string;
 }
 
 export interface AccountHealthDto {
@@ -181,7 +191,10 @@ export interface CapabilitiesDto {
  * out of scope for v0.1. Addresses are validated into `EmailAddress` before anything is built.
  */
 export interface DraftDto {
-  /** Defaults to the account's own address when omitted. */
+  /**
+   * The account address or one of its identities, else -32602 with reason `sender_not_allowed`.
+   * Omitted, a reply uses the identity the original was sent to.
+   */
   from?: string;
   to?: readonly string[];
   cc?: readonly string[];
@@ -195,6 +208,20 @@ export interface DraftDto {
    * Local id of the message being replied to; the daemon derives References from it when set.
    */
   replyToMessageId?: number;
+  /**
+   * The quoted original of a reply. Send it here, not inside `bodyText`, and a signature lands
+   * above it.
+   */
+  quotedText?: string;
+  /**
+   * Name of one of the account's signatures to insert. Unknown names are rejected with -32602.
+   */
+  signature?: string;
+  /**
+   * Insert the account's default signature for a new message or a reply. Ignored when
+   * `signature` is set.
+   */
+  useDefaultSignature?: boolean;
 }
 
 /**
@@ -330,6 +357,12 @@ export interface HealthParams {}
 
 export interface HealthResult {
   health: HealthDto;
+}
+
+export interface IdentityDto {
+  address: string;
+  displayName?: string;
+  replyTo?: string;
 }
 
 export interface ImapConfigDto {
@@ -526,6 +559,8 @@ export interface ProviderPresetDto {
 export interface RpcErrorData {
   /** Adapter failure category: `network|protocol|auth|busy|full|notFound|unsupported`. */
   category?: string;
+  /** Stable slug for a refusal a client can branch on, e.g. `sender_not_allowed`. */
+  reason?: string;
   /** Extra context that is safe to display. Never mail content, never a credential. */
   detail?: string;
   /** How long to wait before retrying, when the daemon can estimate it. */
@@ -643,6 +678,15 @@ export interface SendResult {
 export interface ShutdownParams {}
 
 export interface ShutdownResult {}
+
+/**
+ * A plaintext signature. SignatureDto.Text has no separator line; the RFC 3676 `-- ` line goes
+ * before it when it is inserted.
+ */
+export interface SignatureDto {
+  name: string;
+  text: string;
+}
 
 export interface SmtpConfigDto {
   host: string;

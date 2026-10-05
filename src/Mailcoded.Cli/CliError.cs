@@ -74,6 +74,10 @@ internal sealed record CliError
                 CategoryCode(provider.Category), CategoryName(provider.Category), CategoryExit(provider.Category),
                 provider.Message),
 
+            SenderNotAllowedException sender => Make(
+                RpcErrorCode.InvalidParams, SenderNotAllowedException.Reason, ExitCodes.Validation, sender.Message,
+                hint: "Run 'mailcoded account identity list' for the addresses this account may send as."),
+
             ArgumentException or FormatException or OverflowException => Make(
                 RpcErrorCode.InvalidParams, "invalid_params", ExitCodes.Validation, exception.Message),
 

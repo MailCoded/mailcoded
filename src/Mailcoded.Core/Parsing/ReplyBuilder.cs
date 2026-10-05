@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Mailcoded.Core.Domain.Identities;
 using Mailcoded.Core.Domain.Primitives;
 
 namespace Mailcoded.Core.Parsing;
@@ -16,7 +17,7 @@ public static class ReplyBuilder
 
     public static ReplyContext Create(
         ParsedMessage original,
-        EmailAddress? self = null,
+        IReadOnlyList<EmailAddress>? selves = null,
         bool replyAll = false,
         int maxQuotedChars = 64_000)
     {
@@ -31,7 +32,7 @@ public static class ReplyBuilder
         rejected.AddRange(fromRejected);
 
         var to = replyTo.Count > 0 ? replyTo : from;
-        to = Exclude(to, self, []);
+        to = Exclude(to, selves ?? [], []);
 
         IReadOnlyList<EmailAddress> cc = [];
         if (replyAll)
@@ -45,7 +46,7 @@ public static class ReplyBuilder
             var combined = new List<EmailAddress>(originalTo.Count + originalCc.Count);
             combined.AddRange(originalTo);
             combined.AddRange(originalCc);
-            cc = Exclude(combined, self, to);
+            cc = Exclude(combined, selves ?? [], to);
         }
 
         return new ReplyContext
@@ -150,16 +151,16 @@ public static class ReplyBuilder
 
     private static IReadOnlyList<EmailAddress> Exclude(
         IReadOnlyList<EmailAddress> source,
-        EmailAddress? self,
+        IReadOnlyList<EmailAddress> selves,
         IReadOnlyList<EmailAddress> already)
     {
         var result = new List<EmailAddress>(source.Count);
 
         foreach (var address in source)
         {
-            if (self is { } me && address == me) continue;
-            if (result.Contains(address)) continue;
-            if (already.Contains(address)) continue;
+            if (selves.Any(me => SenderIdentities.Same(address, me))) continue;
+            if (result.Any(seen => SenderIdentities.Same(address, seen))) continue;
+            if (already.Any(seen => SenderIdentities.Same(address, seen))) continue;
             result.Add(address);
         }
 

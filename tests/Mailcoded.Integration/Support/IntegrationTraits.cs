@@ -13,4 +13,5 @@ public static class IntegrationTraits
     public const string Idle = "idle";
     public const string Signals = "signals";
     public const string Progress = "progress";
+    public const string Identities = "identities";
 }

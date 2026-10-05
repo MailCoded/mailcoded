@@ -43,6 +43,15 @@ they cannot end up in your shell history. For a password account, `setup` verifi
 storing anything, and a failed attempt stores nothing; a Microsoft sign-in stores its grant as soon as
 the browser step completes, before the mailbox is checked (chapter 2).
 
+## Who a message can claim to be from
+
+A draft's From must be your account address or an identity you added (chapter 8), whichever surface
+drafts it: Core refuses anything else (exit 2, `sender_not_allowed`) before a message is queued, and
+writes an audit row. An agent can use an identity but cannot add one: `account identity add` needs a
+terminal confirmation, or `MAILCODED_ALLOW_IDENTITY_CHANGE=1` with `--yes`, and the MCP server has no
+tool for it. Your mail server still decides whether it accepts the address. Signatures are not gated;
+their text is in every send preview, and they change neither the sender nor the recipients.
+
 ## A backup is a copy of everything
 
 `mailcoded backup` (chapter 3) writes a plaintext copy of the whole store and its attachments, which is

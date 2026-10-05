@@ -5,9 +5,18 @@
     "accounts": [
       {
         "auth": "password",
+        "defaultSignatureNew": "work",
+        "defaultSignatureReply": "work",
         "displayName": "Golden Tester",
         "email": "golden@example.test",
         "id": 1,
+        "identities": [
+          {
+            "address": "sales@example.test",
+            "displayName": "Sales Desk",
+            "replyTo": "help@example.test"
+          }
+        ],
         "imap": {
           "host": "imap.example.test",
           "port": 993,
@@ -17,7 +26,13 @@
         },
         "provider": "imap",
         "quirks": [],
-        "secretRef": "imap:golden@example.test"
+        "secretRef": "imap:golden@example.test",
+        "signatures": [
+          {
+            "name": "work",
+            "text": "Golden Tester\nExample Pty"
+          }
+        ]
       }
     ]
   }

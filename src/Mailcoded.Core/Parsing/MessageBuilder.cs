@@ -32,6 +32,7 @@ public static class MessageBuilder
         ArgumentNullException.ThrowIfNull(spec);
 
         if (spec.From.RequiresSmtpUtf8()) return true;
+        if (spec.ReplyTo is { } replyTo && replyTo.RequiresSmtpUtf8()) return true;
         foreach (var a in spec.To) if (a.RequiresSmtpUtf8()) return true;
         foreach (var a in spec.Cc) if (a.RequiresSmtpUtf8()) return true;
         foreach (var a in spec.Bcc) if (a.RequiresSmtpUtf8()) return true;
@@ -58,6 +59,7 @@ public static class MessageBuilder
         try
         {
             message.From.Add(ToMailbox(spec.From, spec.FromDisplayName, "From"));
+            if (spec.ReplyTo is { } replyTo) message.ReplyTo.Add(ToMailbox(replyTo, null, "Reply-To"));
             AddAll(message.To, spec.To, "To");
             AddAll(message.Cc, spec.Cc, "Cc");
 

@@ -1,5 +1,6 @@
 using System.Text;
 using Mailcoded.Core.Auth;
+using Mailcoded.Core.Domain.Identities;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Sync;
 using Mailcoded.Core.Providers;
@@ -133,6 +134,129 @@ public sealed class AccountService
             caller,
             AuditText.Fields(("host", config.Imap.Host)),
             ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Adds a sender identity, or updates the one with the same address. False when it was already exactly this.</summary>
+    public async Task<bool> AddIdentityAsync(
+        AccountId accountId,
+        string? address,
+        string? displayName,
+        string? replyTo,
+        CallerContext caller,
+        CancellationToken ct)
+    {
+        if (!SenderIdentity.TryCreate(address, displayName, replyTo, out var identity, out var error))
+            throw new ArgumentException(error);
+
+        var changed = await _store
+            .EditIdentitiesAsync(accountId, current => SenderIdentities.With(current, identity), ct)
+            .ConfigureAwait(false);
+
+        if (changed)
+        {
+            await _audit.WarnAsync(
+                AuditEvents.IdentityAdded,
+                accountId,
+                caller,
+                AuditText.Fields(
+                    ("address", identity.Address.Value),
+                    ("reply_to", identity.ReplyTo?.Value),
+                    ("named", AuditText.Bool(identity.DisplayName is not null))),
+                ct).ConfigureAwait(false);
+        }
+
+        return changed;
+    }
+
+    public async Task<bool> ForgetIdentityAsync(AccountId accountId, string? address, CallerContext caller, CancellationToken ct)
+    {
+        if (!EmailAddress.TryParse(address, out var parsed))
+            throw new ArgumentException("The identity address is not a valid email address.");
+
+        var changed = await _store
+            .EditIdentitiesAsync(accountId, current => SenderIdentities.Without(current, parsed, out _), ct)
+            .ConfigureAwait(false);
+
+        if (changed)
+        {
+            await _audit.WarnAsync(
+                AuditEvents.IdentityForgotten,
+                accountId,
+                caller,
+                AuditText.Fields(("address", parsed.Value)),
+                ct).ConfigureAwait(false);
+        }
+
+        return changed;
+    }
+
+    /// <summary>Creates or replaces a named signature. The audit row names it and counts its characters; it never holds the text.</summary>
+    public async Task<bool> SetSignatureAsync(AccountId accountId, string? name, string? text, CallerContext caller, CancellationToken ct)
+    {
+        var changed = await _store
+            .EditSignaturesAsync(accountId, book => book.Set(name, text), ct)
+            .ConfigureAwait(false);
+
+        if (changed)
+        {
+            SignatureText.TryNormalizeName(name, out var normalized);
+            SignatureText.TryNormalize(text, out var clean, out _);
+
+            await _audit.InfoAsync(
+                AuditEvents.SignatureSet,
+                accountId,
+                caller,
+                AuditText.Fields(("name", normalized), ("chars", AuditText.Number(clean.Length))),
+                ct).ConfigureAwait(false);
+        }
+
+        return changed;
+    }
+
+    public async Task<bool> ForgetSignatureAsync(AccountId accountId, string? name, CallerContext caller, CancellationToken ct)
+    {
+        var changed = await _store
+            .EditSignaturesAsync(accountId, book => book.Forget(name, out _), ct)
+            .ConfigureAwait(false);
+
+        if (changed)
+        {
+            SignatureText.TryNormalizeName(name, out var normalized);
+            await _audit.InfoAsync(
+                AuditEvents.SignatureForgotten,
+                accountId,
+                caller,
+                AuditText.Fields(("name", normalized)),
+                ct).ConfigureAwait(false);
+        }
+
+        return changed;
+    }
+
+    /// <summary>A null name clears the default for that use.</summary>
+    public async Task<bool> SetDefaultSignatureAsync(
+        AccountId accountId,
+        SignatureUse use,
+        string? name,
+        CallerContext caller,
+        CancellationToken ct)
+    {
+        var changed = await _store
+            .EditSignaturesAsync(accountId, book => book.WithDefault(use, name), ct)
+            .ConfigureAwait(false);
+
+        if (changed)
+        {
+            SignatureText.TryNormalizeName(name, out var normalized);
+            await _audit.InfoAsync(
+                AuditEvents.SignatureDefaultChanged,
+                accountId,
+                caller,
+                AuditText.Fields(("for", use.ToString().ToLowerInvariant()), ("name", name is null ? "none" : normalized)),
+                ct).ConfigureAwait(false);
+        }
+
+        return changed;
     }
 
     /// <summary>Stores a credential under an opaque handle. The value never reaches any other sink.</summary>

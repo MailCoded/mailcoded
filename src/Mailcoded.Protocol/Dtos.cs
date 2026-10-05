@@ -110,6 +110,34 @@ public sealed record AccountDto
 
     /// <summary>Latched server quirk names, for diagnostics.</summary>
     public IReadOnlyList<string> Quirks { get; init; } = [];
+
+    /// <summary>Extra From addresses this account may send as, besides <see cref="Email"/>, which is always allowed.</summary>
+    public IReadOnlyList<IdentityDto> Identities { get; init; } = [];
+
+    public IReadOnlyList<SignatureDto> Signatures { get; init; } = [];
+
+    /// <summary>Name of the signature a new message starts with, when one is set.</summary>
+    public string? DefaultSignatureNew { get; init; }
+
+    /// <summary>Name of the signature a reply starts with, when one is set.</summary>
+    public string? DefaultSignatureReply { get; init; }
+}
+
+public sealed record IdentityDto
+{
+    public required string Address { get; init; }
+
+    public string? DisplayName { get; init; }
+
+    public string? ReplyTo { get; init; }
+}
+
+/// <summary>A plaintext signature. <see cref="Text"/> has no separator line; the RFC 3676 <c>-- </c> line goes before it when it is inserted.</summary>
+public sealed record SignatureDto
+{
+    public required string Name { get; init; }
+
+    public required string Text { get; init; }
 }
 
 public sealed record ImapConfigDto
@@ -163,7 +191,7 @@ public sealed record AttachmentDto
 /// </summary>
 public sealed record DraftDto
 {
-    /// <summary>Defaults to the account's own address when omitted.</summary>
+    /// <summary>The account address or one of its identities, else -32602 with reason <c>sender_not_allowed</c>. Omitted, a reply uses the identity the original was sent to.</summary>
     public string? From { get; init; }
 
     public IReadOnlyList<string> To { get; init; } = [];
@@ -183,6 +211,15 @@ public sealed record DraftDto
 
     /// <summary>Local id of the message being replied to; the daemon derives References from it when set.</summary>
     public long? ReplyToMessageId { get; init; }
+
+    /// <summary>The quoted original of a reply. Send it here, not inside <c>bodyText</c>, and a signature lands above it.</summary>
+    public string? QuotedText { get; init; }
+
+    /// <summary>Name of one of the account's signatures to insert. Unknown names are rejected with -32602.</summary>
+    public string? Signature { get; init; }
+
+    /// <summary>Insert the account's default signature for a new message or a reply. Ignored when <c>signature</c> is set.</summary>
+    public bool? UseDefaultSignature { get; init; }
 }
 
 /// <summary>Daemon metrics (RELIABILITY §14.6). Nothing here identifies a message or a person.</summary>

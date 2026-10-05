@@ -36,6 +36,12 @@ public static class AuditEvents
     public const string BackupDenied = "backup_denied";
     public const string BackupVerified = "backup_verified";
     public const string BackupVerifyFailed = "backup_verify_failed";
+    public const string IdentityAdded = "identity_added";
+    public const string IdentityForgotten = "identity_forgotten";
+    public const string SignatureSet = "signature_set";
+    public const string SignatureForgotten = "signature_forgotten";
+    public const string SignatureDefaultChanged = "signature_default_changed";
+    public const string SenderDenied = "sender_denied";
 }
 
 /// <summary>One audit row before it becomes a <see cref="SyncLogEntry"/>.</summary>

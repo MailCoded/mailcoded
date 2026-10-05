@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":9,"method":"send.preview","params":{"accountId":1,"draft":{"to":["bob@example.org"],"subject":"Hi","bodyText":"Hello.","signature":"missing"}}}

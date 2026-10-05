@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Mailcoded.Core.Application;
 using Mailcoded.Core.Auth;
+using Mailcoded.Core.Domain.Identities;
 using Mailcoded.Core.Domain.Outbox;
 using Mailcoded.Core.Domain.Primitives;
 using Mailcoded.Core.Domain.Tags;
@@ -641,18 +642,18 @@ internal sealed class RpcDispatcher
                 Bcc = bcc,
                 Subject = subject,
                 BodyText = bodyText,
+                QuotedText = draft.QuotedText,
+                Signature = SignatureChoiceOf(draft),
                 InReplyTo = inReplyTo,
                 References = references,
             },
             ct).ConfigureAwait(false);
 
-        var truncated = bodyText.Length > preview.BodyPreview.Length;
-
         return RpcPayloads.Value(
             new SendPreviewResult
             {
                 DraftId = preview.OutboxId,
-                Preview = WireMapper.ToDto(preview, truncated),
+                Preview = WireMapper.ToDto(preview, preview.BodyTruncated),
                 ConfirmToken = preview.ConfirmToken,
                 ConfirmTokenExpiresUtc = DaemonInfo.Deterministic
                     ? null
@@ -660,6 +661,11 @@ internal sealed class RpcDispatcher
             },
             ProtocolJsonContext.Default.SendPreviewResult);
     }
+
+    private static SignatureChoice SignatureChoiceOf(DraftDto draft) =>
+        !string.IsNullOrWhiteSpace(draft.Signature) ? SignatureChoice.Named(draft.Signature)
+        : draft.UseDefaultSignature == true ? SignatureChoice.UseDefault
+        : SignatureChoice.None;
 
     private async Task<byte[]> SendAsync(JsonElement? parameters, CancellationToken ct)
     {

@@ -136,7 +136,9 @@ internal static class ToolText
         "bcc": { "type": "array", "items": { "type": "string" } },
         "subject": { "type": "string" },
         "body": { "type": "string", "description": "Plaintext body. HTML bodies are not composed on this surface." },
-        "from": { "type": "string", "description": "Sender address. Defaults to the account address." },
+        "from": { "type": "string", "description": "Sender address: the account address or one of its configured sender identities, otherwise the call fails with reason sender_not_allowed. Defaults to the account address, or for a reply the identity the original was sent to." },
+        "signature": { "type": "string", "description": "Name of one of the account's plaintext signatures to insert. Defaults to the account's default for a new message or a reply." },
+        "no_signature": { "type": "boolean", "description": "Insert no signature. Ignored when signature is given." },
         "in_reply_to": { "type": "string", "description": "RFC 5322 Message-ID being replied to, without angle brackets." },
         "references": { "type": "array", "items": { "type": "string" } }
       },

@@ -43,7 +43,9 @@ token and nothing else; its confirmation screen is the supervision.
 | `--subject <text>` | required |
 | `--body-file <path>` | plaintext body, UTF-8, at most 1 MiB |
 | `--body-stdin` | read the body from stdin instead |
-| `--from <addr>` | override the account's own address |
+| `--from <addr>` | send as this address: the account's own, or one of its identities (see below) |
+| `--signature <name>` | insert this signature |
+| `--no-signature` | insert none; otherwise the account's default is inserted |
 | `--reply-to <id>` | the local message id being replied to; sets In-Reply-To and References |
 | `--in-reply-to <mid>` | a raw Message-ID being replied to, without angle brackets |
 | `--account <id>` | which account to send as |
@@ -61,14 +63,58 @@ token and nothing else; its confirmation screen is the supervision.
 `send gate: denied` is the gate's answer *right now*, so you learn before writing a whole reply chain
 that sending is off. `draft` never prints a token.
 
+## Sending as another address
+
+An account sends as its own address, and as any **identity** you add to it:
+
+    mailcoded account identity add sales@example.com --name 'Sales Desk' --reply-to help@example.com
+    mailcoded draft --from sales@example.com --to bob@example.org --subject 'Quote' --body-file q.txt
+
+`--from` is checked in Core, so it holds for the command line, the MCP tools, the daemon and the
+terminal client alike. The address is compared without regard to case, and the message goes out with
+the spelling you configured, that identity's display name (the account's, when it has none) and its
+Reply-To as a `Reply-To` header. Anything else is refused:
+
+    $ mailcoded draft --from boss@example.com ...
+    sender_not_allowed: The From address is not this account's address or one of its configured sender identities.
+
+That is exit 2, error name `sender_not_allowed`, and nothing is queued. Your mail server has the last
+word on whether it accepts a From address, and mailcoded cannot ask it which ones your login may use,
+so add only addresses it lets you send as. Chapter 8 covers `account identity`.
+
+A reply is sent as the identity the original was addressed to: the first address in its To, then Cc,
+that the account owns; otherwise the account address. `reply` has no `--from`; to choose another address use `draft --reply-to <message id> --from <address>`.
+
+## Signatures
+
+A signature is plain text kept per account under a name (chapter 8, `account signature`). Each account
+can have one for new messages and another for replies. `draft` and `reply` insert the default one;
+`--signature <name>` picks another and `--no-signature` leaves it out. It goes after a line holding
+`-- ` (two dashes and a space, RFC 3676), so mail programs know where the message ends:
+
+    Thanks, I'll look at it today.
+
+    -- 
+    Alex Example
+    Example Pty
+
+In a reply the signature sits between your text and the quoted original, not under the quote. A
+default signature is not added to a body that already contains its own `-- ` line, so a body you
+signed by hand is not signed twice. The signature is part of the draft, so `send-preview` shows it
+and the confirm token covers it. The terminal client puts the default signature into the compose
+buffer, where you can edit it. HTML mail and per-message signature files are not supported.
+
 ## `reply`
 
     mailcoded reply <id> [--all] [--body <text> | --body-file <path>] [--no-quote] [--no-fetch]
+                         [--signature <name> | --no-signature]
 
 Builds a reply draft from an existing message: the recipients (`--all` adds everyone on the original),
 a `Re:` subject, the quoted original (`--no-quote` leaves it out), and the In-Reply-To and References
 chain that keeps the conversation threaded for the recipient. It fetches the original body if it has
-to; `--no-fetch` stays offline. The result is a draft, exactly as from `draft`.
+to; `--no-fetch` stays offline. The result is a draft, exactly as from `draft`. It is sent as the
+identity the original was addressed to, and `--all` leaves every one of your own addresses, not only
+the account address, out of Cc.
 
 ## `send-preview`
 

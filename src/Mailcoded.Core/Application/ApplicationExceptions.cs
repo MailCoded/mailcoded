@@ -53,3 +53,14 @@ public sealed class PolicyDeniedException : Exception
     /// <summary>How long until the same call could succeed, when the refusal was a rate limit.</summary>
     public TimeSpan? RetryAfter { get; }
 }
+
+/// <summary>A draft's From is neither the account address nor a configured identity. Maps to RPC code -32602, reason <c>sender_not_allowed</c>.</summary>
+public sealed class SenderNotAllowedException : ArgumentException
+{
+    public const string Reason = "sender_not_allowed";
+
+    public SenderNotAllowedException()
+        : base("The From address is not this account's address or one of its configured sender identities.")
+    {
+    }
+}

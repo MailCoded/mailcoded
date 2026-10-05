@@ -25,7 +25,14 @@ internal sealed partial class App
         _state.Say("tab moves field, ctrl-s previews, esc discards");
     }
 
-    private void ComposeNew() => Compose(new DraftBuffer());
+    private void ComposeNew()
+    {
+        var draft = new DraftBuffer();
+        if (SignatureBlock.DefaultText(_state.Account, reply: false) is { } signature)
+            draft.SetBody(SignatureBlock.Body(signature, null));
+
+        Compose(draft);
+    }
 
     private void ComposeReply(bool all)
     {
@@ -39,12 +46,18 @@ internal sealed partial class App
 
         if (all)
         {
-            var mine = _state.Account?.Email;
+            var mine = new List<string>();
+            if (_state.Account is { } own)
+            {
+                mine.Add(own.Email);
+                foreach (var identity in own.Identities) mine.Add(identity.Address);
+            }
+
             foreach (var address in DraftBuffer.SplitAddresses(envelope.To ?? string.Empty))
-                if (!string.Equals(address, mine, StringComparison.OrdinalIgnoreCase)) cc.Add(address);
+                if (!mine.Contains(address, StringComparer.OrdinalIgnoreCase)) cc.Add(address);
 
             foreach (var address in DraftBuffer.SplitAddresses(envelope.Cc ?? string.Empty))
-                if (!string.Equals(address, mine, StringComparison.OrdinalIgnoreCase)) cc.Add(address);
+                if (!mine.Contains(address, StringComparer.OrdinalIgnoreCase)) cc.Add(address);
         }
 
         var draft = new DraftBuffer
@@ -56,7 +69,9 @@ internal sealed partial class App
             InReplyTo = envelope.MessageId,
         };
 
-        draft.SetBody(DraftBuffer.Quote(envelope.From, open.BodyText, 200));
+        draft.SetBody(SignatureBlock.Body(
+            SignatureBlock.DefaultText(_state.Account, reply: true),
+            DraftBuffer.Quote(envelope.From, open.BodyText, 200)));
         draft.Field = DraftField.Body;
         draft.BodyLine = 0;
         draft.BodyColumn = 0;

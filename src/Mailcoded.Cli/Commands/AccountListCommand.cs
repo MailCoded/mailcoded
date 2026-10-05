@@ -39,6 +39,12 @@ internal static class AccountListCommand
                 writer.WriteStartArray("trusted_authserv_ids");
                 foreach (var id in account.EffectiveAuthservTrust().Patterns) writer.WriteStringValue(id);
                 writer.WriteEndArray();
+                writer.WriteStartArray("identities");
+                foreach (var identity in account.Identities) writer.WriteStringValue(identity.Address.Value);
+                writer.WriteEndArray();
+                writer.WriteStartArray("signatures");
+                foreach (var signature in account.Signatures.Items) writer.WriteStringValue(signature.Name);
+                writer.WriteEndArray();
                 writer.WriteEndObject();
             }
 
@@ -70,6 +76,11 @@ internal static class AccountListCommand
 
             var trusted = account.EffectiveAuthservTrust().Patterns;
             output.Line($"    verified  {(trusted.Count == 0 ? "no authserv-id trusted" : "trusts " + string.Join(", ", trusted))}");
+
+            if (account.Identities.Count > 0)
+                output.Line($"    sends as  {string.Join(", ", account.Identities.Select(i => i.Address.Value))}");
+            if (!account.Signatures.IsEmpty)
+                output.Line($"    signatures  {string.Join(", ", account.Signatures.Items.Select(x => x.Name))}");
         }
 
         return Task.FromResult(ExitCodes.Ok);
