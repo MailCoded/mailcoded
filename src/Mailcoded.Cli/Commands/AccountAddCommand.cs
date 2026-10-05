@@ -45,6 +45,8 @@ internal static class AccountAddCommand
             };
         }
 
+        var trusted = AuthservOptions.Read(line, "trust-authserv-id");
+
         var accountId = await host.Accounts.AddAsync(
             new AddAccountRequest
             {
@@ -56,9 +58,12 @@ internal static class AccountAddCommand
                 Auth = AuthKind.Password,
                 SecretRef = line.Value("secret-ref"),
                 Secret = secret,
+                TrustedAuthservIds = trusted,
             },
             host.Caller,
             ct).ConfigureAwait(false);
+
+        AuthservOptions.NoteIfIgnored(host, accountId, trusted, ct);
 
         var stored = host.Store.GetAccount(accountId, ct);
 

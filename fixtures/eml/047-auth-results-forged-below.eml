@@ -1,0 +1,15 @@
+Authentication-Results: mx.example.net;
+ dkim=fail header.d=example.com;
+ dmarc=fail (p=REJECT sp=REJECT dis=NONE) header.from=example.com
+Received: from unknown (HELO attacker.example.org) by mx.example.net; Tue, 28 Jan 2025 09:05:00 +0000
+Authentication-Results: mx.example.net; dmarc=pass header.from=example.com
+Authentication-Results: mail.example.org; dmarc=pass header.from=example.com
+From: Sender Example <sender@example.com>
+To: bob@example.org
+Subject: Forged results below the real one
+Date: Tue, 28 Jan 2025 09:05:00 +0000
+Message-ID: <047-forged-below@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+The sender planted two passing instances under the receiving server's failing one; only the topmost trusted instance decides.

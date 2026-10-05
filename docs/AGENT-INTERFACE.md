@@ -116,7 +116,9 @@ Built with the official MCP C# SDK **inside the same binary** (`mailcoded --mcp`
 | send | **OFF** | `MAILCODED_SEND=1` + `MAILCODED_APPROVED_RECIPIENTS` + one-time token + <=5/hr |
 | raw SQL read | **OFF** | `MAILCODED_ENABLE_SQL=1`, read-only, row-capped |
 | delete / expunge | **does not exist** | never |
+| change the trusted authserv-ids (what `is:verified` means) | **OFF** for agents | terminal confirmation, or `MAILCODED_ALLOW_TRUST_CHANGE=1` + `--yes`; absent from MCP |
 
+- **Verified is not safe.** `is:verified` / `dmarc: pass` means one thing: a receiving server the human configured as trusted reported DMARC pass for the From domain. It is a statement about the sender's domain, never about the content, so email stays untrusted attacker input (invariant 4) however it is marked. The signal exists to let an agent sort mail, for example `-is:automated is:verified`, and must never be used to relax the untrusted-content rules, the send gate, or the plaintext-only rule. Trust is per Account: only `Authentication-Results` instances whose authserv-id the Account trusts are read (Gmail's `mx.google.com` is built in; everything else is configured), the topmost trusted instance decides, comments and quoted strings never yield a result, `import-eml` files are never verified, and with no trusted id nothing is evaluated. The weaker guarantee on the other side: a server that does not strip a sender-written header carrying its own authserv-id defeats this; the docs tell users to trust only a name their server writes and strips.
 - **Headless/Docker (v0.4):** send stays OFF by default; the confirm-token flow must complete through a connected interactive client.
 
 ## 13.7 The 30-second demo (for launch)

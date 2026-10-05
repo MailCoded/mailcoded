@@ -84,7 +84,7 @@ public sealed partial class SqliteStore
             var sql = new StringBuilder(320);
             sql.Append("SELECT m.id, m.folder_id, m.subject, m.from_addr, m.date_utc, m.flags");
             sql.Append(includeSnippet ? ", substr(COALESCE(b.text, ''), 1, 4000)" : ", NULL");
-            sql.Append(", m.has_attachments, m.body_fetched, m.size, m.automated, m.encrypted FROM messages m");
+            sql.Append(", m.has_attachments, m.body_fetched, m.size, m.automated, m.encrypted, m.dmarc FROM messages m");
             if (includeSnippet) sql.Append(" LEFT JOIN body_text b ON b.message_id = m.id");
             sql.Append(" WHERE m.id IN (");
 
@@ -126,6 +126,7 @@ public sealed partial class SqliteStore
                         Size = Db.Int(reader, 9),
                         Automated = Db.BoolOrNull(reader, 10),
                         Encrypted = Db.BoolOrNull(reader, 11),
+                        Dmarc = Db.DmarcOrNull(reader, 12),
                     };
                 }
             }

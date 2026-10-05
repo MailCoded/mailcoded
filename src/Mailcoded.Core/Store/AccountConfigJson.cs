@@ -50,6 +50,13 @@ internal static class AccountConfigJson
                 writer.WriteString("pinnedCertificateSha256", pinned);
             writer.WriteEndObject();
 
+            if (config.TrustedAuthservIds.Count > 0)
+            {
+                writer.WriteStartArray("trustedAuthservIds");
+                foreach (var id in config.TrustedAuthservIds) writer.WriteStringValue(id);
+                writer.WriteEndArray();
+            }
+
             writer.WriteEndObject();
         }
 
@@ -107,7 +114,14 @@ internal static class AccountConfigJson
             Auth = String(root, "auth") == "oauth2" ? AuthKind.OAuth2 : AuthKind.Password,
             SecretRef = String(root, "secretRef") ?? string.Empty,
             Quirks = quirks,
+            TrustedAuthservIds = StringArray(root, "trustedAuthservIds"),
         };
+    }
+
+    public static IReadOnlyList<string> ReadTrustedAuthservIds(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return StringArray(document.RootElement, "trustedAuthservIds");
     }
 
     private static JsonElement? Child(JsonElement parent, string name) =>

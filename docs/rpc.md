@@ -260,12 +260,18 @@ after an interruption replays safely. A `folderId` that belongs to another accou
 
 Local only; never touches the network. Query syntax: bare words (full text over subject, sender,
 recipients, body), `"quoted phrases"`, `from:`, `to:`, `cc:`, `subject:`, `tag:`, `folder:`,
-`is:unread|flagged|draft|replied`, `is:automated`, `is:encrypted`, `has:attachment`,
+`is:unread|flagged|draft|replied`, `is:automated`, `is:encrypted`, `is:verified`, `has:attachment`,
 `before:YYYY-MM-DD`, `after:YYYY-MM-DD`, and `-` negation.
 
 `is:automated` and `is:encrypted` match only a **known** value. A message whose signal is unknown
 (`automated` / `encrypted` absent on its `EnvelopeDto`) matches neither the positive nor the negated
 form, so `-is:automated` means "known not to be automated", never "not known to be".
+
+`is:verified` matches a recorded DMARC `pass` from a receiving server the Account trusts (see
+`EnvelopeDto.dmarc`). Unlike the two signals above, its negation is deliberately broad:
+`-is:verified` matches every message with no recorded pass, including `fail`, `none`, `unknown` and
+mail that was never evaluated. "Not verified" claims nothing about the sender; it only says mailcoded
+has no trusted pass to show.
 
 - `limit` defaults to **50** and is clamped to **200**. `limit: 0` or absent means the default.
 - `order` ∈ `relevance | date`; relevance is the default for text queries. Relevance is BM25 with
@@ -644,7 +650,7 @@ shell agent to branch:
   "date": "2026-08-30T12:34:56.000Z",
   "flags": ["unread"], "tags": ["unread", "triaged"],
   "hasAttachments": true, "size": 20481, "automated": false, "encrypted": false,
-  "bodyFetched": false, "snippet": null }
+  "dmarc": "pass", "bodyFetched": false, "snippet": null }
 ```
 
 - `id`, `accountId`, `folderId` are **local row ids**, not server UIDs, and are only meaningful
@@ -669,6 +675,25 @@ shell agent to branch:
   until its body is fetched or read again, and mail from a server that did not return the headers.
   Absent is not false. They are present on `search`, `message.get` and `thread.get` envelopes and
   absent on plain folder listings, which are served from a covering index that does not carry them.
+- `dmarc` is what a receiving server the Account trusts reported for DMARC on the From domain, read
+  from `Authentication-Results` (RFC 8601): `pass | fail | none | unknown`. Only `pass` means
+  **verified**: a trusted server says the From domain was not forged. It does not mean the message is
+  safe, that the sender is who the display name says, or that the content is harmless; a verified
+  sender can still send a malicious message, and mailcoded makes no claim about content.
+  - An Account trusts an `authserv-id` (the name a server writes at the start of its
+    `Authentication-Results` header, for example `mx.example.net`) only when the human configured it
+    (`mailcoded account trust`), or for Gmail's built-in `mx.google.com`. A header naming any other id
+    is the sender's own and is ignored. With no trusted id, nothing is evaluated and the field is absent.
+  - The topmost trusted `Authentication-Results` instance decides, and it must carry a `dmarc` result
+    whose `header.from` names the message's one From domain. `dkim=pass` or `spf=pass` alone never
+    verify. `unknown` means a trusted id was configured but no usable result was found (no such
+    header, unreadable, contradictory, or for another domain).
+  - Absent means not evaluated: no trusted id, headers not fetched, or the message predates the
+    signal. Files loaded with `import-eml` are always `unknown`, because the file proves nothing
+    about who wrote its headers.
+  - Changing an Account's trusted ids clears its recorded results, except those of `import-eml` files,
+    which stay `unknown`; the rest are recomputed when a message with a cached body is read or when
+    mail is synced again.
 - `bodyFetched: false` means `message.get` will hit the network unless you pass
   `fetchIfMissing: false`.
 

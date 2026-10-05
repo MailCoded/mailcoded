@@ -41,6 +41,7 @@ ACCOUNT ADMINISTRATION
   account list              every account, with folder and message counts
   account test              prove settings and credential still work
   account reauth            replace the credential or sign in again
+  account trust             which Authentication-Results authserv-ids this account trusts
   account add               register an account non-interactively, for scripts
   account forget            remove an account and its cached mail from this machine
 
@@ -120,6 +121,8 @@ QUERY SYNTAX
   is:unread             also is:flagged, is:draft, is:replied
   is:automated          list/bulk mail, auto-replies, reports, noreply senders
   is:encrypted          PGP or S/MIME; the body is not readable here
+  is:verified           a trusted server reported DMARC pass for the From domain
+                        (not "safe"; -is:verified also matches unknown)
   has:attachment        carries an attachment
   before:2026-01-31     strictly earlier
   after:2026-01-01      at or after
@@ -414,6 +417,8 @@ OPTIONS
   --smtp-port <n>           default 587
   --smtp-security <mode>    default startTls
   --smtp-user <name>
+  --trust-authserv-id <id>  trust Authentication-Results from this authserv-id (repeatable);
+                            see 'account trust'
   --secret-ref <handle>     reuse an existing secret handle instead of deriving one
   --password-stdin          read the credential from stdin
   --no-password             register without storing a credential
@@ -422,6 +427,32 @@ EXAMPLE
   printf '%s' "$IMAP_PASSWORD" | mailcoded account add --json \
     --email me@example.com --imap-host imap.example.com \
     --smtp-host smtp.example.com --password-stdin
+""";
+
+    private const string AccountTrust = """
+mailcoded account trust [--account <id|email>] [--authserv-id <id>]... [--none] [--yes] [--json]
+
+  Shows, or changes, which Authentication-Results authserv-ids this account trusts.
+  'is:verified' means exactly: a trusted receiving server reported DMARC pass for the From
+  domain. With no trusted authserv-id nothing is verified, and a header the sender wrote
+  themselves can never count.
+
+  Find the id in a message you trust: it is the first word after 'Authentication-Results:' in
+  the topmost such header, for example mx.example.net. Trust only a name your own mail server
+  writes and strips from incoming mail. An exact hostname, or '*.example.net' to match any
+  host under it. Gmail (imap.gmail.com) is built in as mx.google.com.
+
+  Changing the list clears the recorded DMARC results of this account; mail gets a fresh result
+  as it is synced, or when a message with a cached body is next read. Without options it only
+  shows the list. Changing it needs a terminal confirmation, or MAILCODED_ALLOW_TRUST_CHANGE=1
+  together with --yes: an agent must not be able to widen what 'verified' means.
+
+OPTIONS
+  --account <id|email>   which account (required when the store holds more than one)
+  --authserv-id <id>     trust this id (repeatable, or comma separated); replaces the list
+  --none                 trust no authserv-id beyond the provider's built-in one
+  --yes                  confirm unattended (needs MAILCODED_ALLOW_TRUST_CHANGE=1)
+  --json                 machine-readable result
 """;
 
     private const string ImportEml = """
@@ -493,6 +524,7 @@ mailcoded version [--json]
         "setup" => Setup,
         "sync" => Sync,
         "account forget" => AccountForget,
+        "account trust" => AccountTrust,
         "account" or "account add" => AccountAdd,
         "import-eml" => ImportEml,
         "version" => Version,

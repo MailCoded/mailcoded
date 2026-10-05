@@ -14,6 +14,7 @@
 | `MAILCODED_ENABLE_SQL` | CLI | `1` enables `query --sql` |
 | `MAILCODED_ALLOW_MOVE` | CLI | `1`, `true` or `yes`; required for `move` and `archive` on the CLI at all. A terminal still confirms; `--yes` skips the prompt |
 | `MAILCODED_ALLOW_FORGET` | CLI | the same, for `account forget --yes` |
+| `MAILCODED_ALLOW_TRUST_CHANGE` | CLI | the same, for `account trust --yes`: changing which servers' `Authentication-Results` are believed |
 | `MAILCODED_SECRET_BACKEND` | all | `auto` (default), `file`, `libsecret`, `keychain`, `wincred` |
 | `MAILCODED_SECRET_KEY` | all | a passphrase for the encrypted-file vault, instead of the machine key |
 | `MAILCODED_SECRET_KEY_FILE` | all | a file holding that passphrase |

@@ -19,7 +19,7 @@ Every test carries `integration=docker`; each also names its scenario:
 | `scenario=uidvalidity` | `UidValidityTests` | edge case 1: invalidate, re-enumerate, no duplicate blob rows |
 | `scenario=crash-recovery` | `CrashReconciliationTests` | crash between SMTP 250 and the DB commit; never sends twice |
 | `scenario=idle` | `IdleNotificationTests` | external APPEND → `notify.mail.added` within 5 s, through the real daemon |
-| `scenario=signals` | `MessageSignalsTests` | the envelope FETCH asks for the signal headers: `is:automated` and `is:encrypted` after a plain sync |
+| `scenario=signals` | `MessageSignalsTests` | the envelope FETCH asks for the signal headers: `is:automated`, `is:encrypted` and, through a trusted authserv-id, `is:verified` after a plain sync |
 
 ## When Docker is missing
 

@@ -56,6 +56,45 @@ public sealed class MessageSignalsTests : IClassFixture<MailStackFixture>
         Assert.Equal(["Personal note"], Subjects(harness, "-is:automated -is:encrypted", ct));
     }
 
+    [Fact]
+    public async Task Sync_verifies_only_through_an_authserv_id_the_account_trusts()
+    {
+        _stack.SkipUnlessAvailable();
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(4));
+        var ct = cts.Token;
+
+        using var workspace = TestWorkspace.Create("verified");
+        await using var harness = MailHarness.Open(workspace, new InMemorySecretStore(), _stack);
+
+        await _stack.AppendAsync(
+            FolderPath.Inbox,
+            [
+                Raw("Passing", ["Message-ID: <ver-pass@example.com>", "Authentication-Results: mx.example.net; dmarc=pass header.from=example.com"]),
+                Raw(
+                    "Forged below a fail",
+                    [
+                        "Message-ID: <ver-fail@example.com>",
+                        "Authentication-Results: mx.example.net; dmarc=fail header.from=example.com",
+                        "Authentication-Results: mx.example.net; dmarc=pass header.from=example.com",
+                    ]),
+                Raw("Foreign id", ["Message-ID: <ver-foreign@example.com>", "Authentication-Results: mx.attacker.example.org; dmarc=pass header.from=example.com"]),
+                Raw("Comment trick", ["Message-ID: <ver-comment@example.com>", "Authentication-Results: mx.example.net (dmarc=pass header.from=example.com)"]),
+                Raw("No header", ["Message-ID: <ver-none@example.com>"]),
+            ],
+            ct);
+
+        var accountId = await harness.AddAccountAsync(ct);
+        await harness.Store.SetTrustedAuthservIdsAsync(accountId, ["mx.example.net"], ct);
+
+        await using var provider = await harness.ConnectProviderAsync(accountId, ct);
+        var report = await harness.Accounts.InitialSyncAsync(provider, accountId, null, ct);
+        Assert.Equal(5, report.Added);
+
+        Assert.Equal(["Passing"], Subjects(harness, "is:verified", ct));
+        Assert.Equal(["Comment trick", "Forged below a fail", "Foreign id", "No header"], Subjects(harness, "-is:verified", ct));
+    }
+
     private static string[] Subjects(MailHarness harness, string query, CancellationToken ct)
     {
         var hits = harness.Store.Search(

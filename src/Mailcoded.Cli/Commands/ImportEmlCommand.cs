@@ -1,6 +1,7 @@
 using System.Globalization;
 using Mailcoded.Core.Application;
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Domain.Signals;
 using Mailcoded.Core.Domain.Sync;
 using Mailcoded.Core.Parsing;
 using Mailcoded.Core.Providers;
@@ -154,7 +155,7 @@ internal static class ImportEmlCommand
                     item.Message.BodyText,
                     item.Blob.Id,
                     item.Message.HasAttachments,
-                    new SignalValues(item.Message.Automated, item.Message.Encrypted),
+                    ParsedSignals.ImportedValuesOf(item.Message),
                     ct)
                 .ConfigureAwait(false);
             stored++;
@@ -186,6 +187,7 @@ internal static class ImportEmlCommand
             Headers = item.Message.SignalHeaders,
             Automated = item.Message.Automated,
             Encrypted = item.Message.Encrypted,
+            Dmarc = DmarcResult.Imported,
         };
     }
 

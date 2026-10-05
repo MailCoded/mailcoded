@@ -1,5 +1,6 @@
 using Mailcoded.Core.Domain.Outbox;
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Domain.Signals;
 using Mailcoded.Core.Domain.Sync;
 using ParsedQuery = Mailcoded.Core.Domain.Search.SearchQuery;
 
@@ -72,6 +73,9 @@ public sealed record EnvelopeRow
     public bool? Automated { get; init; }
 
     public bool? Encrypted { get; init; }
+
+    /// <summary>What a trusted receiving server reported for the From domain; null means not evaluated.</summary>
+    public DmarcResult? Dmarc { get; init; }
 }
 
 /// <summary>One keyset page. Nothing is lost: every match is reachable by following NextCursor.</summary>
@@ -89,9 +93,9 @@ public sealed record StorePage<T>
 }
 
 /// <summary>Signals derived from a whole parsed message. A null member leaves the stored value alone.</summary>
-public readonly record struct SignalValues(bool? Automated, bool? Encrypted)
+public readonly record struct SignalValues(bool? Automated, bool? Encrypted, DmarcResult? Dmarc = null)
 {
-    public bool IsUnknown => Automated is null && Encrypted is null;
+    public bool IsUnknown => Automated is null && Encrypted is null && Dmarc is null;
 }
 
 public readonly record struct IngestResult(int Inserted, int Updated)
@@ -260,6 +264,7 @@ public sealed record StoreSearchHit
     public long Size { get; init; }
     public bool? Automated { get; init; }
     public bool? Encrypted { get; init; }
+    public DmarcResult? Dmarc { get; init; }
 
     /// <summary>Computed only for the returned page, never across the whole result set.</summary>
     public string? Snippet { get; init; }

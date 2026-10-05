@@ -1,6 +1,7 @@
 using System.Globalization;
 using Mailcoded.Core.Application;
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Domain.Signals;
 
 namespace Mailcoded.Cli.Commands;
 
@@ -61,6 +62,7 @@ internal static class ThreadCommand
                 writer.WriteNumber("size", message.Size);
                 JsonFields.WriteBool(writer, "automated", message.Automated);
                 JsonFields.WriteBool(writer, "encrypted", message.Encrypted);
+                JsonFields.WriteText(writer, "dmarc", message.Dmarc?.ToWire());
                 writer.WriteEndObject();
             }
 

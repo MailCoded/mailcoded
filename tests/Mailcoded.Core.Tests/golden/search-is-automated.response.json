@@ -8,6 +8,7 @@
         "automated": true,
         "bodyFetched": true,
         "date": "2024-01-03T04:05:06.000Z",
+        "dmarc": "fail",
         "encrypted": false,
         "flags": [
           "unread"

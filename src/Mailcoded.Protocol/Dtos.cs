@@ -47,6 +47,9 @@ public sealed record EnvelopeDto
     /// <summary>PGP/MIME, S/MIME envelope or inline PGP armor (never decrypted); inline armor is seen only after the body is fetched. Absent means unknown.</summary>
     public bool? Encrypted { get; init; }
 
+    /// <summary>DMARC result a trusted receiving server reported for the From domain: pass|fail|none|unknown. Verified is not safe. Absent means not evaluated.</summary>
+    public string? Dmarc { get; init; }
+
     /// <summary>True once the body has been fetched and indexed; false means <c>message.get</c> will hit the network.</summary>
     public bool BodyFetched { get; init; }
 

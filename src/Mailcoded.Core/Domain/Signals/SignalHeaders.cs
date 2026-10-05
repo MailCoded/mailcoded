@@ -54,6 +54,7 @@ public sealed class SignalHeaderCollector
     private readonly string?[] _single = new string?[(int)Slot.AuthenticationResults];
     private readonly List<string> _authentication = [];
     private int _total;
+    private bool _authenticationClosed;
 
     public static IReadOnlyList<string> FetchNames { get; } = [.. Slots.Keys];
 
@@ -102,10 +103,15 @@ public sealed class SignalHeaderCollector
 
     private void AddAuthentication(string? value)
     {
-        if (_authentication.Count >= MaxAuthenticationResults) return;
+        if (_authenticationClosed || _authentication.Count >= MaxAuthenticationResults) return;
 
         var cleaned = Clean(value, MaxAuthenticationResultChars);
-        if (_total + cleaned.Length > MaxTotalChars) return;
+        if (_total + cleaned.Length > MaxTotalChars)
+        {
+            // Keeping a smaller instance from below a dropped one would let a lower header stand in for it.
+            _authenticationClosed = true;
+            return;
+        }
 
         _total += cleaned.Length;
         _authentication.Add(cleaned);

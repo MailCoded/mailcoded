@@ -1,6 +1,7 @@
 using System.Globalization;
 using Mailcoded.Core.Application;
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Domain.Signals;
 using Mailcoded.Core.Store;
 
 namespace Mailcoded.Cli.Commands;
@@ -63,6 +64,7 @@ internal static class SearchCommand
                 JsonFields.WriteFlags(writer, "flags", hit.Flags);
                 JsonFields.WriteBool(writer, "automated", hit.Automated);
                 JsonFields.WriteBool(writer, "encrypted", hit.Encrypted);
+                JsonFields.WriteText(writer, "dmarc", hit.Dmarc?.ToWire());
                 JsonFields.WriteText(writer, "snippet", hit.Snippet);
                 writer.WriteEndObject();
             }

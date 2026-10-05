@@ -63,13 +63,14 @@ public sealed partial class SqliteStore
                 .Prepare(
                     "UPDATE messages SET body_fetched = 1, blob_id = COALESCE($blob, blob_id), "
                     + "has_attachments = COALESCE($hasatt, has_attachments), automated = COALESCE($automated, automated), "
-                    + "encrypted = COALESCE($encrypted, encrypted) WHERE id = $id",
-                    "$blob", "$hasatt", "$automated", "$encrypted", "$id")
+                    + "encrypted = COALESCE($encrypted, encrypted), dmarc = CASE WHEN dmarc = 'imported' THEN dmarc ELSE COALESCE($dmarc, dmarc) END WHERE id = $id",
+                    "$blob", "$hasatt", "$automated", "$encrypted", "$dmarc", "$id")
                 .SetIntOrNull(0, blobId is { } blob ? (long?)blob.Value : null)
                 .SetIntOrNull(1, hasAttachments is { } attachments ? (long?)(attachments ? 1 : 0) : null)
                 .SetBoolOrNull(2, signals.Automated)
                 .SetBoolOrNull(3, signals.Encrypted)
-                .SetInt(4, messageId.Value)
+                .SetDmarc(4, signals.Dmarc)
+                .SetInt(5, messageId.Value)
                 .Execute();
 
             if (!string.Equals(oldBody, bodyText, StringComparison.Ordinal))
@@ -92,12 +93,13 @@ public sealed partial class SqliteStore
     public Task<bool> SetSignalsAsync(LocalMessageId messageId, SignalValues signals, CancellationToken ct = default) =>
         WriteAsync(context => context.Session
             .Prepare(
-                "UPDATE messages SET automated = COALESCE($automated, automated), encrypted = COALESCE($encrypted, encrypted) "
-                + "WHERE id = $id",
-                "$automated", "$encrypted", "$id")
+                "UPDATE messages SET automated = COALESCE($automated, automated), encrypted = COALESCE($encrypted, encrypted), "
+                + "dmarc = CASE WHEN dmarc = 'imported' THEN dmarc ELSE COALESCE($dmarc, dmarc) END WHERE id = $id",
+                "$automated", "$encrypted", "$dmarc", "$id")
             .SetBoolOrNull(0, signals.Automated)
             .SetBoolOrNull(1, signals.Encrypted)
-            .SetInt(2, messageId.Value)
+            .SetDmarc(2, signals.Dmarc)
+            .SetInt(3, messageId.Value)
             .Execute() > 0, ct);
 
     public string? GetBodyText(LocalMessageId messageId, CancellationToken ct = default) =>

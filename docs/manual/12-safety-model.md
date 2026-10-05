@@ -43,6 +43,15 @@ they cannot end up in your shell history. For a password account, `setup` verifi
 storing anything, and a failed attempt stores nothing; a Microsoft sign-in stores its grant as soon as
 the browser step completes, before the mailbox is checked (chapter 2).
 
+## "Verified" is not "safe"
+
+`is:verified` (chapter 5) means a mail server you chose to trust reported that the sender's domain
+passed DMARC. That tells you the From address was not forged, and nothing about whether the message
+is honest or harmless: a scammer passes DMARC for a domain they own, and a hijacked account passes
+too. Treat verified mail exactly as hostile as any other. Mailcoded only believes an
+`Authentication-Results` header written by a server on your trust list (`account trust`, chapter 8),
+because a sender can type that header themselves; with nothing trusted, nothing is verified.
+
 ## Sending needs a human
 
 Every send — TUI, CLI or MCP — is two-phase: a preview that lists every recipient and mints a one-time
@@ -64,5 +73,8 @@ Honest limits:
   mail and your audit trail.
 - An agent you give read access to can read everything, one query at a time. mailcoded narrows what an
   agent can *do*, not what it can *see*. See [docs/agents.md](https://github.com/MailCoded/mailcoded/blob/main/docs/agents.md).
+- Verification is only as good as the server you trusted. If that server passes along a header a
+  sender wrote with the server's own name on it instead of stripping it, a forged result can look
+  genuine. mailcoded reads only the topmost trusted header, which blunts this without eliminating it.
 - The Microsoft sign-in currently borrows a public client registration (chapter 2). The consent screen
   names another application, and that registration is outside this project's control.

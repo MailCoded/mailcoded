@@ -3,6 +3,7 @@ using System.Text.Json.Serialization.Metadata;
 using Mailcoded.Core.Application;
 using Mailcoded.Core.Domain.Outbox;
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Domain.Signals;
 using Mailcoded.Core.Domain.Tags;
 using Mailcoded.Core.Providers;
 using Mailcoded.Protocol;
@@ -53,6 +54,7 @@ internal sealed class MailTools
                 Flags = Wire.Flags(hit.Flags),
                 Automated = hit.Automated,
                 Encrypted = hit.Encrypted,
+                Dmarc = hit.Dmarc?.ToWire(),
                 Snippet = hit.Snippet,
             });
         }
@@ -117,6 +119,7 @@ internal sealed class MailTools
                 Size = row.Size,
                 Automated = row.Automated,
                 Encrypted = row.Encrypted,
+                Dmarc = row.Dmarc?.ToWire(),
                 BodyFetched = view.BodyFetched,
                 BodyText = view.BodyText,
                 ParseWarnings = view.ParseWarnings,
@@ -168,6 +171,7 @@ internal sealed class MailTools
                 Tags = tags,
                 Automated = message.Automated,
                 Encrypted = message.Encrypted,
+                Dmarc = message.Dmarc?.ToWire(),
                 BodyFetched = message.BodyFetched,
             });
         }

@@ -111,6 +111,7 @@ and reads the credential from stdin:
 | `--secret-ref <handle>` | reuse an existing secret handle instead of deriving one |
 | `--password-stdin` | read the credential from stdin |
 | `--no-password` | register without storing a credential |
+| `--trust-authserv-id <id>` | trust `Authentication-Results` from this server name, so `is:verified` can work (repeatable; chapter 8, `account trust`) |
 
 An account registered with `--no-password` cannot sync until a credential is added with
 `account reauth` (chapter 8); the daemon says so once and then leaves it alone, rather than retrying a

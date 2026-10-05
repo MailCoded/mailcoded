@@ -25,6 +25,12 @@ public sealed record AccountConfig
 
     /// <summary>Latched per-server workarounds, learned at runtime and persisted.</summary>
     public ServerQuirksConfig Quirks { get; init; } = new();
+
+    /// <summary>authserv-ids the human added for this Account, on top of what the provider preset implies.</summary>
+    public IReadOnlyList<string> TrustedAuthservIds { get; init; } = [];
+
+    public Domain.Signals.AuthservTrust EffectiveAuthservTrust() =>
+        ProviderPresets.TrustedAuthservIdsForImapHost(Imap.Host).Union(Domain.Signals.AuthservTrust.From(TrustedAuthservIds));
 }
 
 public sealed record ImapConfig

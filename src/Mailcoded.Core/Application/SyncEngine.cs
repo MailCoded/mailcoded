@@ -1,4 +1,5 @@
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Domain.Signals;
 using Mailcoded.Core.Domain.Sync;
 using Mailcoded.Core.Domain.Tags;
 using Mailcoded.Core.Domain.Threading;
@@ -500,6 +501,7 @@ public sealed class SyncEngine
         if (result.RequiresReplan) return new FlushOutcome(state, default, true);
 
         var added = new List<RemoteEnvelope>();
+        var trust = TrustFor(account, ct);
         var flagChanges = new List<FlagUpdate>();
         var expunged = new List<Uid>();
         var keyworded = new List<KeywordObservation>();
@@ -509,7 +511,10 @@ public sealed class SyncEngine
             switch (e)
             {
                 case SyncEvent.EnvelopeAdded envelope:
-                    added.Add(envelope.Envelope);
+                    added.Add(envelope.Envelope with
+                    {
+                        Dmarc = SenderAuthentication.Dmarc(envelope.Envelope.Headers, envelope.Envelope.From, trust),
+                    });
                     if (envelope.Envelope.Keywords.Count > 0)
                         keyworded.Add(new KeywordObservation(envelope.Envelope.Uid, envelope.Envelope.Keywords, envelope.Envelope.Flags));
                     break;
@@ -548,6 +553,9 @@ public sealed class SyncEngine
 
         return new FlushOutcome(result.Next, counts, false);
     }
+
+    private AuthservTrust TrustFor(AccountConfig account, CancellationToken ct) =>
+        (_store.GetAccount(account.Id, ct) ?? account).EffectiveAuthservTrust();
 
     private Dictionary<uint, bool> ResolveExisting(
         FolderId folderId,

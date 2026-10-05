@@ -36,6 +36,9 @@ internal static class AccountListCommand
                 writer.WriteNumber("messages", TotalMessages(folders));
                 writer.WriteNumber("unread", TotalUnread(folders));
                 JsonFields.WriteDate(writer, "last_sync_utc", LastSync(folders));
+                writer.WriteStartArray("trusted_authserv_ids");
+                foreach (var id in account.EffectiveAuthservTrust().Patterns) writer.WriteStringValue(id);
+                writer.WriteEndArray();
                 writer.WriteEndObject();
             }
 
@@ -64,6 +67,9 @@ internal static class AccountListCommand
                 + $"{folders.Count.ToString(CultureInfo.InvariantCulture)} folders, "
                 + $"{TotalUnread(folders).ToString(CultureInfo.InvariantCulture)} unread");
             output.Line($"    synced    {(sync is { } at ? at.ToString("u", CultureInfo.InvariantCulture) : "never")}");
+
+            var trusted = account.EffectiveAuthservTrust().Patterns;
+            output.Line($"    verified  {(trusted.Count == 0 ? "no authserv-id trusted" : "trusts " + string.Join(", ", trusted))}");
         }
 
         return Task.FromResult(ExitCodes.Ok);

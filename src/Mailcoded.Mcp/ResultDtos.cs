@@ -22,6 +22,7 @@ internal sealed record SearchHitDto
     [JsonPropertyName("flags")] public IReadOnlyList<string> Flags { get; init; } = [];
     [JsonPropertyName("automated")] public bool? Automated { get; init; }
     [JsonPropertyName("encrypted")] public bool? Encrypted { get; init; }
+    [JsonPropertyName("dmarc")] public string? Dmarc { get; init; }
     [JsonPropertyName("snippet")] public string? Snippet { get; init; }
 }
 
@@ -61,6 +62,7 @@ internal sealed record ReadResultDto
     [JsonPropertyName("size")] public long Size { get; init; }
     [JsonPropertyName("automated")] public bool? Automated { get; init; }
     [JsonPropertyName("encrypted")] public bool? Encrypted { get; init; }
+    [JsonPropertyName("dmarc")] public string? Dmarc { get; init; }
     [JsonPropertyName("body_fetched")] public bool BodyFetched { get; init; }
     [JsonPropertyName("body_format")] public string BodyFormat { get; init; } = "text";
     [JsonPropertyName("body_text")] public string? BodyText { get; init; }
@@ -78,6 +80,7 @@ internal sealed record ThreadMessageDto
     [JsonPropertyName("tags")] public IReadOnlyList<string> Tags { get; init; } = [];
     [JsonPropertyName("automated")] public bool? Automated { get; init; }
     [JsonPropertyName("encrypted")] public bool? Encrypted { get; init; }
+    [JsonPropertyName("dmarc")] public string? Dmarc { get; init; }
     [JsonPropertyName("body_fetched")] public bool BodyFetched { get; init; }
 }
 

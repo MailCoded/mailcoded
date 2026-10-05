@@ -83,12 +83,21 @@ public sealed class SearchQueryParserTests
         Assert.Equal(negated, Only<SearchPredicate.IsEncrypted>(query).Negated);
     }
 
+    [Theory]
+    [InlineData("is:verified", false)]
+    [InlineData("-is:verified", true)]
+    [InlineData("Is:VERIFIED", false)]
+    public void The_verified_predicate_parses_and_negates(string query, bool negated)
+    {
+        Assert.Equal(negated, Only<SearchPredicate.IsVerified>(query).Negated);
+    }
+
     [Fact]
     public void The_signal_predicates_combine_with_other_operators()
     {
-        var parsed = SearchQueryParser.Parse("-is:automated is:encrypted from:alice@example.com invoice").Query;
+        var parsed = SearchQueryParser.Parse("-is:automated is:encrypted is:verified from:alice@example.com invoice").Query;
 
-        Assert.Equal(3, parsed.Predicates.Count);
+        Assert.Equal(4, parsed.Predicates.Count);
         Assert.Single(parsed.Terms);
     }
 

@@ -1,6 +1,7 @@
 using Mailcoded.Core.Domain.Outbox;
 using System.Globalization;
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Domain.Signals;
 using Mailcoded.Core.Domain.Sync;
 using Mailcoded.Core.Domain.Tags;
 using Mailcoded.Core.Parsing;
@@ -50,6 +51,7 @@ internal static class WireMapper
             Size = row.Size,
             Automated = row.Automated,
             Encrypted = row.Encrypted,
+            Dmarc = row.Dmarc?.ToWire(),
             BodyFetched = row.BodyFetched,
             Snippet = snippet,
         };
@@ -74,6 +76,7 @@ internal static class WireMapper
             Size = hit.Size,
             Automated = hit.Automated,
             Encrypted = hit.Encrypted,
+            Dmarc = hit.Dmarc?.ToWire(),
             Snippet = hit.Snippet,
         };
     }

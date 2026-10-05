@@ -26,6 +26,9 @@ public abstract record SearchPredicate
 
     public sealed record IsEncrypted : SearchPredicate;
 
+    /// <summary>A trusted receiving server reported DMARC pass. The negation is "no such pass is recorded", so it includes unknown.</summary>
+    public sealed record IsVerified : SearchPredicate;
+
     /// <summary>Strictly earlier than the given instant.</summary>
     public sealed record BeforeDate(DateTimeOffset DateUtc) : SearchPredicate;
 

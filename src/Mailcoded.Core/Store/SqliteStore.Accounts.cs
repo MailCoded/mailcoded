@@ -16,7 +16,6 @@ public sealed partial class SqliteStore
     public Task<AccountId> AddAccountAsync(AccountConfig config, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(config);
-        var json = AccountConfigJson.Write(config);
 
         return WriteAsync(context =>
         {
@@ -27,6 +26,8 @@ public sealed partial class SqliteStore
 
             if (existing is { } id)
             {
+                var json = AccountConfigJson.Write(config with { TrustedAuthservIds = StoredTrustedAuthservIds(context.Session, id) });
+
                 context.Session
                     .Prepare(
                         "UPDATE accounts SET display_name = $name, provider = $provider, config_json = $config WHERE id = $id",
@@ -46,7 +47,7 @@ public sealed partial class SqliteStore
                 .SetText(0, config.Email)
                 .SetText(1, config.DisplayName)
                 .SetText(2, config.Provider.ToWireValue())
-                .SetText(3, json)
+                .SetText(3, AccountConfigJson.Write(config))
                 .ExecuteInt64();
 
             return new AccountId(inserted);
@@ -59,10 +60,10 @@ public sealed partial class SqliteStore
         if (config.Id.IsNone)
             throw new ArgumentException("Updating an account requires its id.", nameof(config));
 
-        var json = AccountConfigJson.Write(config);
-
         return WriteAsync(context =>
         {
+            var json = AccountConfigJson.Write(config with { TrustedAuthservIds = StoredTrustedAuthservIds(context.Session, config.Id.Value) });
+
             var affected = context.Session
                 .Prepare(
                     "UPDATE accounts SET email = $email, display_name = $name, provider = $provider, config_json = $config WHERE id = $id",
@@ -77,6 +78,53 @@ public sealed partial class SqliteStore
             if (affected == 0)
                 throw new StoreException(FailureCategory.NotFound, $"No account with id {config.Id.Value}.");
         }, ct);
+    }
+
+    /// <summary>The only path that changes trust; it clears the Account's evaluated DMARC results (never imported ones) so none outlives its list.</summary>
+    public Task<bool> SetTrustedAuthservIdsAsync(AccountId accountId, IReadOnlyList<string> ids, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        var wanted = Domain.Signals.AuthservTrust.From(ids).Patterns;
+
+        return WriteAsync(context =>
+        {
+            AccountConfig current;
+            using (var stored = context.Session
+                .Prepare(SelectAccount + " WHERE id = $id", "$id")
+                .SetInt(0, accountId.Value)
+                .ExecuteReader())
+            {
+                if (!stored.Read())
+                    throw new StoreException(FailureCategory.NotFound, $"No account with id {accountId.Value}.");
+
+                current = MapAccount(stored);
+            }
+
+            if (current.TrustedAuthservIds.SequenceEqual(wanted, StringComparer.Ordinal)) return false;
+
+            context.Session
+                .Prepare("UPDATE accounts SET config_json = $config WHERE id = $id", "$config", "$id")
+                .SetText(0, AccountConfigJson.Write(current with { TrustedAuthservIds = wanted }))
+                .SetInt(1, accountId.Value)
+                .Execute();
+
+            context.Session
+                .Prepare("UPDATE messages SET dmarc = NULL WHERE account_id = $id AND dmarc IS NOT NULL AND dmarc <> 'imported'", "$id")
+                .SetInt(0, accountId.Value)
+                .Execute();
+
+            return true;
+        }, ct);
+    }
+
+    private static IReadOnlyList<string> StoredTrustedAuthservIds(DbSession session, long accountId)
+    {
+        var json = session
+            .Prepare("SELECT config_json FROM accounts WHERE id = $id", "$id")
+            .SetInt(0, accountId)
+            .ExecuteString();
+
+        return json is null ? [] : AccountConfigJson.ReadTrustedAuthservIds(json);
     }
 
     public IReadOnlyList<AccountConfig> ListAccounts(CancellationToken ct = default) =>

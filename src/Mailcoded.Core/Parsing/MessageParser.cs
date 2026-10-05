@@ -347,6 +347,7 @@ public sealed class MessageParser
         return new ParsedMessage
         {
             SignalHeaders = signalHeaders,
+            FromHeader = FormatAddresses(message.From),
             Automated = MessageSignals.IsAutomated(signalHeaders, from, top),
             Encrypted = walk.Encrypted,
             MessageId = messageId,

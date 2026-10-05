@@ -178,6 +178,7 @@ CREATE TABLE messages (
   body_fetched INTEGER NOT NULL DEFAULT 0,
   automated INTEGER,                  -- 1 yes, 0 no, NULL unknown (migration 009)
   encrypted INTEGER,                  -- 1 PGP/MIME, S/MIME envelope or inline armor; NULL unknown
+  dmarc TEXT,                         -- pass|fail|none|unknown from a trusted Authentication-Results; imported = import-eml file, reads as unknown; NULL not evaluated (migration 010)
   UNIQUE (folder_id, uid)
 );
 

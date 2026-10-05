@@ -61,6 +61,9 @@ that identifies a person. `example.com`, `example.org`, `example.net` and the re
 | 043 | inline ASCII-armored PGP in a `text/plain` body |
 | 044 | an encrypted message forwarded as `message/rfc822` plus quoted armor in the body — the outer message is not encrypted |
 | 045 | hostile signal headers: twelve `Authentication-Results`, an oversized `List-Id`, and a contradictory `Auto-Submitted` pair |
+| 046 | `Authentication-Results` from `mx.example.net` reporting `dmarc=pass header.from=example.com` (an Account that trusts that authserv-id sees it verified) |
+| 047 | a failing instance from `mx.example.net` on top, with two sender-planted passing instances below it (same and foreign authserv-id): the topmost trusted instance decides |
+| 048 | self-declared results only: a pass hidden in a comment, a foreign authserv-id, and a pass inside a quoted string |
 
 Edge case 14 (a 100 MB+ attachment) is deliberately **not** a file here. It is exercised
 by a synthetic stream in `tests/Mailcoded.Core.Tests`, because committing the payload

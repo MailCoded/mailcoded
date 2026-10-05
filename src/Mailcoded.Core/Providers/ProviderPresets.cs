@@ -40,6 +40,9 @@ public sealed record ProviderPreset
     /// <summary>True when this came from a name guess rather than a known provider.</summary>
     public bool IsGuess { get; init; }
 
+    /// <summary>authserv-ids this provider's IMAP server writes into Authentication-Results. Empty unless known for certain.</summary>
+    public IReadOnlyList<string> TrustedAuthservIds { get; init; } = [];
+
     /// <summary>
     /// Set when this provider is expected to refuse an ordinary password. User-facing, and a
     /// warning rather than a verdict: it is a statement about the provider's usual policy, not
@@ -207,6 +210,19 @@ public static class ProviderPresets
         };
     }
 
+    /// <summary>Keyed by IMAP host so a custom domain served by the same provider inherits the trust.</summary>
+    public static Domain.Signals.AuthservTrust TrustedAuthservIdsForImapHost(string? imapHost)
+    {
+        if (string.IsNullOrWhiteSpace(imapHost)) return Domain.Signals.AuthservTrust.None;
+
+        var host = imapHost.Trim().TrimEnd('.');
+        foreach (var preset in ByDomain.Values)
+            if (preset.TrustedAuthservIds.Count > 0 && host.Equals(preset.ImapHost, StringComparison.OrdinalIgnoreCase))
+                return Domain.Signals.AuthservTrust.From(preset.TrustedAuthservIds);
+
+        return Domain.Signals.AuthservTrust.None;
+    }
+
     /// <summary>Every domain with a hand-written preset, for help text and tests.</summary>
     public static IReadOnlyCollection<string> KnownDomains() => ByDomain.Keys.ToArray();
 
@@ -218,6 +234,7 @@ public static class ProviderPresets
         Credential = CredentialStyle.AppPassword,
         CredentialUrl = "https://myaccount.google.com/apppasswords",
         Advice = GmailAdvice,
+        TrustedAuthservIds = ["mx.google.com"],
     };
 
     private static ProviderPreset Microsoft(string name) => new()

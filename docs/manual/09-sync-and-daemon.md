@@ -14,7 +14,10 @@ only ever bring the local copy closer to what the server holds.
 Alongside each envelope, sync asks the server for nine headers (`List-Id`, `List-Unsubscribe`,
 `List-Unsubscribe-Post`, `Precedence`, `Auto-Submitted`, `X-Autoreply`, `X-Autorespond`,
 `X-Failed-Recipients`, `Authentication-Results`) in the same request, and reads the message's MIME
-structure. That is enough to mark mail as automated or encrypted (chapter 5) without downloading a body.
+structure. That is enough to mark mail as automated or encrypted (chapter 5) without downloading a body,
+and, when the account trusts an `authserv-id` (chapter 8), to record whether a trusted server reported
+DMARC pass for the sender. The trust list is read again for every batch, so a change made with
+`account trust` takes effect on the next batch, not the next restart.
 
 Bodies are not pulled by sync. They are fetched on demand — when you open a message in the TUI, rest
 on it with the preview open, or `read` it — and then kept.

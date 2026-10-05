@@ -66,14 +66,14 @@ internal static class CommandTable
         new CliCommandDefinition("sync", new VerbSpec(["account", "folder"], []), SyncCommand.RunAsync),
 
         new CliCommandDefinition("setup",
-            new VerbSpec(["email", "display-name", "imap-host", "imap-port", "smtp-host", "smtp-port", "client-id", "tenant"], []),
+            new VerbSpec(["email", "display-name", "imap-host", "imap-port", "smtp-host", "smtp-port", "client-id", "tenant", "trust-authserv-id"], []),
             SetupCommand.RunAsync),
 
         new CliCommandDefinition("account add",
             new VerbSpec(
                 [
                     "email", "display-name", "imap-host", "imap-port", "imap-security", "imap-user",
-                    "smtp-host", "smtp-port", "smtp-security", "smtp-user", "secret-ref",
+                    "smtp-host", "smtp-port", "smtp-security", "smtp-user", "secret-ref", "trust-authserv-id",
                 ],
                 ["password-stdin", "no-password"]),
             AccountAddCommand.RunAsync),
@@ -83,6 +83,10 @@ internal static class CommandTable
         new CliCommandDefinition("account test",
             new VerbSpec(["account"], ["no-smtp"]),
             AccountTestCommand.RunAsync),
+
+        new CliCommandDefinition("account trust",
+            new VerbSpec(["account", "authserv-id"], ["none", "yes"]),
+            AccountTrustCommand.RunAsync),
 
         new CliCommandDefinition("account reauth",
             new VerbSpec(["account", "client-id", "tenant"], []),
@@ -117,6 +121,15 @@ internal static class CommandTable
             if (string.Equals(command.Name, verb, StringComparison.Ordinal)) return command;
 
         return null;
+    }
+
+    public static string AccountSubcommands()
+    {
+        var names = new List<string>();
+        foreach (var command in Commands)
+            if (command.Name.StartsWith("account ", StringComparison.Ordinal)) names.Add(command.Name["account ".Length..]);
+
+        return string.Join(", ", names);
     }
 
     public static string Names()

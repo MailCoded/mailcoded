@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO.Pipelines;
 using System.Text;
 using Mailcoded.Core.Application;
+using Mailcoded.Core.Domain.Signals;
 using Mailcoded.Core.Tests.Surface;
 using Mailcoded.Daemon;
 
@@ -111,7 +112,8 @@ internal sealed class DaemonTranscript : IAsyncDisposable
             size: 1234,
             ct: ct,
             automated: false,
-            encrypted: false).ConfigureAwait(false);
+            encrypted: false,
+            dmarc: DmarcResult.Pass).ConfigureAwait(false);
 
         await StoreSeeder.AddMessageAsync(
             host.Store,
@@ -126,7 +128,8 @@ internal sealed class DaemonTranscript : IAsyncDisposable
             size: 2345,
             ct: ct,
             automated: true,
-            encrypted: false).ConfigureAwait(false);
+            encrypted: false,
+            dmarc: DmarcResult.Fail).ConfigureAwait(false);
 
         await StoreSeeder.AddMessageAsync(
             host.Store,

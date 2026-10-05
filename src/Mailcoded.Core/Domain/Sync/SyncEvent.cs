@@ -64,4 +64,7 @@ public sealed record RemoteEnvelope
 
     /// <summary>From BODYSTRUCTURE only; inline armor needs the body, so false is not final.</summary>
     public bool? Encrypted { get; init; }
+
+    /// <summary>Filled by the sync engine from the Account's trusted authserv-ids; null means not evaluated.</summary>
+    public DmarcResult? Dmarc { get; init; }
 }

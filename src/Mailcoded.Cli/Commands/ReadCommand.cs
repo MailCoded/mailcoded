@@ -1,6 +1,7 @@
 using System.Globalization;
 using Mailcoded.Core.Application;
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Domain.Signals;
 using Mailcoded.Core.Providers;
 
 namespace Mailcoded.Cli.Commands;
@@ -81,6 +82,7 @@ internal static class ReadCommand
             writer.WriteNumber("size", view.Envelope.Size);
             JsonFields.WriteBool(writer, "automated", view.Envelope.Automated);
             JsonFields.WriteBool(writer, "encrypted", view.Envelope.Encrypted);
+            JsonFields.WriteText(writer, "dmarc", view.Envelope.Dmarc?.ToWire());
             writer.WriteBoolean("body_fetched", view.BodyFetched);
             writer.WriteBoolean("fetched_now", view.FetchedNow);
             writer.WriteString("body_format", "plaintext");

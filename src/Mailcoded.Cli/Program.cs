@@ -50,6 +50,7 @@ internal static class Program
         if (tokens.Count == 0 || tokens[0] is "help" or "--help" or "-h")
         {
             var topic = tokens.Count > 1 ? tokens[1] : null;
+            if (topic == "account" && tokens.Count > 2 && tokens[2] is "forget" or "trust") topic = "account " + tokens[2];
             output.WriteHelp(HelpText.For(NormalizeTopic(topic)));
             return ExitCodes.Ok;
         }
@@ -73,10 +74,10 @@ internal static class Program
                 return ExitCodes.Ok;
             }
 
-            if (sub is not ("add" or "forget" or "list" or "test" or "reauth"))
+            if (CommandTable.Find("account " + sub) is null)
             {
                 throw new CliUsageException(
-                    $"'account {sub}' does not exist. Subcommands: list, add, test, reauth, forget.");
+                    $"'account {sub}' does not exist. Subcommands: {CommandTable.AccountSubcommands()}.");
             }
 
             verb = "account " + sub;

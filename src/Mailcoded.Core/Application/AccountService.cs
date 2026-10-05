@@ -18,6 +18,9 @@ public sealed record AddAccountRequest
     public SmtpConfig? Smtp { get; init; }
     public AuthKind Auth { get; init; } = AuthKind.Password;
 
+    /// <summary>authserv-ids to trust for Authentication-Results on a new Account; an existing Account keeps its own list.</summary>
+    public IReadOnlyList<string> TrustedAuthservIds { get; init; } = [];
+
     /// <summary>Existing handle to reuse; one is derived from the address when this is null.</summary>
     public string? SecretRef { get; init; }
 
@@ -100,6 +103,7 @@ public sealed class AccountService
             Smtp = request.Smtp,
             Auth = request.Auth,
             SecretRef = secretRef,
+            TrustedAuthservIds = Domain.Signals.AuthservTrust.From(request.TrustedAuthservIds).Patterns,
         };
 
         var accountId = await _store.AddAccountAsync(config, ct).ConfigureAwait(false);

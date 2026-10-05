@@ -10,6 +10,7 @@
       "automated": false,
       "bodyFetched": true,
       "date": "2024-01-02T03:04:05.000Z",
+      "dmarc": "pass",
       "encrypted": false,
       "flags": [
         "unread"

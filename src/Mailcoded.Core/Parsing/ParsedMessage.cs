@@ -39,6 +39,9 @@ public sealed record ParsedMessage
     /// <summary>Null only when the message could not be parsed at all.</summary>
     public SignalHeaders? SignalHeaders { get; init; }
 
+    /// <summary>The From header alone: <see cref="From"/> falls back to Sender, which no DMARC result speaks for.</summary>
+    public string? FromHeader { get; init; }
+
     /// <summary>Null only when the message could not be parsed at all.</summary>
     public bool? Automated { get; init; }
 

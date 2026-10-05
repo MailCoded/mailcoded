@@ -1,4 +1,5 @@
 using Mailcoded.Core.Domain.Primitives;
+using Mailcoded.Core.Domain.Signals;
 using Mailcoded.Core.Domain.Sync;
 using Mailcoded.Core.Parsing;
 using Mailcoded.Core.Providers;
@@ -215,7 +216,8 @@ internal static class StoreSeeder
         CancellationToken ct,
         byte[]? raw = null,
         bool? automated = null,
-        bool? encrypted = null)
+        bool? encrypted = null,
+        DmarcResult? dmarc = null)
     {
         ArgumentNullException.ThrowIfNull(store);
 
@@ -236,6 +238,7 @@ internal static class StoreSeeder
                     Size = size,
                     Automated = automated,
                     Encrypted = encrypted,
+                    Dmarc = dmarc,
                 },
             ],
             Mailcoded.Core.Domain.Threading.ReferencesThreader.Instance,

@@ -211,6 +211,11 @@ export interface EnvelopeDto {
    */
   encrypted?: boolean;
   /**
+   * DMARC result a trusted receiving server reported for the From domain:
+   * pass|fail|none|unknown. Verified is not safe. Absent means not evaluated.
+   */
+  dmarc?: string;
+  /**
    * True once the body has been fetched and indexed; false means `message.get` will hit the
    * network.
    */

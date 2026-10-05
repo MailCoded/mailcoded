@@ -105,6 +105,20 @@ public sealed class SignalHeaderCollectorTests
     }
 
     [Fact]
+    public void An_authentication_result_dropped_for_budget_closes_the_list_so_a_smaller_one_below_cannot_replace_it()
+    {
+        var collector = new SignalHeaderCollector();
+        for (var i = 0; i < 3; i++)
+            collector.Add("Authentication-Results", new string('z', SignalHeaderCollector.MaxAuthenticationResultChars));
+
+        collector.Add("List-Id", new string('a', SignalHeaderCollector.MaxValueChars));
+        collector.Add("Authentication-Results", new string('z', SignalHeaderCollector.MaxAuthenticationResultChars));
+        collector.Add("Authentication-Results", "mx.example.net; dmarc=pass header.from=example.com");
+
+        Assert.Equal(3, collector.Build().AuthenticationResults.Count);
+    }
+
+    [Fact]
     public void The_total_budget_bounds_everything_but_presence_survives_it()
     {
         var collector = new SignalHeaderCollector();

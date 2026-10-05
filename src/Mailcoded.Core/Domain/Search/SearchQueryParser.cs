@@ -318,10 +318,13 @@ public static class SearchQueryParser
             case "encrypted":
                 predicates.Add(new SearchPredicate.IsEncrypted { Negated = negated });
                 return true;
+            case "verified":
+                predicates.Add(new SearchPredicate.IsVerified { Negated = negated });
+                return true;
             default:
                 errors.Add(new SearchParseError(
                     SearchParseErrorKind.UnknownValue,
-                    "Expected unread, read, flagged, unflagged, draft, replied, automated, or encrypted.",
+                    "Expected unread, read, flagged, unflagged, draft, replied, automated, encrypted, or verified.",
                     position,
                     Excerpt(value)));
                 return false;

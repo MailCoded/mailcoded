@@ -20,6 +20,7 @@ internal static class SetupCommand
         ArgumentNullException.ThrowIfNull(output);
 
         line.RejectExtraPositional(0);
+        AuthservOptions.Read(line, "trust-authserv-id");
 
         if (!Prompt.IsInteractive)
         {
@@ -99,6 +100,8 @@ internal static class SetupCommand
 
         Prompt.Say("IMAP login succeeded.");
 
+        var trusted = AuthservOptions.Read(line, "trust-authserv-id");
+
         var accountId = await host.Accounts.AddAsync(
             new AddAccountRequest
             {
@@ -110,9 +113,12 @@ internal static class SetupCommand
                 Auth = AuthKind.Password,
                 SecretRef = null,
                 Secret = secret,
+                TrustedAuthservIds = trusted,
             },
             host.Caller,
             ct).ConfigureAwait(false);
+
+        AuthservOptions.NoteIfIgnored(host, accountId, trusted, ct);
 
         Prompt.Heading("Done");
         Prompt.Say($"Account {accountId.Value} added, credential stored in {host.Accounts.SecretBackendName}.");
@@ -247,6 +253,8 @@ internal static class SetupCommand
 
         Prompt.Say("IMAP login succeeded.");
 
+        var trusted = AuthservOptions.Read(line, "trust-authserv-id");
+
         var accountId = await host.Accounts.AddAsync(
             new AddAccountRequest
             {
@@ -258,9 +266,12 @@ internal static class SetupCommand
                 Auth = AuthKind.OAuth2,
                 SecretRef = secretRef,
                 Secret = null,
+                TrustedAuthservIds = trusted,
             },
             host.Caller,
             ct).ConfigureAwait(false);
+
+        AuthservOptions.NoteIfIgnored(host, accountId, trusted, ct);
 
         Prompt.Heading("Done");
         Prompt.Say($"Account {accountId.Value} added. The Microsoft grant is in {host.Accounts.SecretBackendName};");

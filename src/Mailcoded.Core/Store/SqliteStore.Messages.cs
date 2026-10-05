@@ -11,7 +11,7 @@ public sealed partial class SqliteStore
 {
     private const string SelectEnvelope =
         "SELECT id, account_id, folder_id, uid, message_id, thread_key, date_utc, from_addr, to_addrs, cc_addrs, "
-        + "subject, flags, modseq, size, has_attachments, blob_id, body_fetched, automated, encrypted FROM messages";
+        + "subject, flags, modseq, size, has_attachments, blob_id, body_fetched, automated, encrypted, dmarc FROM messages";
 
     private const string ExistingMessageColumns =
         "id, flags, subject, from_addr, to_addrs, body_fetched, thread_key, message_id";
@@ -27,9 +27,9 @@ public sealed partial class SqliteStore
 
     private const string InsertMessage =
         "INSERT INTO messages (account_id, folder_id, uid, message_id, thread_key, date_utc, from_addr, to_addrs, "
-        + "cc_addrs, subject, flags, modseq, size, has_attachments, body_fetched, automated, encrypted) "
+        + "cc_addrs, subject, flags, modseq, size, has_attachments, body_fetched, automated, encrypted, dmarc) "
         + "VALUES ($account,$folder,$uid,$msgid,$thread,$date,$from,$to,$cc,$subject,$flags,$modseq,$size,$hasatt,0,"
-        + "$automated,$encrypted) "
+        + "$automated,$encrypted,$dmarc) "
         + "RETURNING id";
 
     // A body parsed whole knows more than an envelope fetch does (inline armor, every header), so a
@@ -39,7 +39,8 @@ public sealed partial class SqliteStore
         + "from_addr = $from, to_addrs = $to, cc_addrs = $cc, subject = $subject, flags = $flags, "
         + "modseq = MAX(COALESCE(modseq, 0), $modseq), size = $size, has_attachments = $hasatt, "
         + "automated = CASE WHEN body_fetched = 1 AND automated IS NOT NULL THEN automated ELSE COALESCE($automated, automated) END, "
-        + "encrypted = CASE WHEN body_fetched = 1 AND encrypted IS NOT NULL THEN encrypted ELSE COALESCE($encrypted, encrypted) END "
+        + "encrypted = CASE WHEN body_fetched = 1 AND encrypted IS NOT NULL THEN encrypted ELSE COALESCE($encrypted, encrypted) END, "
+        + "dmarc = CASE WHEN dmarc = 'imported' OR (body_fetched = 1 AND dmarc IS NOT NULL) THEN dmarc ELSE COALESCE($dmarc, dmarc) END "
         + "WHERE id = $id";
 
     private const string SelectBodyForFts =
@@ -540,7 +541,7 @@ public sealed partial class SqliteStore
 
             session.Prepare(UpdateMessage,
                     "$msgid", "$thread", "$date", "$from", "$to", "$cc", "$subject", "$flags", "$modseq", "$size", "$hasatt",
-                    "$automated", "$encrypted", "$id")
+                    "$automated", "$encrypted", "$dmarc", "$id")
                 .SetText(0, envelope.MessageIdHeader)
                 .SetText(1, threadKey)
                 .SetInt(2, ToUnixMs(envelope.DateUtc))
@@ -554,7 +555,8 @@ public sealed partial class SqliteStore
                 .SetBool(10, envelope.HasAttachments)
                 .SetBoolOrNull(11, envelope.Automated)
                 .SetBoolOrNull(12, envelope.Encrypted)
-                .SetInt(13, existingId)
+                .SetDmarc(13, envelope.Dmarc)
+                .SetInt(14, existingId)
                 .Execute();
 
             if (adopted)
@@ -591,7 +593,7 @@ public sealed partial class SqliteStore
 
         var insertedId = session.Prepare(InsertMessage,
                 "$account", "$folder", "$uid", "$msgid", "$thread", "$date", "$from", "$to", "$cc", "$subject",
-                "$flags", "$modseq", "$size", "$hasatt", "$automated", "$encrypted")
+                "$flags", "$modseq", "$size", "$hasatt", "$automated", "$encrypted", "$dmarc")
             .SetInt(0, accountId)
             .SetInt(1, folderId)
             .SetInt(2, envelope.Uid.Value)
@@ -608,6 +610,7 @@ public sealed partial class SqliteStore
             .SetBool(13, envelope.HasAttachments)
             .SetBoolOrNull(14, envelope.Automated)
             .SetBoolOrNull(15, envelope.Encrypted)
+            .SetDmarc(16, envelope.Dmarc)
             .ExecuteInt64();
 
         if (deferFts) MarkFtsDeferred(session, insertedId);
@@ -649,7 +652,7 @@ public sealed partial class SqliteStore
 
         session
             .Prepare(
-                "UPDATE messages SET blob_id = NULL, body_fetched = 0, thread_key = NULL, automated = NULL, encrypted = NULL "
+                "UPDATE messages SET blob_id = NULL, body_fetched = 0, thread_key = NULL, automated = NULL, encrypted = NULL, dmarc = NULL "
                 + "WHERE id = $id",
                 "$id")
             .SetInt(0, messageId)
@@ -847,6 +850,7 @@ public sealed partial class SqliteStore
             BodyFetched = Db.Bool(reader, 16),
             Automated = Db.BoolOrNull(reader, 17),
             Encrypted = Db.BoolOrNull(reader, 18),
+            Dmarc = Db.DmarcOrNull(reader, 19),
         };
     }
 }

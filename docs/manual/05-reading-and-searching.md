@@ -26,6 +26,7 @@ Full-text over subject, sender, recipients and body, plus structured predicates.
 | `is:unread`, `is:read`, `is:flagged`, `is:unflagged`, `is:draft`, `is:replied` | server Flags; `seen`, `starred` and `answered` are accepted synonyms |
 | `is:automated` | machine-generated: list or bulk mail, an auto-reply, a delivery or read report, a `noreply`-style sender |
 | `is:encrypted` | PGP/MIME, an S/MIME envelope, or an inline PGP block; mailcoded cannot read the body |
+| `is:verified` | a receiving server you trust reported DMARC `pass` for the From domain (see below); this is not "safe" |
 | `has:attachment` | carries an attachment |
 | `before:2026-01-31`, `after:2026-01-01`, `since:2026-01-01` | strictly earlier; at or after. ISO dates |
 | `-term`, `-tag:spam`, `not term` | negation |
@@ -40,6 +41,23 @@ aid, never as a statement that a message is safe.
 
 In `--json` output, `search`, `read` and `thread` carry `automated` and `encrypted` as `true`, `false`
 or `null` (unknown).
+
+**`is:verified`** means exactly one thing: a mail server you told mailcoded to trust wrote an
+`Authentication-Results` header saying DMARC passed for the domain in the From line. It is about the
+sender's domain, not the message. A verified message can still be a scam from a domain the attacker
+owns, and it can still carry a malicious link or attachment, so it is never "safe" and never "trusted
+content".
+
+- Nothing is verified until an `authserv-id` is trusted. Gmail accounts trust `mx.google.com` out of
+  the box; for any other server run `mailcoded account trust` (chapter 8), because a header the sender
+  wrote themselves can claim anything.
+- Only DMARC counts. A DKIM or SPF pass on its own does not make a message verified.
+- `-is:verified` is broader than the other negations: it lists everything without a recorded pass,
+  including mail that failed, mail the server said nothing usable about, and mail mailcoded never
+  evaluated. It never means "forged".
+- `read`, `search` and `thread` show a `dmarc` field: `pass`, `fail`, `none`, `unknown`, or `null`
+  when mailcoded did not evaluate the message (no trusted id, or it predates the feature). Imported
+  `.eml` files are always `unknown`.
 
 Terms are combined with AND, and if nothing matches every word the search is retried once with OR
 rather than answering nothing. You will see a line saying so above the hits, and `relaxed: true` in

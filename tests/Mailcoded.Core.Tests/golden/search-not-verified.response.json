@@ -1,0 +1,48 @@
+{
+  "id": 4,
+  "jsonrpc": "2.0",
+  "result": {
+    "hits": [
+      {
+        "accountId": 1,
+        "bodyFetched": true,
+        "date": "2024-01-04T05:06:07.000Z",
+        "flags": [
+          "unread"
+        ],
+        "folderId": 1,
+        "from": "Notices <notices@example.test>",
+        "hasAttachments": false,
+        "id": 3,
+        "size": 345,
+        "subject": "Weekly notice",
+        "tags": [
+          "unread"
+        ]
+      },
+      {
+        "accountId": 1,
+        "automated": true,
+        "bodyFetched": true,
+        "date": "2024-01-03T04:05:06.000Z",
+        "dmarc": "fail",
+        "encrypted": false,
+        "flags": [
+          "unread"
+        ],
+        "folderId": 1,
+        "from": "Bob <bob@example.test>",
+        "hasAttachments": false,
+        "id": 2,
+        "size": 2345,
+        "subject": "Lunch plans",
+        "tags": [
+          "unread"
+        ]
+      }
+    ],
+    "relaxed": false,
+    "semantic": false,
+    "truncated": false
+  }
+}
