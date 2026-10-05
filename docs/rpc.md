@@ -914,7 +914,7 @@ a row here in the same PR.**
 | `1003` | ConfirmRequired | `send` was called without a valid one-time token, or the token expired or was already consumed. | Do not retry the same token. Call `send.preview` again, **show the fresh preview to a human**, and send with the new token. A loop that auto-mints and auto-consumes tokens defeats the only supervision in the design. |
 | `1004` | StoreCorrupt | The local store failed an integrity check (also raised when the store returns something the schema forbids). | Do not retry. Stop writing. The recovery path is a re-sync from the server: the server is the source of truth for mail, and only local Tags and the outbox are at risk. Tell the user before destroying anything. |
 | `1005` | RateLimited | A rate limit or busy-writer backpressure rejected the call — either a Core policy limit (e.g. ≤5 agent sends/hour) or SQLITE_BUSY-class backpressure. | Wait `data.retryAfterMs` (fall back to exponential backoff when absent), then retry. Do not parallelize harder; the writer is single-threaded by design. |
-| `1006` | Forbidden | A Core safety gate refused: send disabled, recipient not allowlisted, raw SQL off, HTML body requested by an agent interface. | Do not retry — no amount of retrying opens a gate, and there is no RPC that opens one. Tell the human exactly which gate is closed and which environment variable or setting they would have to change themselves. |
+| `1006` | Forbidden | A Core safety gate refused: send disabled, recipient not allowlisted, raw SQL off, HTML body requested by an agent interface, `store.backup` or `store.backupVerify` from a caller the backup gate does not admit. | Do not retry — no amount of retrying opens a gate, and there is no RPC that opens one. Tell the human exactly which gate is closed and which environment variable or setting they would have to change themselves. |
 | `1007` | StoreFull | The disk or the database is full (SQLITE_FULL). Sync pauses rather than risking corruption. | Do not retry. Surface a "disk full" state to the user with the store path. Resume only after free space is confirmed. |
 | `1008` | Unsupported | The server or this build lacks a capability the call requires — e.g. SMTPUTF8 for an EAI recipient, or a provider kind this build cannot speak. | Do not retry. Degrade the feature permanently for this account. For a send, edit the recipients or the message; for a provider, this build cannot serve it. |
 
@@ -951,7 +951,7 @@ shell agent to branch:
 | `6` | confirm required | `1003` |
 | `7` | auth | `1000` |
 | `8` | network | `1001` |
-| `9` | store corrupt or full | `1004`, `1007` |
+| `9` | store corrupt or full; also `backup-verify` finding a difference (not an error object: a report with `ok: false`) | `1004`, `1007` |
 | `10` | unsupported | `1008` |
 | `130` | cancelled | `-32603`, slug `cancelled` |
 

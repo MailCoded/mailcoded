@@ -42,7 +42,7 @@ they are not for users.
 | 6 | 1003 | confirm required |
 | 7 | 1000 | auth |
 | 8 | 1001 | network |
-| 9 | 1004, 1007 | store corrupt; store full |
+| 9 | 1004, 1007 | store corrupt; store full; `backup-verify` found a difference |
 | 10 | 1008 | unsupported |
 | 130 | | cancelled |
 
@@ -116,6 +116,100 @@ key-bar entry · shift for the terminal's own selection.
 | `version`, `help [verb]` | |
 
 Global options: `--json`, `--data-dir <path>`, `--db <path>`, `--quiet`, `--help`.
+
+## Options by verb
+
+Every verb also takes the global options. An option a verb does not list here is a usage error (exit 2),
+never ignored.
+
+| Verb | Options |
+|---|---|
+| `search` | `--limit` `--cursor` `--account` `--folder` `--order` `--no-snippet` `--meaning` |
+| `read` | `--max-chars` `--skip-chars` `--plaintext` `--no-fetch` |
+| `thread` | `--limit` |
+| `attachments` | `--save` `--out` `--no-fetch` `--overwrite` |
+| `tag` | `--local` |
+| `move` | `--folder` `--yes` |
+| `archive` | `--yes` |
+| `folders` | `--account` |
+| `correspondents` | `--account` `--limit` |
+| `stats` | none |
+| `health` | none |
+| `draft` | `--to` `--cc` `--bcc` `--subject` `--body-file` `--body-stdin` `--from` `--signature` `--no-signature` `--reply-to` `--in-reply-to` `--account` |
+| `reply` | `--body` `--body-file` `--all` `--no-quote` `--no-fetch` `--signature` `--no-signature` |
+| `unsubscribe` | `--no-fetch` |
+| `send-preview` | none |
+| `send-draft` | `--confirm-token` `--no-append` |
+| `outbox` | `--state` |
+| `setup` | `--email` `--display-name` `--imap-host` `--imap-port` `--smtp-host` `--smtp-port` `--client-id` `--tenant` `--trust-authserv-id` `--yes` |
+| `account add` | `--email` `--display-name` `--imap-host` `--imap-port` `--imap-security` `--imap-user` `--smtp-host` `--smtp-port` `--smtp-security` `--smtp-user` `--secret-ref` `--trust-authserv-id` `--password-stdin` `--no-password` `--yes` |
+| `account list` | none |
+| `account test` | `--account` `--no-smtp` |
+| `account reauth` | `--account` `--client-id` `--tenant` |
+| `account trust` | `--account` `--authserv-id` `--none` `--yes` |
+| `account identity` | `--account` `--name` `--reply-to` `--yes` |
+| `account signature` | `--account` `--file` `--stdin` `--none` |
+| `account server-drafts` | `--account` `--yes` |
+| `account forget` | `--account` `--yes` |
+| `sync` | `--account` `--folder` |
+| `import-eml` | `--account` `--folder` `--email` `--recursive` |
+| `backup` | none |
+| `backup-verify` | none |
+| `query` | `--sql` `--max-rows` `--read-only` |
+
+Notes. `draft --reply-to` is the local id of the message being replied to, while `account identity
+--reply-to` is an address for a Reply-To header. `account identity` takes `list`, `add <address>` or
+`forget <address>`; `account signature` takes `list`, `set <name>`, `forget <name>` or
+`default new|reply <name>`; `account server-drafts` takes `on` or `off`. `backup` and `backup-verify`
+take the destination folder as their argument and nothing else. Chapter 3 covers restoring.
+
+## Search operators
+
+| Operator | Matches |
+|---|---|
+| bare words, `"a phrase"` | full text over subject, sender, recipients and body; never attachment text |
+| `from:` `to:` `cc:` `subject:` | the field contains the value |
+| `tag:` | has the local Tag (`tag:auto.news`, `tag:triaged`) |
+| `folder:` `in:` | in that Folder, by path, last segment or role (`in:trash`); `in:anywhere` means every Folder |
+| `is:unread` `is:read` `is:seen` `is:flagged` `is:starred` `is:unflagged` `is:draft` `is:replied` `is:answered` | the Flag or Tag state |
+| `is:automated` | list and bulk mail, auto-replies, delivery and read reports, robot senders |
+| `is:encrypted` | PGP/MIME, S/MIME enveloped data or inline PGP armor; the body is not readable |
+| `is:verified` | a server you trust reported DMARC pass for the From domain |
+| `has:attachment` | the message carries an attachment |
+| `attachment:` | text inside a text-like attachment or a `.docx`; also `attachment:"two words"` and `attachment:inv*` |
+| `before:` `after:` `since:` | a date, `YYYY-MM-DD`; `before` is strictly earlier, `after` (alias `since`) is the day itself or later |
+| `-` in front | negation. For `is:automated` and `is:encrypted` an unknown message matches neither the positive nor the negated form; `-is:verified` also matches unknown and never-evaluated mail |
+
+Trash and Junk Folders are left out unless the query names a Folder, says `in:anywhere`, or the call is
+scoped with `--folder`. A negated Folder (`-in:inbox`) does not count as naming one.
+
+Category Tags the engine may give a message once, when it first stores it, from fixed rules:
+`auto.social`, `auto.news`, `auto.marketing`, `auto.notifications`. They are local-only: the `auto.`
+prefix is never sent to a server as a keyword.
+
+## Error names
+
+`error.name` in the CLI's JSON error object, with the exit code and RPC code each carries.
+
+| `error.name` | Exit | RPC | Raised for |
+|---|---|---|---|
+| `invalid_params` | 2 | -32602 | a bad option, argument or value |
+| `sender_not_allowed` | 2 | -32602 | a draft `From` the account does not own (over RPC this is `data.reason`) |
+| `not_found` | 3 | 1002 | no such message, folder, account, draft or file |
+| `forbidden` | 4 | 1006 | a gate is closed: send, raw SQL, backup, move |
+| `rate_limited` | 5 | 1005 | the send budget, or a busy store |
+| `confirm_required` | 6 | 1003 | `send-draft` without a valid token |
+| `auth` | 7 | 1000 | the credential failed or is missing |
+| `network` | 8 | 1001 | a connection failed; retry later |
+| `store_corrupt` | 9 | 1004 | the store failed a check |
+| `store_full` | 9 | 1007 | the disk is full |
+| `unsupported` | 10 | 1008 | the server or build lacks a capability |
+| `permanent` | 10 | 1008 | a server refused for good |
+| `io_error`, `internal_error` | 1 | -32603 | a local I/O failure, or a bug |
+| `cancelled` | 130 | | interrupted |
+
+`backup-verify` is not an error object: when it finds differences it prints its full report with
+`"ok": false` on standard output and exits 9.
 
 ## Files in the data directory
 

@@ -9,9 +9,12 @@ or how the sync planner works, start at [docs/ARCHITECTURE.md](https://github.co
 an AI agent access to your mail, [docs/agents.md](https://github.com/MailCoded/mailcoded/blob/main/docs/agents.md) is the document for you; chapter 11
 here only points at it.
 
-Everything in this manual was checked against **mailcoded 0.1.0, protocol 1**, on 2026-09-06, by
-running the commands. Where the manual and `mailcoded help <verb>` disagree, the program is right and
-the manual has a bug — please report it.
+The manual was checked against **mailcoded 0.1.0, protocol 1**, on 2026-09-06, by running the commands.
+The sections added after that date (signals and category Tags, `attachment:` search, `backup`, folder
+trees, sync progress, sender identities and signatures, server-side drafts, `correspondents`,
+`unsubscribe`, `account trust`) were written from the code and its unit tests; none of them was run
+against a live mail server (`docs/verification.md` has the list). Where the manual and `mailcoded help
+<verb>` disagree, the program is right and the manual has a bug — please report it.
 
 ## The short version
 
@@ -26,15 +29,15 @@ the manual has a bug — please report it.
 3. [Where your mail lives](03-where-things-live.md) — the data directory, what is in it, secrets, backups, editors
 4. [The terminal client](04-terminal-client.md) — `mailcoded tui`: the screen, keys, mouse, reading, triage, compose
 5. [Reading and searching from the command line](05-reading-and-searching.md) — `search`, `read`, `thread`, `attachments`, `folders`, `correspondents`
-6. [Triage](06-triage.md) — Tags and Flags, `tag`, `move`, `archive`, and why there is no delete
-7. [Sending](07-sending.md) — drafts, the two-phase send, the outbox, and who the send gate applies to
-8. [Accounts](08-accounts.md) — `account list`, `test`, `reauth`, `trust`, `identity`, `signature`, `add`, `forget`
+6. [Triage](06-triage.md) — Tags and Flags, category Tags, `tag`, `move`, `archive`, `unsubscribe`, and why there is no delete
+7. [Sending](07-sending.md) — drafts, signatures, sender identities, the two-phase send, drafts on the server, the outbox, and who the send gate applies to
+8. [Accounts](08-accounts.md) — `account list`, `test`, `reauth`, `trust`, `identity`, `signature`, `server-drafts`, `add`, `forget`
 9. [Sync and the daemon](09-sync-and-daemon.md) — `sync`, live updates, one daemon per store, running the daemon yourself
 10. [Importing mail and raw SQL](10-import-and-sql.md) — `import-eml`, `query --sql`, reading the audit trail
 11. [Agents](11-agents.md) — the two-minute version, and where the real document is
 12. [The safety model, in plain terms](12-safety-model.md) — what mailcoded will never do, and why you may see �
 13. [Troubleshooting](13-troubleshooting.md) — the messages you might see, what they mean, what to do
-14. [Reference](14-reference.md) — environment variables, exit codes, every key, every verb, every file
+14. [Reference](14-reference.md) — environment variables, exit codes and error names, every key, every verb and option, search operators, every file
 
 ## Conventions
 

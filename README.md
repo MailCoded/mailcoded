@@ -233,9 +233,18 @@ three legs of the lethal trifecta — private data, untrusted content, external 
 - **Raw SQL reads** are off unless `MAILCODED_ENABLE_SQL=1`, and are then read-only, single-
   statement, and row-capped. Agents never get a file handle to the database, the blob store, or a
   Maildir.
-- **Store backup** (`mailcoded backup <dir>`, with `backup-verify`) copies the whole store and an
-  attachment-hash manifest, so it is off for the agent surface unless `MAILCODED_ALLOW_BACKUP=1`, is
+- **Store backup** (`mailcoded backup <dir>`, with `backup-verify`) copies the whole store, every
+  external attachment file and a hash manifest, so it is off for the agent surface unless `MAILCODED_ALLOW_BACKUP=1`, is
   never offered over MCP, and never copies a secret.
+- **Signals sort mail; they never vouch for it.** Results carry `automated`, `encrypted` and `dmarc`,
+  all derived from headers and structure the sender controls. `is:verified` means a mail server *you
+  configured as trusted* reported DMARC pass for the From domain, and nothing about the content. Changing
+  which servers are trusted, adding a sender identity, or turning on server-side drafts each needs a
+  terminal confirmation (or its own `MAILCODED_ALLOW_*` variable with `--yes`), and none of them exists
+  over MCP or RPC.
+- **Encrypted mail is marked and never decrypted.** An agent reports it as encrypted and leaves it.
+- **Unsubscribe never touches the network.** `mailcoded unsubscribe` drafts the sender's mailto through
+  the ordinary two-phase send; a web link is shown, never opened, and an HTTPS one-click POST is refused.
 - **All gates live in Core**, never in an adapter, so no host can route around them.
 
 Design and rationale: [docs/AGENT-INTERFACE.md](docs/AGENT-INTERFACE.md).
@@ -365,6 +374,16 @@ Stated plainly, because these are the things you would otherwise discover on day
   store. Encrypted mail is marked `encrypted` and its body stays unread.
 - **IMAP only in v0.1.** Microsoft Graph — the durable path for work mail once EWS is disabled on
   1 Oct 2026 — is planned for v0.2, along with Gmail OAuth2.
+- **No native Gmail API provider.** It would need Google's HTTPS endpoints, which the network rule does not allow
+  (mail protocols and the Microsoft identity endpoints only). Gmail works over IMAP with an app password.
+- **Recent features are verified by unit tests, not against a live server.** Signals, folder hierarchy,
+  sync progress, sender identities, server-side drafts (including the `UID MOVE` into Sent), correspondent
+  suggestions, `unsubscribe`, attachment text and the interactive IMAP connection have fakes and unit
+  tests; the Docker tests for them are written but have never run. Only Gmail has a built-in trusted
+  `Authentication-Results` server id, so `is:verified` matches nothing on another provider until you
+  configure one (`mailcoded account trust`).
+- **Two read paths are slower than their targets at 100,000 messages**: a very common search word and the
+  thread view. That is one run on a development machine, not reference hardware, and not a benchmark claim.
 - **The VS Code extension is unreleased and lives in a separate repository.** It reads mail there —
   sidebar, message list, sandboxed reader, search — but it has no account setup and no compose or
   send, there is no VSIX on any marketplace, and nothing in this repository tests it.
@@ -386,6 +405,7 @@ What has actually been run against the real binaries, and what has not: [docs/ve
 | [docs/manual/](docs/manual/README.md) | **the user manual**: installing, accounts, the terminal client, every verb, troubleshooting. Published at [mailcoded.github.io/mailcoded](https://mailcoded.github.io/mailcoded/) |
 | [SPEC.md](SPEC.md) | the executable specification |
 | [docs/rpc.md](docs/rpc.md) | JSON-RPC reference: methods, framing, error codes |
+| [docs/agents.md](docs/agents.md) | giving an agent access: the default posture, every gate, the audit trail |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | layering, dependency direction, error policy |
 | [docs/AGENT-INTERFACE.md](docs/AGENT-INTERFACE.md) | the agent surface and its threat model |
 | [docs/RELIABILITY.md](docs/RELIABILITY.md) | sync edge cases, backoff, recovery |

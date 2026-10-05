@@ -9,29 +9,44 @@ Environment: NixOS on WSL2, .NET SDK 10.0.302, linux-x64. Docker was **not** ava
 earlier rows; an earlier run had it, and the original five Dovecot/smtp4dev tests ran then (see below).
 
 An adversarial review (six independent lenses, then a skeptic per finding instructed to refute it)
-produced 16 confirmed defects, all since fixed with regression tests.
+produced 16 confirmed defects, all since fixed with regression tests. A second review, of the work that
+added the SPEC §9 M2a features (correctness, security, reliability and performance, protocol and docs,
+tests), found further defects; each was fixed with a regression test, or declined with a recorded
+measurement (the `tag:` subquery rewrite, and two indexes), or refuted.
 
-**What the latest session re-ran, on the current tree.** Only these: the build (0 warnings, 0 errors),
-the whole unit suite, the TypeScript protocol check (`--check`, up to date), and
-`mailcoded import-eml fixtures/eml` on a fresh store (56 files, 56 imported, 0 failures). The store
-schema is at `user_version` 17 (migrations 009 to 017 were added since the rows below were recorded).
-Every other row below was run on an earlier tree, at `user_version` 8, with 37 fixtures; it says
-nothing about code written since. No Docker, no AOT publish and no pty run happened in that session.
+**What was run for the M2a features, and on which tree.** The features were built one at a time on a
+growing tree, and each was checked when it landed, so a row below says which tree it ran on.
+
+- On the final tree (after the review's fixes and the documentation pass): the build (0 warnings,
+  0 errors), the whole unit suite (counts in the table), the TypeScript protocol check (`--check`, up
+  to date), and `mailcoded import-eml fixtures/eml` on a fresh store (56 files, 56 imported, 0 failures).
+  The store schema is at `user_version` 17 (migrations 009 to 017 were added since the oldest rows).
+- On the tree at the time each feature landed, not repeated on the final tree: a Native AOT publish of
+  the daemon (zero IL2xxx/IL3xxx warnings after each of the signals, unsubscribe, backup, sync progress,
+  identities, server drafts, correspondents and attachment text work; the review's fixes and the
+  documentation pass were **not** published), the golden transcript diff, and the AOT binaries driven
+  over stdio or from the shell (rows below).
+- Every other row below ran on an earlier tree, at `user_version` 8, with 37 fixtures, and says nothing
+  about code written since. No Docker, no pty run and no Windows or macOS leg happened in any of it.
 
 ## Verified by running it
 
 | Area | What was run | Result |
 |---|---|---|
 | Build | `dotnet build Mailcoded.slnx` with `TreatWarningsAsErrors=true` | clean, 0 warnings |
-| Unit suite | `tests/Mailcoded.Core.Tests` (xunit.v3), latest session | **3516 passed, 0 failed, 1 skipped (the env-gated 100k performance test)** |
+| Unit suite | `tests/Mailcoded.Core.Tests` (xunit.v3), final tree | **3524 passed, 0 failed, 1 skipped (the env-gated 100k performance test)** |
 | Architecture tests | NetArchTest rules from ARCHITECTURE §12.7 | green, incl. the no-removal-verb rule |
 | Native AOT | `dotnet publish -r linux-x64 -p:PublishAot=true` | `mailcoded-daemon` 16.25 MiB and `mailcoded` 15.53 MiB, **zero IL2xxx/IL3xxx warnings**; both under the 20 MB fail gate, both over the 12 MB warning |
+| Native AOT, M2a features | `dotnet publish -r linux-x64 -p:PublishAot=true` of the daemon, once per feature, on the tree at that moment (and the CLI and TUI for some) | zero IL2xxx/IL3xxx or other warnings every time; the last publish was before the review's fixes, so the final tree is **not** covered. Sizes are not recorded here: DEPENDENCIES.md has the current figures |
+| AOT binaries driven, M2a features | the AOT CLI: `account add --trust-authserv-id`, `account trust` (shown, refused without the unlock, changed with it, `--none`), then `import-eml` of fixture 046 and `search is:verified` (0 hits) and `-is:verified` (1 hit). The AOT daemon over stdio: `initialize` advertising `capabilities.backup` and `notify.sync.progress`, `store.backup` into a new folder then `store.backupVerify` (ok), `sync` with `progress: true` on an unknown account (error, no progress), `correspondent.suggest` on a fresh store (1002 for an unknown account) | as stated; the backup folder held `manifest.json` and `store.db`, both mode 0600. Each ran on the tree of its own feature |
+| Protocol types and golden transcripts | TypeScript generator with `--check` after every DTO change; golden request/response pairs for each new RPC behaviour, regenerated and the diff read | up to date; every golden change was a field or method the feature added, or a schema version |
+| Query-plan probes | throwaway scripts, not `tests/Mailcoded.Bench` and not reference hardware: Trash/Junk exclusion on a synthetic 500k-row store (plan unchanged; about 20-25 ms more for a date-ordered FTS term matching 100k rows); `attachment:` over 20,000 attachments (7-32 ms); `is:encrypted` over 300k rows (82 ms before the partial index, 0.02 ms after) | recorded in PERFORMANCE.md; these are measurements of a plan, not benchmark results |
 | Size gate | `scripts/size-gate.sh` over the publish directory | every file counted, incl. `libe_sqlite3.so` (1.40 MiB); a 29 MB decoy library fails the gate |
 | Encoder AOT cost | byte count of the published daemon with and without the encoder reachable | **+158,000 bytes** (0.9%); 3.5x the design's 45,144 B estimate |
 | AOT runtime | the AOT **CLI** (earlier tree) imported all 37 fixtures and ran FTS, CJK-trigram, short-CJK `LIKE` and metadata search | identical results to the JIT build — MimeKit and SQLitePCLRaw survive trimming |
 | Daemon stdio | `scripts/aot-smoke.sh` plus a pipelined 4-request session | `initialize`, `account.list`, `folder.list`, `stats`, `health`, `shutdown` all answered; framing correct |
 | FTS5 assertion | startup check against `PRAGMA compile_options` | present; a fresh store opened at `user_version` 8 then (now 17, asserted by unit tests) |
-| MIME corpus | `mailcoded import-eml fixtures/eml`, latest session, JIT CLI | 56/56 imported, **0 failures** (37/37 on the earlier tree) |
+| MIME corpus | `mailcoded import-eml fixtures/eml`, final tree, JIT CLI | 56/56 imported, **0 failures** (37/37 on the earlier tree) |
 | Migration 008 | fresh store, and store at v7 (earlier tree) | reaches `user_version` 8; `msg_vec`, `vec_model` present; account forget cascades to `msg_vec` |
 | Semantic pipeline | synthetic random-weight model in `<data>/model`; daemon in stdio mode; then CLI | daemon logged the model and `capabilities.semantic: true`; backfill wrote 37/37 vectors in the background; `search 'invoice' --meaning` returned `semantic: true` with the lexical hit still ranked first; `vec_model` row count unchanged after the CLI (it attaches read-only) |
 | Semantic refusal | `search` with `semantic: true` and no model | **1008** with category `unsupported` (golden transcript) |
@@ -111,14 +126,16 @@ unrun.
 
 ## Milestone status against SPEC §9
 
-The SPEC checkboxes are deliberately left unticked: several criteria need Docker, reference
-hardware, or the other two OS legs, none of which were available here.
+The checkboxes for M0 to M-chaos are deliberately left unticked: several criteria need Docker, reference
+hardware, or the other two OS legs, none of which were available here. The M2a block ticks only the
+criteria whose check is named in the rows above, and says why each unticked one is unticked.
 
 | Milestone | State | What is missing |
 |---|---|---|
 | **M0** Scaffold | criteria met on linux-x64 | the macOS and Windows CI legs have not run |
 | **M1** Store + MIME | met | — |
 | **M2** IMAP sync + send | mostly met | Dovecot and smtp4dev ran for the original 5 tests: the QRESYNC/CONDSTORE arms and the 5k-message timing are still unrun |
+| **M2a** Owner-added feature set | met at unit level | every Dovecot and integration check: 15 test methods in nine files were written and never run; nothing exercised signals, hierarchy, progress, identities, server drafts, `unsubscribe`, attachment text or the interactive IMAP connection against a real server; the final tree has no AOT publish or size-gate result recorded here. The native Gmail REST provider was not built |
 | **M3** Daemon + secrets + extension skeleton | backend met | the Windows/macOS keyrings are untested; the VS Code extension is a separate repository this record does not cover |
 | **M4** Read/act/compose in the extension | partly, elsewhere | reading, search and the sandboxed reader exist in the extension's own repository; compose and send do not. Nothing here tests it |
 | **M-perf** | harness only | the BenchmarkDotNet suite has never run; `baseline.json` is zeros on purpose. A 100k-message read-path test has run once on a development machine (below), which is not reference hardware |
@@ -138,6 +155,25 @@ hardware, or the other two OS legs, none of which were available here.
   List-Unsubscribe, the interactive IMAP lane, attachment text). They are written but have never run: no Docker was
   available, so they prove nothing yet, and the MailKit-facing code they cover (folder hierarchy, the interactive lane,
   `APPENDUID` handling, server-draft `UID MOVE`, envelope signals) is checked by unit tests against fakes only.
+- **Anything the M2a features do against a real server.** Header acquisition (`HEADER.FIELDS` beside the
+  envelope items, so `automated` and `dmarc` on synced mail), the folder tree on a server whose
+  delimiter is not `/`, the numbers `notify.sync.progress` reports during a real sync, `APPENDUID`
+  handling, the server draft's `UID MOVE` into Sent, and the interactive IMAP connection. `ImapProvider`
+  routing and `MoveAtomicAsync` have no unit seam, so only the unrun Docker tests would cover them.
+- **`is:verified` on any provider but Gmail.** Only `imap.gmail.com` ships a trusted authserv-id
+  (`mx.google.com`), taken from knowledge of that provider and not checked against a live message. Nothing
+  was run against Microsoft, Yahoo, Fastmail or iCloud mail.
+- **The TUI additions.** The sync status line, the folder tree in the sidebar, recipient completion
+  (`ctrl-n`) and the Trash and Junk search pinning are covered by unit tests of their pure parts. None
+  was driven in a terminal, and no interactive run of the CLI's progress line happened either.
+- **Backup on Windows and macOS, and at scale.** The destination rules for Windows device names and
+  alternate data streams are unit-tested as strings only. A backup of a large live store under
+  sustained writes was not run (the copy holds one read transaction while it runs).
+- **A human review of the untrusted-input parsers.** `.docx` extraction (`WordXmlTextScanner`,
+  `DocxTextExtractor`, `AttachmentTextExtractor`) and `Authentication-Results` parsing have adversarial
+  unit tests, not an outside review or fuzzing run.
+- **The final tree under Native AOT.** See the AOT rows: the last publish predates the review's fixes.
+- **A native Gmail REST provider.** Not built; the network rule forbids the HTTPS calls it would need.
 - **QRESYNC and CONDSTORE delta paths.** The local test server advertises neither, so only the
   full-diff arm has executed. The planner's delta arms are covered by unit tests, not by a server.
 - **`MOVE`**, and the 5k-message sync timing.

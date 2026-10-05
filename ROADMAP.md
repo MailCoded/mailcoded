@@ -26,6 +26,27 @@ This roadmap signals direction, not dates. Order and scope change based on real 
 - **One backend, many clients.** The engine is a daemon with a documented JSON-RPC surface. Editors, plugins, and agents are all just clients.
 - **One transport at a time. One new client at a time.**
 
+## Added to the engine by the owner's decision
+
+Built in the backend ahead of the order above, each with unit tests and none yet exercised against a
+live mail server (`docs/verification.md` says exactly what has and has not run). The principles above
+did not change; every item below is read-only or gated for agents and adds no delete verb.
+
+- **Message signals** — `is:automated`, `is:encrypted`, `is:verified` (DMARC pass from a server you chose to trust), and four local category Tags. They sort mail and never vouch for it.
+- **Search that skips Trash and Junk** unless you name a Folder or say `in:anywhere`.
+- **Attachment text search**, narrowly: text-like files and Word `.docx` through `attachment:`; PDFs, spreadsheets, presentations and images are still unread.
+- **`backup` and `backup-verify`** — a verifiable copy of the store; never secrets; off for agents unless you unlock it.
+- **Sync progress** in the CLI and the terminal client, from a new `notify.sync.progress` notification.
+- **Folder hierarchy** on the wire, in `folders` and in the terminal sidebar.
+- **Sender identities and plaintext signatures**, and **drafts saved to the server's Drafts Folder** (opt-in, never deleted).
+- **Compose suggestions** learned from the mail you sent, never from the mail you received.
+- **`unsubscribe`** — drafts the sender's mailto; never opens a link and never POSTs one.
+- **An interactive IMAP connection** so a fetch or a move no longer waits behind a long sync.
+- **A 100,000-message read-path test**, opt-in, run once on a development machine.
+
+Not built: a **native Gmail REST provider**. The network rule allows mail protocols and the Microsoft
+identity endpoints only, and Graph comes first in v0.2. Gmail works over IMAP with an app password.
+
 ## Entry gates (why things aren't built yet)
 
 Every client in the family has a repository from the start, so the shape of the thing is legible
@@ -42,6 +63,7 @@ is one, and names the gate it is waiting on. Code is what is gated, not folders.
 ## Known gaps (deliberate, for now)
 
 - **Attachment search covers text-like files and Word `.docx` only.** Text inside PDFs, spreadsheets, presentations and images is not indexed. On the roadmap.
+- **Thread view and full-text search on a very common word are above their targets at 100,000 messages** (one run on a development machine, not reference hardware). Both need an index or a query change; neither is done.
 - **Windows needs no external tools**, but the classic Unix stack (mbsync/notmuch) interop is POSIX-only.
 - **No calendar, contacts, or PGP.** Not planned.
 

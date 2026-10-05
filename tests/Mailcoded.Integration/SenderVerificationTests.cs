@@ -51,6 +51,6 @@ public sealed class SenderVerificationTests : IClassFixture<MailStackFixture>
         Assert.Equal(5, report.Added);
 
         Assert.Equal(["Passing"], SignalMail.Subjects(harness, "is:verified", ct));
-        Assert.Equal(["Comment trick", "Forged below a fail", "Foreign id", "No header"], SignalMail.Subjects(harness, "-is:verified", ct));
+        Assert.Equal(["Comment trick", "Foreign id", "Forged below a fail", "No header"], SignalMail.Subjects(harness, "-is:verified", ct));
     }
 }
